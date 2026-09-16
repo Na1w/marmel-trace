@@ -1,0 +1,143 @@
+# scenes/example_sunset.scene
+#
+# A small, hand-written scene demonstrating how to customise the data-driven
+# renderer (see docs/scene_format.md for the full grammar).
+#
+# Differences from the built-in default scene:
+#   * a warm sunset sky (low, red-shifted sun; orange horizon; deep blue zenith)
+#   * two custom materials ("sand" and "stone") in addition to a custom water
+#   * a ground plane, a pond box, two spheres and one small tree
+#
+# Render it with:
+#   ./raytracer --scene scenes/example_sunset.scene --out output/sunset.bmp
+
+# --- Globals ---------------------------------------------------------------
+# Water surface sits 3 cm above the ground plane so the pond never z-fights.
+water_level = 0.03
+water_material = pond
+water_enabled = 1
+
+# --- Camera ----------------------------------------------------------------
+# A lower eye point looking slightly up into the sunset.
+camera {
+    eye = -14 3.5 24
+    target = 0 4 -18
+    up = 0 1 0
+    vfov = 45
+}
+
+# --- Sky -------------------------------------------------------------------
+# Sun low on the horizon and tinted deep orange; horizon glows amber while the
+# zenith stays a saturated evening blue. More clouds, softer, for a hazy look.
+sky {
+    sun_dir = 0.86 0.22 -0.46
+    sun_color = 1 0.62 0.28
+    horizon_color = 1 0.55 0.30
+    zenith_color = 0.16 0.24 0.55
+    gradient_gamma = 0.85
+    sun_glow_exponent = 180
+    sun_glow_strength = 1.1
+    cloud_height = 140
+    cloud_scale = 0.0032
+    cloud_coverage = 0.62
+    cloud_softness = 0.22
+    cloud_sharpness = 1.2
+    cloud_octaves = 6
+    seed = 2024
+}
+
+# --- Materials -------------------------------------------------------------
+# Warm desert sand for the ground.
+material sand {
+    albedo = 0.74 0.58 0.34
+    specular = 0.03 0.03 0.03
+    shininess = 4
+    reflectivity = 0
+    transparency = 0
+    ior = 1
+    is_water = 0
+}
+
+# Cool grey stone for the spheres.
+material stone {
+    albedo = 0.42 0.44 0.47
+    specular = 0.10 0.10 0.10
+    shininess = 24
+    reflectivity = 0.08
+    transparency = 0
+    ior = 1.5
+    is_water = 0
+}
+
+# A custom, slightly green tropical pond (not the default deep-blue preset).
+material pond {
+    albedo = 0.08 0.24 0.22
+    specular = 0.90 0.90 0.90
+    shininess = 256
+    reflectivity = 1
+    transparency = 0.80
+    ior = 1.33
+    is_water = 1
+    absorption = 0.40 0.08 0.10
+    deep_color = 0.03 0.14 0.12
+}
+
+# Bark for the tree trunk/branches.
+material bark {
+    albedo = 0.28 0.19 0.12
+    specular = 0.04 0.04 0.04
+    shininess = 6
+    reflectivity = 0
+    transparency = 0
+    ior = 1
+    is_water = 0
+}
+
+# Autumn foliage.
+material leaves {
+    albedo = 0.68 0.34 0.10
+    specular = 0.03 0.03 0.03
+    shininess = 8
+    reflectivity = 0
+    transparency = 0
+    ior = 1
+    is_water = 0
+}
+
+# --- Primitives ------------------------------------------------------------
+# Ground plane at y = 0.
+plane {
+    point = 0 0 0
+    normal = 0 1 0
+    material = sand
+}
+
+# Shallow pond: top face at water_level (0.03), half-height 0.03 -> centre y = 0.
+box {
+    center = 0 0 -24
+    half = 40 0.03 40
+    material = pond
+}
+
+# Two stones resting on the sand.
+sphere {
+    center = 6 1.0 -8
+    radius = 1.0
+    material = stone
+}
+
+sphere {
+    center = -5 0.6 -12
+    radius = 0.6
+    material = stone
+}
+
+# One small tree; seed omitted, so it grows from the CLI --seed value.
+tree {
+    position = -22 0 -34
+    height = 2.4
+    radius = 0.07
+    material_bark = bark
+    material_leaf = leaves
+    leaf_variant = 1
+}

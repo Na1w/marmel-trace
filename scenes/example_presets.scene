@@ -1,0 +1,168 @@
+# scenes/example_presets.scene — exercises the t-027 named material presets.
+# Each `type = <name>` block is a documented real-world preset from
+# docs/research_material_reference.md. Explicit keys override the preset.
+
+water_level    = 0.02
+water_material = none
+water_enabled  = 0
+
+camera {
+    eye    = -14.0 5.0 16.0
+    target = 0.0 3.0 -6.0
+    up     = 0.0 1.0 0.0
+    vfov   = 42.0
+}
+
+sky {
+    sun_dir           = 0.45 0.75 -0.50
+    sun_color         = 1.00 0.95 0.85
+    horizon_color     = 0.75 0.85 1.00
+    zenith_color      = 0.35 0.55 0.95
+    gradient_gamma    = 0.6
+    sun_glow_exponent = 350.0
+    sun_glow_strength = 0.8
+    cloud_height      = 120.0
+    cloud_scale       = 0.0025
+    cloud_coverage    = 0.5
+    cloud_softness    = 0.12
+    cloud_sharpness   = 1.5
+    cloud_octaves     = 5
+}
+
+material ground {
+    albedo       = 0.30 0.42 0.16
+    specular     = 0.05 0.05 0.05
+    shininess    = 8.0
+    reflectivity = 0.0
+    ior          = 1.0
+}
+
+# --- conductor presets -------------------------------------------------
+material gold {
+    type = gold
+}
+material copper {
+    type = copper
+}
+material silver {
+    type = silver
+}
+material aluminum {
+    type = aluminum
+}
+material iron {
+    type = iron
+}
+material chrome {
+    type = chrome
+}
+material brass {
+    type = brass
+}
+
+# --- dielectric / refractive presets -----------------------------------
+material plastic {
+    type = plastic
+}
+material rubber {
+    type = rubber
+}
+material ceramic {
+    type = ceramic
+}
+material diamond {
+    type = diamond
+}
+
+# --- emitter preset ----------------------------------------------------
+material lamp {
+    type = emissive
+}
+
+# --- preset + explicit override (brushed gold, stronger lamp) ----------
+material brushed_gold {
+    type      = gold
+    roughness = 0.30
+}
+material bright_lamp {
+    type     = emissive
+    emissive = 4.0 3.4 2.6
+}
+
+# --- geometry: a row of preset spheres ---------------------------------
+sphere {
+    center   = -8.0 1.2 -2.0
+    radius   = 1.2
+    material = gold
+}
+sphere {
+    center   = -5.0 1.2 -2.0
+    radius   = 1.2
+    material = copper
+}
+sphere {
+    center   = -2.0 1.2 -2.0
+    radius   = 1.2
+    material = silver
+}
+sphere {
+    center   = 1.0 1.2 -2.0
+    radius   = 1.2
+    material = aluminum
+}
+sphere {
+    center   = 4.0 1.2 -2.0
+    radius   = 1.2
+    material = iron
+}
+sphere {
+    center   = 7.0 1.2 -2.0
+    radius   = 1.2
+    material = chrome
+}
+sphere {
+    center   = -6.5 1.2 -6.0
+    radius   = 1.2
+    material = brass
+}
+sphere {
+    center   = -3.5 1.2 -6.0
+    radius   = 1.2
+    material = plastic
+}
+sphere {
+    center   = -0.5 1.2 -6.0
+    radius   = 1.2
+    material = rubber
+}
+sphere {
+    center   = 2.5 1.2 -6.0
+    radius   = 1.2
+    material = ceramic
+}
+sphere {
+    center   = 5.5 1.2 -6.0
+    radius   = 1.2
+    material = diamond
+}
+sphere {
+    center   = 8.5 1.2 -6.0
+    radius   = 1.2
+    material = brushed_gold
+}
+sphere {
+    center   = 0.0 5.5 -4.0
+    radius   = 0.7
+    material = bright_lamp
+}
+sphere {
+    center   = 0.0 1.2 2.5
+    radius   = 0.9
+    material = lamp
+}
+
+plane {
+    point    = 0 0 0
+    normal   = 0 1 0
+    material = ground
+}

@@ -1,0 +1,380 @@
+# scenes/example_adaptive.scene
+#
+# A HIGH-CONTRAST demo scene written to show off the OPT-IN ADAPTIVE SAMPLER
+# (the `--adaptive` CLI flag; see docs/research_adaptive_sampling.md).
+#
+# WHAT IT DEMONSTRATES
+# --------------------
+# The adaptive sampler refines a pixel while its relative standard error of the
+# mean luminance exceeds `--adaptive-tau` (default 0.02), spending extra samples
+# only where the image is genuinely noisy, and stops early on flat, low-variance
+# pixels. To make that visible this scene deliberately mixes:
+#
+#   * LARGE FLAT, LOW-VARIANCE REGIONS  -- a smooth matte floor and a clean sky
+#     gradient. A single sample is almost identical to the next, so these
+#     pixels converge immediately and are NOT refined (they keep the base
+#     8 spp). These are the pixels the sampler saves time on.
+#
+#   * FINE, HIGH-VARIANCE DETAIL        -- a wall of many overlapping spheres
+#     whose silhouettes touch (sub-pixel edges), a row of thin needle cylinders
+#     (sub-pixel-thin geometry), a few razor-thin triangle blades, alternating
+#     near-black / near-white / saturated materials (extreme contrast), HARD
+#     shadows cast by a point-like sun (`sun_radius` omitted => 0), and strong
+#     DEPTH OF FIELD (`aperture = 0.5`) that blurs the near spheres so every
+#     out-of-focus silhouette jitters from sample to sample.
+#
+# Those detailed pixels have a high per-sample variance, so the adaptive
+# sampler keeps adding samples (up to the default cap of 4 * spp) exactly where
+# the extra work improves the picture, and spends nothing extra on the floor
+# and sky.
+#
+# The scene is 100% standalone: it uses only documented scene-format keys, it
+# parses and renders correctly with OR without `--adaptive`, and it does not
+# touch the built-in default scene.
+#
+# RECOMMENDED RENDER COMMANDS
+# ---------------------------
+#   Fixed (baseline, uses exactly 8 * W * H samples):
+#     ./raytracer --scene scenes/example_adaptive.scene \
+#                 --width 320 --height 180 --samples 8 \
+#                 --out output/example_adaptive.bmp
+#
+#   Adaptive (spends extra samples on the noisy detail, e.g. 320x180 @ 8 spp
+#   refines up to 32 spp where it matters -- watch the "Adaptive: on ... used N
+#   samples" summary line and compare N against 8 * 320 * 180 = 460800):
+#     ./raytracer --scene scenes/example_adaptive.scene \
+#                 --width 320 --height 180 --samples 8 --adaptive \
+#                 --out output/example_adaptive_a.bmp
+#
+# Try toggling the contrast drivers to see the sample count move:
+#   * set `aperture = 0`  -> less DOF jitter (fewer refined pixels).
+#   * raise `--adaptive-tau` -> a looser tolerance (fewer refined pixels).
+
+# --- Globals ---------------------------------------------------------------
+# No water in this scene, so disable the water pass explicitly.
+water_enabled = 0
+water_material = none
+
+# --- Camera ----------------------------------------------------------------
+# Eye sits a little above the floor, looking down the -Z axis at the sphere
+# wall. The thin-lens DOF is strong on purpose: `focus_distance = 31` puts the
+# focal plane on the sphere wall (its edges stay crisp and alias hard), while
+# the large `aperture = 0.5` blurs the near foreground spheres heavily. Both
+# the sharp sub-pixel edges and the blurred out-of-focus silhouettes are
+# high-variance, which is precisely what the adaptive sampler targets.
+camera {
+    eye = 0 3.0 16
+    target = 0 2.0 -15
+    up = 0 1 0
+    vfov = 45
+    aperture = 0.5
+    focus_distance = 31
+}
+
+# --- Sky -------------------------------------------------------------------
+# A clean, low-variance sky gradient: the background is smooth almost
+# everywhere, so it is a large flat region the adaptive sampler skips. Clouds
+# are kept sparse and soft so they add only gentle, low-frequency variation.
+# `sun_radius` is intentionally omitted (=> 0), i.e. a point-like sun producing
+# HARD, high-contrast shadow edges.
+sky {
+    sun_dir = 0.45 0.72 -0.53
+    sun_color = 1 0.96 0.9
+    horizon_color = 0.82 0.88 1.0
+    zenith_color = 0.30 0.52 0.95
+    gradient_gamma = 0.65
+    sun_glow_exponent = 320
+    sun_glow_strength = 0.9
+    cloud_height = 130
+    cloud_scale = 0.0028
+    cloud_coverage = 0.18
+    cloud_softness = 0.2
+    cloud_sharpness = 1.5
+    cloud_octaves = 5
+    seed = 771133
+}
+
+# --- Materials -------------------------------------------------------------
+# A dark, matte floor: a big flat surface with almost no per-sample variance
+# (uniform colour, in focus enough that its shading is smooth), so it is a
+# prime "skip" region for the adaptive sampler.
+material floor_dark {
+    albedo = 0.10 0.10 0.12
+    specular = 0.03 0.03 0.03
+    shininess = 8
+    reflectivity = 0
+    transparency = 0
+    ior = 1
+    is_water = 0
+}
+
+# Near-white: the bright end of the contrast range.
+material ball_bright {
+    albedo = 0.95 0.95 0.90
+    specular = 0.25 0.25 0.25
+    shininess = 64
+    reflectivity = 0.05
+    transparency = 0
+    ior = 1.5
+    is_water = 0
+}
+
+# Near-black: the dark end of the contrast range. Bright-vs-dark neighbours
+# make the sphere silhouettes maximally high-contrast.
+material ball_dark {
+    albedo = 0.015 0.015 0.02
+    specular = 0.08 0.08 0.08
+    shininess = 48
+    reflectivity = 0.06
+    transparency = 0
+    ior = 1.5
+    is_water = 0
+}
+
+# Saturated red accent: adds chroma contrast between the neutrals.
+material ball_red {
+    albedo = 0.90 0.10 0.08
+    specular = 0.20 0.10 0.10
+    shininess = 48
+    reflectivity = 0.04
+    transparency = 0
+    ior = 1.5
+    is_water = 0
+}
+
+# Saturated teal accent, complementary to the red.
+material ball_teal {
+    albedo = 0.05 0.55 0.60
+    specular = 0.18 0.22 0.22
+    shininess = 48
+    reflectivity = 0.04
+    transparency = 0
+    ior = 1.5
+    is_water = 0
+}
+
+# A polished metal for the thin needles: specular highlights and mirror-ish
+# reflections along a sub-pixel-thin cylinder are extremely high variance.
+material needle_metal {
+    albedo = 0.80 0.82 0.85
+    specular = 1 1 1
+    shininess = 256
+    reflectivity = 0.35
+    transparency = 0
+    ior = 1.5
+    is_water = 0
+}
+
+# A dark blade material for the thin triangles.
+material blade_dark {
+    albedo = 0.06 0.06 0.09
+    specular = 0.30 0.30 0.32
+    shininess = 128
+    reflectivity = 0.10
+    transparency = 0
+    ior = 1.5
+    is_water = 0
+}
+
+# --- Primitives ------------------------------------------------------------
+# 1. The large flat floor (low variance -> the sampler's "skip" region).
+plane {
+    point = 0 0 0
+    normal = 0 1 0
+    material = floor_dark
+}
+
+# 2. The sphere wall: three touching rows of overlapping spheres. Because the
+#    centres are ~2 radii apart the silhouettes graze each other, producing a
+#    dense set of sub-pixel edges and hard cast shadows. Bright / dark / accent
+#    materials alternate for maximum luminance and chroma contrast.
+#    Row 1 (y = 0.95, radius 0.95).
+sphere {
+    center = -6.65 0.95 -15.0
+    radius = 0.95
+    material = ball_bright
+}
+sphere {
+    center = -4.75 0.95 -14.6
+    radius = 0.95
+    material = ball_dark
+}
+sphere {
+    center = -2.85 0.95 -15.2
+    radius = 0.95
+    material = ball_red
+}
+sphere {
+    center = -0.95 0.95 -14.8
+    radius = 0.95
+    material = ball_bright
+}
+sphere {
+    center = 0.95 0.95 -15.1
+    radius = 0.95
+    material = ball_dark
+}
+sphere {
+    center = 2.85 0.95 -14.7
+    radius = 0.95
+    material = ball_teal
+}
+sphere {
+    center = 4.75 0.95 -15.2
+    radius = 0.95
+    material = ball_bright
+}
+sphere {
+    center = 6.65 0.95 -14.9
+    radius = 0.95
+    material = ball_dark
+}
+
+#    Row 2 (y = 2.05, radius 0.80, offset half a cell).
+sphere {
+    center = -5.70 2.05 -15.4
+    radius = 0.80
+    material = ball_dark
+}
+sphere {
+    center = -3.80 2.05 -15.0
+    radius = 0.80
+    material = ball_bright
+}
+sphere {
+    center = -1.90 2.05 -15.5
+    radius = 0.80
+    material = ball_teal
+}
+sphere {
+    center = 0.00 2.05 -15.1
+    radius = 0.80
+    material = ball_red
+}
+sphere {
+    center = 1.90 2.05 -15.4
+    radius = 0.80
+    material = ball_bright
+}
+sphere {
+    center = 3.80 2.05 -15.0
+    radius = 0.80
+    material = ball_dark
+}
+sphere {
+    center = 5.70 2.05 -15.5
+    radius = 0.80
+    material = ball_bright
+}
+
+#    Row 3 (y = 3.00, radius 0.68), a smaller cap on top of the stack.
+sphere {
+    center = -4.75 3.00 -15.7
+    radius = 0.68
+    material = ball_bright
+}
+sphere {
+    center = -2.85 3.00 -15.3
+    radius = 0.68
+    material = ball_dark
+}
+sphere {
+    center = -0.95 3.00 -15.8
+    radius = 0.68
+    material = ball_red
+}
+sphere {
+    center = 0.95 3.00 -15.4
+    radius = 0.68
+    material = ball_bright
+}
+sphere {
+    center = 2.85 3.00 -15.8
+    radius = 0.68
+    material = ball_teal
+}
+sphere {
+    center = 4.75 3.00 -15.3
+    radius = 0.68
+    material = ball_dark
+}
+
+# 3. Near foreground spheres: close to the eye (z ~ +6) and far from the focal
+#    plane, so the strong aperture blurs them heavily. Their soft, wobbling
+#    silhouettes are a classic DOF-noise source the adaptive sampler loves.
+sphere {
+    center = -3.2 1.0 6.5
+    radius = 0.85
+    material = ball_bright
+}
+sphere {
+    center = 3.4 1.1 6.0
+    radius = 0.95
+    material = ball_dark
+}
+sphere {
+    center = 0.2 0.8 8.0
+    radius = 0.70
+    material = ball_red
+}
+
+# 4. Thin needle cylinders: sub-pixel-thin vertical geometry (radius 0.04) with
+#    a polished metal material. Each needle covers only a fraction of a pixel,
+#    so its coverage (and any specular hit) flips from sample to sample -- very
+#    high variance along the whole needle.
+cylinder {
+    base = -5.5 0 4.0
+    top = -5.5 3.4 4.0
+    r_bottom = 0.04
+    r_top = 0.04
+    material = needle_metal
+}
+cylinder {
+    base = -2.0 0 5.2
+    top = -2.0 3.9 5.2
+    r_bottom = 0.04
+    r_top = 0.04
+    material = needle_metal
+}
+cylinder {
+    base = 1.5 0 4.4
+    top = 1.5 3.1 4.4
+    r_bottom = 0.04
+    r_top = 0.04
+    material = needle_metal
+}
+cylinder {
+    base = 4.8 0 5.6
+    top = 4.8 4.2 5.6
+    r_bottom = 0.04
+    r_top = 0.04
+    material = needle_metal
+}
+cylinder {
+    base = 6.6 0 3.6
+    top = 6.6 2.7 3.6
+    r_bottom = 0.04
+    r_top = 0.04
+    material = needle_metal
+}
+
+# 5. Razor-thin triangle blades: near-edge-on geometry that also aliases badly,
+#    a third flavour of high-variance detail.
+triangle {
+    a = -7.5 0.02 2.0
+    b = -4.5 0.02 2.0
+    c = -6.0 2.6 2.6
+    material = blade_dark
+}
+triangle {
+    a = 3.0 0.02 2.4
+    b = 5.6 0.02 2.4
+    c = 4.3 2.2 2.9
+    material = blade_dark
+}
+triangle {
+    a = -1.2 0.02 3.0
+    b = 0.6 0.02 3.0
+    c = -0.3 1.8 3.3
+    material = blade_dark
+}

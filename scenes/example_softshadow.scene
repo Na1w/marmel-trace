@@ -1,0 +1,173 @@
+# scenes/example_softshadow.scene
+#
+# A compact demo scene focused on two camera/lighting features described in
+# docs/scene_format.md:
+#
+#   * SOFT SHADOWS  -- the `sky.sun_radius` key makes the sun a finite disk
+#                      instead of a point. The renderer then samples the direct
+#                      sunlight over a cone of this angular radius and averages
+#                      the unoccluded fraction, so shadows get a soft, blurred
+#                      edge (penumbra) that widens with the distance between the
+#                      occluder and the surface receiving the shadow.
+#
+#   * DEPTH OF FIELD -- the `camera.aperture` / `camera.focus_distance` keys turn
+#                      the camera into a thin-lens model. Objects sitting exactly
+#                      at `focus_distance` from the eye stay sharp; anything
+#                      nearer or farther is blurred in proportion to `aperture`.
+#
+# The objects are deliberately placed at four different eye distances so that
+# both effects are easy to see: the near and far spheres are defocused while the
+# middle sphere (on the focal plane) is crisp, and every sphere floats a little
+# above the ground so its cast shadow shows a visible penumbra.
+#
+# Render it with:
+#   ./raytracer --scene scenes/example_softshadow.scene --width 320 --height 180 \
+#               --samples 16 --out /tmp/ex_softshadow.bmp
+#
+# Try the effect toggles:
+#   * set `sun_radius = 0`     -> shadows snap back to hard-edged.
+#   * set `aperture = 0`       -> everything is in focus (pinhole camera).
+
+# --- Globals ---------------------------------------------------------------
+# No water in this scene; keep the ground plane dry.
+water_enabled = 0
+
+# --- Camera ----------------------------------------------------------------
+# Eye sits low in front of the arrangement, looking down -Z into the scene.
+#
+# aperture       = 0.35 world units  -> radius of the thin-lens disk. Non-zero
+#                                       enables depth of field. 0 would be an
+#                                       ideal pinhole (everything sharp).
+# focus_distance = 24 world units    -> the focal plane lies 24 units in front
+#                                       of the eye. The middle sphere is placed
+#                                       at ~24 units so it is razor sharp, while
+#                                       the near (~14) and far (~40/52) objects
+#                                       are defocused.
+camera {
+    eye = 0 2.5 18
+    target = 0 1.5 -20
+    up = 0 1 0
+    vfov = 42
+    aperture = 0.35
+    focus_distance = 24
+}
+
+# --- Sky -------------------------------------------------------------------
+# Clear midday sky. `sun_radius = 6` degrees gives the sun a clearly finite disk:
+# the penumbra on the ground spans several pixels at this resolution, so the
+# soft-shadow effect is plainly visible (set it to 0 to compare hard shadows).
+sky {
+    sun_dir = 0.40 0.72 -0.56
+    sun_color = 1 0.96 0.88
+    horizon_color = 0.80 0.88 1.00
+    zenith_color = 0.30 0.52 0.95
+    gradient_gamma = 0.65
+    sun_glow_exponent = 320
+    sun_glow_strength = 0.9
+    sun_radius = 6
+    cloud_height = 130
+    cloud_scale = 0.0028
+    cloud_coverage = 0.35
+    cloud_softness = 0.14
+    cloud_sharpness = 1.4
+    cloud_octaves = 5
+    seed = 1337
+}
+
+# --- Materials -------------------------------------------------------------
+# Warm sandy ground; a matte surface makes the soft shadow easiest to read.
+material sand {
+    albedo = 0.72 0.62 0.44
+    specular = 0.02 0.02 0.02
+    shininess = 4
+    reflectivity = 0
+    transparency = 0
+    ior = 1
+    is_water = 0
+}
+
+# Neutral stone for the three demo spheres.
+material stone {
+    albedo = 0.52 0.54 0.58
+    specular = 0.12 0.12 0.12
+    shininess = 32
+    reflectivity = 0.05
+    transparency = 0
+    ior = 1.5
+    is_water = 0
+}
+
+# A warm terracotta accent for the focal-plane sphere, so it reads as the
+# subject of the shot.
+material clay {
+    albedo = 0.78 0.38 0.24
+    specular = 0.08 0.08 0.08
+    shininess = 20
+    reflectivity = 0
+    transparency = 0
+    ior = 1.5
+    is_water = 0
+}
+
+material bark {
+    albedo = 0.28 0.19 0.12
+    specular = 0.04 0.04 0.04
+    shininess = 6
+    reflectivity = 0
+    transparency = 0
+    ior = 1
+    is_water = 0
+}
+
+material leaves {
+    albedo = 0.22 0.46 0.16
+    specular = 0.03 0.04 0.03
+    shininess = 10
+    reflectivity = 0
+    transparency = 0
+    ior = 1
+    is_water = 0
+}
+
+# --- Primitives ------------------------------------------------------------
+# Infinite sandy ground at y = 0: the surface that receives the soft shadows.
+plane {
+    point = 0 0 0
+    normal = 0 1 0
+    material = sand
+}
+
+# NEAR sphere (~14 units from the eye -> strongly defocused).
+# Floats 1 unit above the ground so its shadow has room to soften.
+sphere {
+    center = 2.4 2.0 4
+    radius = 1.0
+    material = stone
+}
+
+# FOCAL-PLANE sphere (~24 units from the eye -> perfectly sharp).
+# Sits on the ground; its contact shadow is the crispest in the frame.
+sphere {
+    center = 0 1.3 -6
+    radius = 1.3
+    material = clay
+}
+
+# FAR sphere (~40 units from the eye -> defocused the other way).
+sphere {
+    center = -3.6 1.6 -22
+    radius = 1.6
+    material = stone
+}
+
+# A tree even farther back (~52 units -> softest, most blurred silhouette).
+# Its long shadow stretches across the sand with a broad penumbra.
+tree {
+    position = 8 0 -34
+    height = 3.2
+    radius = 0.16
+    seed = 20240614
+    material_bark = bark
+    material_leaf = leaves
+    leaf_variant = 1
+}

@@ -1,0 +1,194 @@
+# scenes/example_customtree.scene
+#
+# Demonstrates the FILE-CONTROLLABLE tree/bush generator parameters added to
+# the data-driven scene format (see docs/scene_format.md §4.9/§4.10).
+#
+# Every plant below sets its own copy of the ten optional generator keys, so
+# the effect of each key is visible by comparing the three plants:
+#
+#   * tree "tall_sparse"  - few, long, steep branches -> a tall, airy tree
+#   * tree "short_bushy"  - many, short, wide branches -> a low dense dome
+#   * bush "compact_bush" - small, very wide, foliage-heavy shrub
+#
+# Generator keys used (all per-plant overrides; omitted keys would fall back
+# to the SCENE_* constants in src/scene.c):
+#
+#   max_depth           int   levels     - max branch recursion depth; a tip at
+#                                          the limit gets a leaf cluster
+#   min_branch_radius   f64   world      - tip radius below which a branch is
+#                                          forced terminal (2nd depth control)
+#   taper               f64   ratio      - child top radius = taper * bottom r
+#   len_decay           f64   ratio      - child length = len_decay * parent
+#   spread_deg          f64   degrees    - base angle between parent and child
+#   perturb_deg         f64   degrees    - +/- jitter on angle and azimuth
+#   up_bias             f64   -          - upward pull added to child direction
+#   third_child_chance  f64   prob [0,1] - P(node forks 3 ways) else 2 ways
+#   leaf_min            int   spheres/tip- minimum leaf spheres per tip
+#   leaf_span           int   spheres/tip- tip gets leaf_min .. leaf_min+span-1
+#
+# Render with:
+#   ./raytracer --scene scenes/example_customtree.scene \
+#               --width 320 --height 180 --samples 8 --out /tmp/ex_customtree.bmp
+
+# --- Globals ---------------------------------------------------------------
+# No water in this scene: keep the default pond disabled.
+water_enabled = 0
+
+# --- Camera ----------------------------------------------------------------
+# Straight-on view framing all three plants side by side.
+camera {
+    eye = 0 3.2 20
+    target = 0 2.6 -26
+    up = 0 1 0
+    vfov = 45
+}
+
+# --- Sky -------------------------------------------------------------------
+# Simple clear-day sky with a mild cloud layer.
+sky {
+    sun_dir = 0.45 0.72 -0.52
+    sun_color = 1 0.96 0.88
+    horizon_color = 0.78 0.87 1
+    zenith_color = 0.32 0.52 0.94
+    gradient_gamma = 0.6
+    sun_glow_exponent = 320
+    sun_glow_strength = 0.85
+    cloud_height = 120
+    cloud_scale = 0.0025
+    cloud_coverage = 0.45
+    cloud_softness = 0.14
+    cloud_sharpness = 1.5
+    cloud_octaves = 5
+    seed = 4242
+}
+
+# --- Materials -------------------------------------------------------------
+material ground {
+    albedo = 0.30 0.42 0.16
+    specular = 0.05 0.05 0.05
+    shininess = 8
+    reflectivity = 0
+    transparency = 0
+    ior = 1
+    is_water = 0
+}
+
+material bark {
+    albedo = 0.26 0.18 0.11
+    specular = 0.04 0.04 0.04
+    shininess = 6
+    reflectivity = 0
+    transparency = 0
+    ior = 1
+    is_water = 0
+}
+
+# Bright foliage for the tall sparse tree.
+material leaf_light {
+    albedo = 0.30 0.52 0.18
+    specular = 0.03 0.04 0.03
+    shininess = 10
+    reflectivity = 0
+    transparency = 0
+    ior = 1
+    is_water = 0
+}
+
+# Deep foliage for the short bushy tree.
+material leaf_dark {
+    albedo = 0.12 0.32 0.10
+    specular = 0.03 0.04 0.03
+    shininess = 10
+    reflectivity = 0
+    transparency = 0
+    ior = 1
+    is_water = 0
+}
+
+# Mid foliage for the bush.
+material leaf_mid {
+    albedo = 0.20 0.42 0.14
+    specular = 0.03 0.04 0.03
+    shininess = 10
+    reflectivity = 0
+    transparency = 0
+    ior = 1
+    is_water = 0
+}
+
+# --- Geometry --------------------------------------------------------------
+# Ground plane at y = 0.
+plane {
+    point = 0 0 0
+    normal = 0 1 0
+    material = ground
+}
+
+# --- Plant 1: TALL SPARSE --------------------------------------------------
+# Deep recursion (max_depth 5) with a strong taper and slow length decay gives
+# long, thin branches. A small spread and low third_child_chance keep the
+# silhouette narrow, while a high up_bias stops it drooping. Small leaf counts
+# leave the branch structure visible -> an airy, sparse crown.
+tree {
+    position = -9 0 -34
+    height = 6.0
+    radius = 0.16
+    seed = 1001
+    material_bark = bark
+    material_leaf = leaf_light
+    max_depth = 5
+    min_branch_radius = 0.012
+    taper = 0.60
+    len_decay = 0.66
+    spread_deg = 16
+    perturb_deg = 4
+    up_bias = 0.28
+    third_child_chance = 0.0
+    leaf_min = 4
+    leaf_span = 3
+}
+
+# --- Plant 2: SHORT BUSHY --------------------------------------------------
+# Shallow recursion (max_depth 4) with a gentle taper and fast length decay
+# keeps it short. A large spread plus a high third_child_chance makes it fork
+# widely and often, and big leaf clusters fill the canopy -> a low dense dome.
+tree {
+    position = 9 0 -30
+    height = 2.1
+    radius = 0.14
+    seed = 2002
+    material_bark = bark
+    material_leaf = leaf_dark
+    max_depth = 4
+    min_branch_radius = 0.030
+    taper = 0.82
+    len_decay = 0.80
+    spread_deg = 58
+    perturb_deg = 14
+    up_bias = 0.04
+    third_child_chance = 0.80
+    leaf_min = 26
+    leaf_span = 10
+}
+
+# --- Plant 3: BUSH ---------------------------------------------------------
+# Same knobs as the bushy tree but smaller: short trunk, wide spread, a fairly
+# high third_child_chance and heavy foliage for a compact rounded shrub.
+bush {
+    position = 0 0 -22
+    height = 0.95
+    radius = 0.06
+    seed = 3003
+    material_bark = bark
+    material_leaf = leaf_mid
+    max_depth = 3
+    min_branch_radius = 0.022
+    taper = 0.78
+    len_decay = 0.74
+    spread_deg = 62
+    perturb_deg = 12
+    up_bias = 0.10
+    third_child_chance = 0.60
+    leaf_min = 18
+    leaf_span = 8
+}

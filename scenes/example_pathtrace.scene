@@ -1,0 +1,209 @@
+# scenes/example_pathtrace.scene
+#
+# A compact showcase for the UNBIASED PATH TRACER (`--pathtrace`).
+#
+# This scene is built around the effects that only the path tracer can produce:
+# true GLOBAL ILLUMINATION, COLOUR BLEEDING between nearby diffuse surfaces,
+# SOFT/SAMPLED SHADOWS from an area light, and an EMISSIVE LAMP that lights the
+# geometry around it. In Whitted mode the same file still renders (see the note
+# at the bottom), but the indirect bounce and the sampled emitter contribution
+# are what make the image read as "physically lit".
+#
+# How each effect is produced (see docs/research_pathtrace_design.md):
+#   * Colour bleeding  -- three saturated diffuse spheres (red / green / blue)
+#     sit close together on a bright neutral floor. Every diffuse bounce is
+#     cosine-weighted and its throughput is exactly the surface albedo, so the
+#     red sphere tints the floor and the green sphere beside it with a warm
+#     wash, the green sphere bleeds onto its neighbours, and so on. The closer
+#     the objects, the stronger the bleed.
+#   * Emissive lamp    -- the floating sphere uses `type = emissive` with a
+#     boosted `emissive` colour and `pbr = 1`. An emissive PBR *sphere* is both
+#     self-lit AND collected as a sampled AREA LIGHT (Next-Event Estimation),
+#     so it casts light (and soft shadows) onto the floor and the coloured
+#     spheres below it.
+#   * Soft shadows     -- `sun_radius` is non-zero, so the sun is treated as a
+#     disk of that angular radius and the direct term is averaged over a cone
+#     of shadow rays. That gives penumbral (soft) shadows under the spheres.
+#   * Refraction       -- one `type = glass` sphere adds a Fresnel dielectric
+#     (reflect/refract) lobe so the path tracer's Snell/TIR handling is visible.
+#
+# Lighting balance: the sun and sky are deliberately kept DIM so the warm
+# emissive lamp is the dominant light near the cluster. With a bright sky the
+# hemisphere term washes the floor a uniform blue and hides the coloured bleed;
+# a dim sky lets the lamp's warm pool and the red/green/blue indirect bounce
+# read as distinct pools of colour.
+#
+# NOTE on the sky (discovered gotcha): `cloud_coverage = 0` turns clouds fully
+# ON. To get a CLEAN GRADIENT sky we set `cloud_coverage = 2` (>= 2), which
+# pushes the cloud alpha to zero everywhere. Only documented sky keys are used.
+#
+# Render it with:
+#   ./raytracer --scene scenes/example_pathtrace.scene --pathtrace \
+#               --width 320 --height 180 --samples 64 --depth 6 \
+#               --out output/example_pathtrace.bmp
+#
+# Quick low-res smoke test:
+#   ./raytracer --scene scenes/example_pathtrace.scene --pathtrace \
+#               --width 160 --height 90 --samples 4 --depth 4 \
+#               --out /tmp/example_pathtrace.bmp
+#
+# Try the toggles:
+#   * set the lamp's `emissive = 0 0 0`  -> the scene falls back to sun + sky
+#     only, and the warm pool of light under the lamp disappears.
+#   * move the three coloured spheres further apart -> the colour bleeding on
+#     the floor between them weakens (it is an inverse-distance effect).
+
+# --- Globals ---------------------------------------------------------------
+# No water surface in this scene; keep the ground plane dry.
+water_enabled = 0
+water_material = none
+
+# --- Camera ----------------------------------------------------------------
+# Eye raised a little above the cluster, looking slightly down so the floating
+# lamp, the three coloured spheres and the lit floor below them are all in
+# frame together.
+camera {
+    eye = 0 3.2 9.5
+    target = 0 1.5 -1.0
+    up = 0 1 0
+    vfov = 45
+}
+
+# --- Sky -------------------------------------------------------------------
+# A dim, NEUTRAL GREY gradient so the hemisphere term does not bias the floor
+# toward any hue -- that keeps the red / green / blue indirect bounce legible as
+# distinct coloured pools. `cloud_coverage = 2` DISABLES the clouds so the
+# background is a smooth horizon->zenith gradient (see the gotcha above). A
+# non-zero `sun_radius` enables the sampled sun disk -> soft shadows.
+sky {
+    sun_dir = 0.30 0.72 -0.62
+    sun_color = 0.40 0.40 0.40
+    horizon_color = 0.34 0.34 0.34
+    zenith_color = 0.14 0.14 0.15
+    gradient_gamma = 0.70
+    sun_glow_exponent = 320
+    sun_glow_strength = 0.85
+    cloud_height = 120
+    cloud_scale = 0.0025
+    cloud_coverage = 2
+    cloud_softness = 0.12
+    cloud_sharpness = 1.5
+    cloud_octaves = 5
+    seed = 1337
+    sun_radius = 3.0
+}
+
+# --- Materials -------------------------------------------------------------
+# Bright neutral floor: a high, near-white diffuse albedo so the coloured
+# bleeding from the spheres reads clearly as coloured pools on the ground.
+# `pbr = 0` (default) -> the plain Lambertian diffuse lobe (throughput = albedo).
+material floor_mat {
+    albedo = 0.85 0.85 0.85
+    specular = 0.03 0.03 0.03
+    shininess = 8
+    reflectivity = 0
+    transparency = 0
+    ior = 1
+    is_water = 0
+}
+
+# Saturated diffuse receivers. Their high, pure albedos are what make the
+# indirect bounce carry visible colour onto the floor and the neighbouring
+# spheres (colour bleeding).
+material red_mat {
+    albedo = 0.85 0.10 0.08
+    specular = 0.04 0.04 0.04
+    shininess = 16
+    reflectivity = 0
+    transparency = 0
+    ior = 1
+    is_water = 0
+}
+
+material green_mat {
+    albedo = 0.10 0.75 0.16
+    specular = 0.04 0.04 0.04
+    shininess = 16
+    reflectivity = 0
+    transparency = 0
+    ior = 1
+    is_water = 0
+}
+
+material blue_mat {
+    albedo = 0.10 0.22 0.85
+    specular = 0.04 0.04 0.04
+    shininess = 16
+    reflectivity = 0
+    transparency = 0
+    ior = 1
+    is_water = 0
+}
+
+# WARM-WHITE EMISSIVE LAMP -- an emissive PBR sphere. `type = emissive` supplies
+# the emitter preset (near-black albedo, `pbr = 1`); the explicit `emissive`
+# line below boosts the preset's warm-white so it acts as a strong area light.
+# The near-black albedo means the sphere reflects almost nothing, so all of its
+# brightness is the self-lit emitter term and the NEE area-light contribution
+# that lights the geometry below it.
+material lamp_mat {
+    type = emissive
+    albedo = 0.02 0.02 0.02
+    roughness = 0.40
+    emissive = 9.0 8.2 6.6
+    pbr = 1
+}
+
+# Clear glass: the `glass` preset is a general refractive dielectric
+# (transparency 1, ior 1.5, no water waves), so the path tracer exercises its
+# Fresnel / Snell / total-internal-reflection lobe on this sphere.
+material glass_mat {
+    type = glass
+}
+
+# --- Primitives ------------------------------------------------------------
+# Infinite matte ground at y = 0 -- the main canvas for the coloured bleeding.
+plane {
+    point = 0 0 0
+    normal = 0 1 0
+    material = floor_mat
+}
+
+# Three saturated diffuse spheres in a tight row (2.4 apart, radius 1.0, so the
+# gaps are small). Sitting this close is what makes the red / green / blue
+# indirect light visible as colour bleeding on the floor between them and on
+# each other's near faces.
+sphere {
+    center = -2.4 1.0 0.0
+    radius = 1.0
+    material = red_mat
+}
+
+sphere {
+    center = 0.0 1.0 0.0
+    radius = 1.0
+    material = green_mat
+}
+
+sphere {
+    center = 2.4 1.0 0.0
+    radius = 1.0
+    material = blue_mat
+}
+
+# The floating emissive lamp (sampled area light) above the row. Close enough
+# that its sampled solid angle is large, so it visibly brightens and warms the
+# spheres and casts a soft pool of light on the floor.
+sphere {
+    center = 0.0 3.4 0.0
+    radius = 0.6
+    material = lamp_mat
+}
+
+# A clear glass sphere to the right of the row to show Fresnel refraction and
+# the refracted view of the coloured spheres behind it.
+sphere {
+    center = 5.0 1.0 1.2
+    radius = 1.0
+    material = glass_mat
+}

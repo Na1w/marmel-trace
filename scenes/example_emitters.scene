@@ -1,0 +1,169 @@
+# scenes/example_emitters.scene
+#
+# Demonstrates EMISSIVE PBR PRIMITIVES ACTING AS AREA LIGHTS.
+#
+# Background (docs/research_emissive_lights.md, src/render.c):
+#   A primitive whose material has `pbr = 1` and a non-zero `emissive` colour
+#   is (a) self-lit -- its own `emissive` radiance is added to every hit -- and
+#   (b) treated as a sampled AREA LIGHT that illuminates the rest of the scene.
+#   At scene-build time every emissive PBR *sphere* is collected into a small
+#   light list (src/scene.c, `scene_collect_emissive_lights`), and in
+#   `trace_hit` the renderer samples a cone of directions toward each lamp,
+#   casts shadow rays, and shades the receiving surface with
+#   `material_shade_local` / `material_shade_pbr` using the lamp's `emissive`
+#   colour. The lamp's brightness therefore falls off with distance and with
+#   its apparent (solid-angle) size, exactly like a real area light -- and,
+#   because the light is COLOURED, it tints (colour-bleeds onto) the surfaces
+#   it reaches.
+#
+# What this scene shows:
+#   * A dim, dusk-like sky (`sun_color` ~0.10, a dark gradient) so that the
+#     direct-sun and ambient terms barely light anything -- the emitter
+#     contribution is what makes the scene readable.
+#   * A large matte floor plus a row of three NON-emissive grey spheres.
+#   * TWO floating emissive lamps of different colours: a WARM amber lamp on
+#     the left and a COOL blue lamp on the right. Each lamp sits above a grey
+#     sphere, so the sphere's top and the surrounding floor are visibly
+#     brightened and tinted by the lamp directly overhead, and the floor
+#     between the lamps shows warm/cool colour bleeding.
+#
+# Render it with:
+#   ./raytracer --scene scenes/example_emitters.scene \
+#               --width 320 --height 180 --samples 8 \
+#               --out output/example_emitters.bmp
+#
+# Prove the lamps are the light source (the "toggle" experiment):
+#   set both lamps' `emissive = 0 0 0` and re-render -- the floor and the three
+#   grey spheres drop to the dim ambient/dusk level, i.e. they go dark. Restore
+#   the two `emissive` lines to bring the illumination back.
+
+# --- Globals ---------------------------------------------------------------
+# No water surface in this scene; keep the ground plane dry.
+water_enabled = 0
+water_material = none
+
+# --- Camera ----------------------------------------------------------------
+# Eye low and centred, looking slightly down into the two lamps so both the
+# floating lamps and the lit floor are in frame.
+camera {
+    eye = 0 3.4 12
+    target = 0 1.6 -1
+    up = 0 1 0
+    vfov = 45
+}
+
+# --- Sky -------------------------------------------------------------------
+# A dim, cool dusk. The sun is deliberately weak (`sun_color` ~0.10) and the
+# gradient is dark, so neither the direct-sun nor the ambient/hemisphere term
+# contributes much: whatever brightness the geometry shows is dominated by the
+# two emissive lamps below.
+sky {
+    sun_dir = 0.35 0.62 -0.70
+    sun_color = 0.10 0.10 0.12
+    horizon_color = 0.30 0.30 0.36
+    zenith_color = 0.05 0.07 0.14
+    gradient_gamma = 0.7
+    sun_glow_exponent = 300
+    sun_glow_strength = 0.15
+    cloud_height = 130
+    cloud_scale = 0.0028
+    cloud_coverage = 1.0
+    cloud_softness = 0.0
+    cloud_sharpness = 1.4
+    cloud_octaves = 5
+    seed = 1337
+}
+
+# --- Materials -------------------------------------------------------------
+# Matte, mid-grey floor: a bright neutral albedo so the warm and cool lamp
+# tints read clearly as coloured pools of light on the ground.
+material floor_mat {
+    albedo = 0.82 0.82 0.82
+    specular = 0.03 0.03 0.03
+    shininess = 8
+    reflectivity = 0
+    transparency = 0
+    ior = 1
+    is_water = 0
+}
+
+# Non-emissive grey spheres: the receivers that the lamps light up. They are
+# ordinary (pbr = 0) diffuse-ish surfaces with no emission of their own.
+material grey {
+    albedo = 0.72 0.72 0.74
+    specular = 0.06 0.06 0.06
+    shininess = 24
+    reflectivity = 0
+    transparency = 0
+    ior = 1.5
+    is_water = 0
+}
+
+# WARM AMBER LAMP -- an emissive PBR sphere. `type = emissive` supplies the
+# emitter preset (near-black albedo, `pbr = 1`); the explicit `emissive` line
+# below overrides the preset's warm-white with a strong amber. The near-black
+# albedo means the sphere reflects almost nothing, so all of its brightness is
+# the self-lit emitter term, and it acts as a warm area light on nearby
+# geometry.
+material warm_lamp {
+    type = emissive
+    albedo = 0.02 0.02 0.02
+    roughness = 0.40
+    emissive = 8.0 3.6 1.2
+    pbr = 1
+}
+
+# COOL BLUE LAMP -- same idea, a strong blue emitter. Placed on the opposite
+# side of the scene so the floor between the two lamps blends warm and cool.
+material cool_lamp {
+    type = emissive
+    albedo = 0.02 0.02 0.02
+    roughness = 0.40
+    emissive = 1.2 2.4 8.0
+    pbr = 1
+}
+
+# --- Primitives ------------------------------------------------------------
+# Infinite matte ground at y = 0 -- the main canvas for the coloured lighting.
+plane {
+    point = 0 0 0
+    normal = 0 1 0
+    material = floor_mat
+}
+
+# Row of three non-emissive grey spheres resting on the floor. The outer two
+# sit directly beneath the lamps; the centre one sits in the overlap of the two
+# coloured light pools.
+sphere {
+    center = -3.0 1.0 0.0
+    radius = 1.0
+    material = grey
+}
+
+sphere {
+    center = 0.0 1.0 0.0
+    radius = 1.0
+    material = grey
+}
+
+sphere {
+    center = 3.0 1.0 0.0
+    radius = 1.0
+    material = grey
+}
+
+# The two floating emissive lamps (area lights), hovering above the outer
+# spheres. `emissive` here is the emitted radiance Le (may exceed 1); because
+# the lamps are close to the geometry below, their sampled solid angle is large
+# and they visibly brighten and tint the spheres and the floor.
+sphere {
+    center = -3.0 3.4 0.0
+    radius = 0.7
+    material = warm_lamp
+}
+
+sphere {
+    center = 3.0 3.4 0.0
+    radius = 0.7
+    material = cool_lamp
+}

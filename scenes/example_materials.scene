@@ -1,0 +1,246 @@
+# scenes/example_materials.scene
+#
+# A demonstration scene for the physically-based (PBR) metallic/roughness
+# material PARAMETERS described in docs/scene_format.md, §4.3 ("Materials").
+# Where scenes/example_presets.scene exercises the named `type = <preset>`
+# shortcuts, this scene drives the underlying parameters directly so the
+# effect of each one is visible in a single, side-by-side composition.
+#
+# The four PBR keys, explained:
+#   pbr        = 0 | 1   (default: 0)  -- select the metallic/roughness BRDF
+#   metallic   = 0 .. 1  (default: 0)  -- 0 = dielectric, 1 = conductor
+#   roughness  = 0 .. 1  (default: 0)  -- microfacet width (0 = mirror, 1 = matte)
+#   emissive   = R G B   (default: 0 0 0) -- linear radiance ADDED on every hit
+#
+# How they behave (see src/material.c, `material_shade_pbr`):
+#   * `pbr = 1` swaps the classic Phong lobe for a Cook-Torrance-style model:
+#       F0     = mix(0.04, albedo, metallic)      (dielectric vs conductor)
+#       D      = GGX / Trowbridge-Reitz with alpha = max(roughness^2, 1e-4)
+#       G      = Smith-Schlick with k = (roughness + 1)^2 / 8
+#       diffuse= albedo * (1 - metallic) / PI     (metals have no diffuse)
+#       L_o    = light_color * NdotL * (diffuse + specular)
+#   * `roughness` ONLY widens the direct-sun microfacet highlight: at 0.05 the
+#     sun reads as a tiny, near-mirror glint, and as it climbs toward 0.9 the
+#     glint spreads into a broad, soft sheen. The environment reflection (the
+#     `reflectivity` mirror pass) is deliberately left roughness-independent
+#     by this Whitted raytracer, so the roughness gradient is read from the
+#     SUN highlight, not from the reflected sky.
+#   * `metallic` scales F0 between a 0.04 dielectric floor and the full
+#     albedo: the conductor row shows a bright, albedo-tinted highlight while
+#     the dielectric spheres keep a dim, white, plastic-like sheen.
+#   * `emissive` is added once per shaded hit and is gated on `pbr = 1`; a
+#     warm-white emitter therefore reads as a self-lit lamp no matter which
+#     way the sun points.
+#
+# The scene: a ROW of five identical gold conductors whose roughness ramps
+# 0.05 -> 0.9 left to right, two coloured dielectrics (plastic / ceramic) in
+# front, one glowing warm-white lamp floating overhead, and a checkerboard
+# floor under a bright day sky so the highlights and reflections read clearly.
+# Everything is deterministic -- all noise comes from the `seed` keys.
+#
+# Render it with:
+#   ./raytracer --scene scenes/example_materials.scene \
+#               --width 320 --height 180 --samples 8 --out /tmp/ex_materials.bmp
+#
+# Try the parameter toggles:
+#   * set every `roughness` to 0.4   -> the highlight row goes uniform.
+#   * set the lamp's `emissive = 0 0 0` -> the floating lamp goes dark.
+#   * set `metallic = 0` on the row -> the gold conductors become dielectrics.
+
+# --- Globals ---------------------------------------------------------------
+# This scene has no water surface, so disable the water pass explicitly.
+water_enabled = 0
+water_material = none
+
+# --- Camera ----------------------------------------------------------------
+# Eye above and in front of the row, looking down the -Z axis so all five
+# metal spheres sit on one clean horizontal line at the same depth.
+camera {
+    eye = 0 3.5 14
+    target = 0 1.5 -2
+    up = 0 1 0
+    vfov = 42
+}
+
+# --- Sky -------------------------------------------------------------------
+# A bright, slightly warm day sky. The sun is placed toward the camera side
+# (positive Z) so its specular highlight lands on the near hemisphere of the
+# spheres, where the roughness gradient is easiest to compare.
+sky {
+    sun_dir = -0.40 0.75 0.50
+    sun_color = 1 0.96 0.90
+    horizon_color = 0.80 0.88 1.00
+    zenith_color = 0.30 0.50 0.95
+    gradient_gamma = 0.65
+    sun_glow_exponent = 320
+    sun_glow_strength = 0.85
+    cloud_height = 120
+    cloud_scale = 0.0025
+    cloud_coverage = 0.40
+    cloud_softness = 0.15
+    cloud_sharpness = 1.4
+    cloud_octaves = 5
+    seed = 20240
+}
+
+# --- Materials -------------------------------------------------------------
+# Checkerboard floor: white albedo so the pattern colours show verbatim.
+# 1-unit cells alternating light grey and near-black blue.
+material checker_floor {
+    albedo = 1 1 1
+    specular = 0.05 0.05 0.05
+    shininess = 16
+    reflectivity = 0
+    transparency = 0
+    ior = 1
+    is_water = 0
+    texture = checker
+    texture_scale = 1.0
+    texture_color_a = 0.92 0.92 0.92
+    texture_color_b = 0.12 0.14 0.18
+}
+
+# --- PBR conductor row: one shared gold albedo, five roughness values ------
+# `metallic = 1` makes F0 the full gold albedo and kills the diffuse term, so
+# every sphere differs ONLY by how wide its sun highlight is.
+
+# Roughness 0.05 -- near-mirror gold with a tight, sharp sun glint.
+material gold_rough_005 {
+    albedo = 0.95 0.77 0.34
+    reflectivity = 0.30
+    metallic = 1.0
+    roughness = 0.05
+    pbr = 1
+}
+
+# Roughness 0.20 -- still glossy, the glint has visibly widened.
+material gold_rough_020 {
+    albedo = 0.95 0.77 0.34
+    reflectivity = 0.30
+    metallic = 1.0
+    roughness = 0.20
+    pbr = 1
+}
+
+# Roughness 0.40 -- a soft, satin sheen rather than a point highlight.
+material gold_rough_040 {
+    albedo = 0.95 0.77 0.34
+    reflectivity = 0.30
+    metallic = 1.0
+    roughness = 0.40
+    pbr = 1
+}
+
+# Roughness 0.60 -- a broad, brushed-metal wash of light.
+material gold_rough_060 {
+    albedo = 0.95 0.77 0.34
+    reflectivity = 0.30
+    metallic = 1.0
+    roughness = 0.60
+    pbr = 1
+}
+
+# Roughness 0.90 -- nearly matte gold; the highlight is diffuse and flat.
+material gold_rough_090 {
+    albedo = 0.95 0.77 0.34
+    reflectivity = 0.30
+    metallic = 1.0
+    roughness = 0.90
+    pbr = 1
+}
+
+# --- PBR dielectrics: `metallic = 0`, coloured albedo ----------------------
+# With metallic = 0 the Fresnel base is the 0.04 dielectric floor, so these
+# read as tinted plastic/ceramic rather than metal. Roughness still controls
+# the width of the (much dimmer, near-white) specular sheen.
+
+# Teal plastic: moderate roughness gives a small, soft sheen on the dome.
+material teal_plastic {
+    albedo = 0.10 0.45 0.75
+    reflectivity = 0.06
+    metallic = 0.0
+    roughness = 0.35
+    pbr = 1
+}
+
+# Warm ceramic: rougher still, so the highlight melts into the surface.
+material ceramic_red {
+    albedo = 0.72 0.18 0.14
+    reflectivity = 0.06
+    metallic = 0.0
+    roughness = 0.55
+    pbr = 1
+}
+
+# --- PBR emitter: `pbr = 1` + a warm-white `emissive` radiance -------------
+# The albedo is near-black so the sphere contributes almost no reflected
+# light; all of its brightness comes from the added `emissive` term, making it
+# a self-lit lamp that glows regardless of the sun direction.
+material lamp_warm {
+    albedo = 0.02 0.02 0.02
+    reflectivity = 0
+    metallic = 0.0
+    roughness = 0.50
+    emissive = 3.0 2.4 1.6
+    pbr = 1
+}
+
+# --- Primitives ------------------------------------------------------------
+# Infinite checkerboard ground at y = 0, carrying the textured floor.
+plane {
+    point = 0 0 0
+    normal = 0 1 0
+    material = checker_floor
+}
+
+# The conductor row, left (mirror) to right (matte), all on one line at
+# z = -2 with centre y = radius = 1.2 so they rest on the floor.
+sphere {
+    center = -8.0 1.2 -2.0
+    radius = 1.2
+    material = gold_rough_005
+}
+
+sphere {
+    center = -4.0 1.2 -2.0
+    radius = 1.2
+    material = gold_rough_020
+}
+
+sphere {
+    center = 0.0 1.2 -2.0
+    radius = 1.2
+    material = gold_rough_040
+}
+
+sphere {
+    center = 4.0 1.2 -2.0
+    radius = 1.2
+    material = gold_rough_060
+}
+
+sphere {
+    center = 8.0 1.2 -2.0
+    radius = 1.2
+    material = gold_rough_090
+}
+
+# Two coloured dielectrics in front of the row, resting on the floor.
+sphere {
+    center = -2.4 1.0 3.0
+    radius = 1.0
+    material = teal_plastic
+}
+
+sphere {
+    center = 2.4 1.0 3.0
+    radius = 1.0
+    material = ceramic_red
+}
+
+# The glowing lamp, floating above and between the two dielectrics.
+sphere {
+    center = 0.0 5.4 1.5
+    radius = 0.8
+    material = lamp_warm
+}
