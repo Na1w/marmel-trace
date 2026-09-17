@@ -81,6 +81,7 @@ Primitive prim_sphere(Vec3 center, double radius, int material_index);
 Primitive prim_plane(Vec3 point, Vec3 normal, int material_index);
 Primitive prim_box(Vec3 center, Vec3 half, int material_index);
 Primitive prim_triangle(Vec3 a, Vec3 b, Vec3 c, int material_index);
+Primitive prim_triangle_smooth(Vec3 a, Vec3 b, Vec3 c, Vec3 na, Vec3 nb, Vec3 nc, int material_index);
 Primitive prim_cylinder(Vec3 base, Vec3 top, double r_bottom, double r_top, int material_index);
 Primitive prim_sdf(SdfData sdf, int material_index);
 

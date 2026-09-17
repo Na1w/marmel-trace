@@ -153,6 +153,19 @@ typedef struct {
     DisplaceModifier displace;      /* reused DisplaceModifier from sdf.h */
 } SceneDisplaceDesc;
 
+/* Wavefront OBJ mesh directive */
+typedef struct {
+    char        *file;            /* path to .obj file, owned */
+    char        *material_name;   /* owned referenced material name, or NULL */
+    int          material_index;  /* resolved material index, or NO_MATERIAL */
+    Vec3         center;          /* translation / position */
+    Vec3         scale;           /* scale (default: 1, 1, 1) */
+    Vec3         rotate;          /* Euler angles in degrees (default: 0, 0, 0) */
+    int          smooth;          /* 1: smooth normals, 0: flat (default: 1) */
+    int          auto_center;     /* 1: auto center bounding box at origin */
+    double       auto_scale;      /* if > 0: fit bounding box max dimension */
+} SceneMeshDesc;
+
 /* ------------------------------------------------------------------ */
 /* Procedural plant directive (docs/scene_format.md §4.9 - §4.10)      */
 /* ------------------------------------------------------------------ */
@@ -265,6 +278,10 @@ typedef struct {
     ScenePlantDesc  *plants;        /* owned dynamic array                 */
     int              plant_count;
     int              plant_capacity;
+
+    SceneMeshDesc   *meshes;        /* owned dynamic array                 */
+    int              mesh_count;
+    int              mesh_capacity;
 } SceneDesc;
 
 /* ------------------------------------------------------------------ */
@@ -332,6 +349,7 @@ int scene_desc_add_material(SceneDesc *d, const char *name, const Material *mat)
 int scene_desc_add_displace(SceneDesc *d, const SceneDisplaceDesc *disp);
 int scene_desc_add_prim(SceneDesc *d, const ScenePrimDesc *prim);
 int scene_desc_add_plant(SceneDesc *d, const ScenePlantDesc *plant);
+int scene_desc_add_mesh(SceneDesc *d, const SceneMeshDesc *mesh);
 
 #ifdef __cplusplus
 }

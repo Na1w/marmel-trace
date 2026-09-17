@@ -142,6 +142,19 @@ Primitive prim_triangle(Vec3 a, Vec3 b, Vec3 c, int material_index)
     return p;
 }
 
+Primitive prim_triangle_smooth(Vec3 a, Vec3 b, Vec3 c, Vec3 na, Vec3 nb, Vec3 nc, int material_index)
+{
+    Primitive p = prim_zero(PRIM_TRIANGLE, material_index);
+    p.a = a;
+    p.b = b;
+    p.c = c;
+    p.center = na;
+    p.axis = nb;
+    p.half = nc;
+    p.radius = 1.0;
+    return p;
+}
+
 Primitive prim_cylinder(Vec3 base, Vec3 top, double r_bottom, double r_top,
                         int material_index)
 {
@@ -301,12 +314,28 @@ static int intersect_triangle(const Primitive *p, Ray r, double tmin, double tma
     double t = vec3_dot(e2, qvec) * inv_det;
     if (t < tmin || t > tmax) return 0;
 
-    Vec3 n = vec3_cross(e1, e2);
-    double nlen = vec3_length(n);
-    if (nlen < 1e-15) return 0; /* degenerate triangle */
-    n = vec3_scale(n, 1.0 / nlen);
-
     Vec3 point = vec3_at(r, t);
+    Vec3 n;
+    if (p->radius > 0.5) {
+        double w = 1.0 - u - v;
+        n = vec3_add(vec3_scale(p->center, w),
+                     vec3_add(vec3_scale(p->axis, u), vec3_scale(p->half, v)));
+        double nlen = vec3_length(n);
+        if (nlen > 1e-12) {
+            n = vec3_scale(n, 1.0 / nlen);
+        } else {
+            n = vec3_cross(e1, e2);
+            double nlen_geom = vec3_length(n);
+            if (nlen_geom < 1e-15) return 0;
+            n = vec3_scale(n, 1.0 / nlen_geom);
+        }
+    } else {
+        n = vec3_cross(e1, e2);
+        double nlen = vec3_length(n);
+        if (nlen < 1e-15) return 0; /* degenerate triangle */
+        n = vec3_scale(n, 1.0 / nlen);
+    }
+
     geo_store_hit(out, t, point, n, r, p->material_index);
     return 1;
 }

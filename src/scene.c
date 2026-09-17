@@ -25,7 +25,9 @@
 
 #include "scene.h"
 #include "scene_desc.h"
+#include "obj.h"
 
+#include <stdio.h>
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>
@@ -719,6 +721,23 @@ int scene_build_from_desc(Scene *s, const SceneDesc *d)
             if (scene_add_plant_desc(&s->geo, pd, bark_mat, leaf_mat, seed) != 0) {
                 goto fail;
             }
+        }
+    }
+
+    /* --- Wavefront OBJ meshes, in file order ------------------------ */
+    for (i = 0; i < d->mesh_count; ++i) {
+        const SceneMeshDesc *m = &d->meshes[i];
+        int mat = (m->material_index >= 0) ? m->material_index : MAT_GROUND;
+        ObjTransform xf = obj_transform_default();
+        xf.position = m->center;
+        xf.scale = m->scale;
+        xf.rotation_deg = m->rotate;
+        xf.smooth_normals = m->smooth;
+        xf.auto_center = m->auto_center;
+        xf.auto_scale = m->auto_scale;
+        int ntri = obj_load_file(m->file, &s->geo, mat, &xf);
+        if (ntri < 0) {
+            fprintf(stderr, "warning: failed to load mesh '%s'\n", m->file ? m->file : "(null)");
         }
     }
 

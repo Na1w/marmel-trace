@@ -1,0 +1,93 @@
+# scenes/example_obj_mesh.scene
+#
+# Demonstration scene showcasing Wavefront .obj 3D mesh loading:
+#   - Polygonal face triangulation (triangles and quads)
+#   - Vertex normal interpolation (smooth Phong shading on curved surfaces)
+#   - Transforming meshes: translation (center), scaling, rotation
+#   - Material presets and BVH acceleration
+
+camera {
+    eye = 0 3.5 6.5
+    target = 0 1.2 0
+    up = 0 1 0
+    vfov = 35
+}
+
+sky {
+    sun_dir = 0.4 0.8 -0.45
+    sun_color = 1.0 0.96 0.90
+    horizon_color = 0.75 0.85 0.98
+    zenith_color = 0.25 0.45 0.88
+    sun_radius = 2.5
+}
+
+# --- Materials ----------------------------------------------------
+material floor {
+    albedo = 0.45 0.45 0.48
+    texture = checker
+    texture_scale = 1.0
+    texture_color_a = 0.65 0.65 0.70
+    texture_color_b = 0.35 0.35 0.38
+    specular = 0.1 0.1 0.1
+    shininess = 32
+}
+
+material gold_mat {
+    type = gold
+    roughness = 0.12
+}
+
+material copper_mat {
+    type = copper
+    roughness = 0.18
+}
+
+material ruby_glass {
+    type = glass
+    albedo = 0.95 0.2 0.3
+    ior = 1.52
+}
+
+material ceramic_white {
+    type = ceramic
+    albedo = 0.88 0.88 0.90
+    roughness = 0.08
+}
+
+# --- Floor --------------------------------------------------------
+plane {
+    point = 0 0 0
+    normal = 0 1 0
+    material = floor
+}
+
+# --- OBJ Mesh 1: Faceted Icosahedron (left) -----------------------
+mesh {
+    file = "models/icosahedron.obj"
+    material = gold_mat
+    center = -2.2 1.2 0
+    scale = 1.2
+    rotate = 15 30 0
+    smooth = 0
+}
+
+# --- OBJ Mesh 2: Smooth Torus (center) ----------------------------
+# 1536 triangles with smooth vertex normals (Phong interpolation)
+mesh {
+    file = "models/torus.obj"
+    material = ruby_glass
+    center = 0.0 1.3 0
+    scale = 1.0
+    rotate = 50 30 10
+    smooth = 1
+}
+
+# --- OBJ Mesh 3: Smooth Metallic Torus (right) --------------------
+mesh {
+    file = "models/torus.obj"
+    material = copper_mat
+    center = 2.2 1.1 0
+    scale = 0.75
+    rotate = -30 45 20
+    smooth = 1
+}
