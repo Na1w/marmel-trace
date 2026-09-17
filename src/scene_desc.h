@@ -99,8 +99,9 @@ typedef struct {
  * whole-struct copy wires them into the runtime Material with no extra code.
  */
 typedef struct {
-    char     *name;   /* owned, may be NULL (unset) */
-    Material  mat;    /* reused material payload    */
+    char     *name;         /* owned, may be NULL (unset) */
+    Material  mat;          /* reused material payload    */
+    char     *texture_file; /* path to image texture, owned, may be NULL */
 } MaterialDesc;
 
 /* ------------------------------------------------------------------ */
@@ -346,6 +347,7 @@ int scene_desc_write(const SceneDesc *d, const char *path, char *errbuf, size_t 
  * SCENE_DESC_NO_MATERIAL; scene_desc_load()'s resolution pass fills them in.
  */
 int scene_desc_add_material(SceneDesc *d, const char *name, const Material *mat);
+int scene_desc_add_material_tex(SceneDesc *d, const char *name, const Material *mat, const char *texture_file);
 int scene_desc_add_displace(SceneDesc *d, const SceneDisplaceDesc *disp);
 int scene_desc_add_prim(SceneDesc *d, const ScenePrimDesc *prim);
 int scene_desc_add_plant(SceneDesc *d, const ScenePlantDesc *plant);

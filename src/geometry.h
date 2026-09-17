@@ -48,6 +48,8 @@ typedef struct {
     double radius;
     double radius2;
     SdfData sdf;
+    int has_uv;
+    Vec3 uva, uvb, uvc;   /* vertex texture coordinates (u=x, v=y) for triangles */
 } Primitive;
 
 typedef struct {
@@ -63,6 +65,8 @@ typedef struct {
     int material_index;
     int prim_index;       /* index of the hit primitive in Geometry.prims */
     int front_face;       /* 1 if the ray hit the outside surface, 0 if inside */
+    double u;             /* surface texture coordinate u */
+    double v;             /* surface texture coordinate v */
 } Hit;
 
 /* ------------------------------------------------------------------ */
@@ -81,7 +85,10 @@ Primitive prim_sphere(Vec3 center, double radius, int material_index);
 Primitive prim_plane(Vec3 point, Vec3 normal, int material_index);
 Primitive prim_box(Vec3 center, Vec3 half, int material_index);
 Primitive prim_triangle(Vec3 a, Vec3 b, Vec3 c, int material_index);
+Primitive prim_triangle_uv(Vec3 a, Vec3 b, Vec3 c, Vec3 uva, Vec3 uvb, Vec3 uvc, int material_index);
 Primitive prim_triangle_smooth(Vec3 a, Vec3 b, Vec3 c, Vec3 na, Vec3 nb, Vec3 nc, int material_index);
+Primitive prim_triangle_smooth_uv(Vec3 a, Vec3 b, Vec3 c, Vec3 na, Vec3 nb, Vec3 nc,
+                                 Vec3 uva, Vec3 uvb, Vec3 uvc, int material_index);
 Primitive prim_cylinder(Vec3 base, Vec3 top, double r_bottom, double r_top, int material_index);
 Primitive prim_sdf(SdfData sdf, int material_index);
 

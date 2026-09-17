@@ -140,6 +140,7 @@ typedef struct {
     int           prim_mat_line;  /* line of the primitive's `material` key  */
     Material      mat;     /* material under construction (BLK_MATERIAL) */
     char          mat_name[SD_TOK_TEXT]; /* name of the open material block */
+    char          mat_tex_file[SD_TOK_TEXT]; /* optional texture file path */
     int           mat_type;/* material `type` preset selector (SD_MAT_*):
                             * 0 = none, else a named preset swapped in as the
                             * base at block close (see SD_MAT_TYPES)         */
@@ -518,7 +519,8 @@ enum {
     MAT_METALLIC     = 1u << 15,
     MAT_ROUGHNESS    = 1u << 16,
     MAT_EMISSIVE     = 1u << 17,
-    MAT_PBR          = 1u << 18
+    MAT_PBR          = 1u << 18,
+    MAT_TEXTURE_FILE = 1u << 19
 };
 
 static const KeySpec MAT_KEYS[] = {
@@ -870,6 +872,7 @@ static void sd_mat_begin(Parser *p, const char *name)
     p->mat = sd_opaque_preset();
     p->mat_type = 0;
     snprintf(p->mat_name, sizeof p->mat_name, "%s", name);
+    p->mat_tex_file[0] = '\0';
 }
 
 /*
@@ -1267,7 +1270,7 @@ static void sd_apply_material_key(Parser *p, Block *b, const Token *t, int n)
     }
 
     /*
-     * `texture = none|checker|stripes` is enum-ish (like `type`), so it is not
+     * `texture = none|checker|stripes|image|uv_checker` is enum-ish (like `type`), so it is not
      * a generic KeySpec row. Store the decoded kind directly into the material
      * under construction and mark the bit so presets/duplicates behave.
      */
@@ -1292,11 +1295,35 @@ static void sd_apply_material_key(Parser *p, Block *b, const Token *t, int n)
             kind = TEXTURE_CHECKER;
         else if (strcmp(name, "stripes") == 0)
             kind = TEXTURE_STRIPES;
+        else if (strcmp(name, "image") == 0)
+            kind = TEXTURE_IMAGE;
+        else if (strcmp(name, "uv_checker") == 0)
+            kind = TEXTURE_UV_CHECKER;
         else {
-            sd_err(p, "unknown texture kind, expected 'none', 'checker' or 'stripes'", name);
+            sd_err(p, "unknown texture kind, expected 'none', 'checker', 'stripes', 'image' or 'uv_checker'", name);
             return;
         }
         p->mat.texture_kind = kind;
+        return;
+    }
+
+    if (strcmp(key, "texture_file") == 0 || strcmp(key, "texture_map") == 0) {
+        const char *filename = NULL;
+        if (b->seen & MAT_TEXTURE_FILE) {
+            sd_err(p, "duplicate key", key);
+            return;
+        }
+        b->seen |= MAT_TEXTURE_FILE;
+        if (sd_val_name(p, t, n, 2, &filename) < 0)
+            return;
+        if (n != 3) {
+            sd_err(p, "unexpected token after value", t[3].text);
+            return;
+        }
+        snprintf(p->mat_tex_file, sizeof(p->mat_tex_file), "%s", filename);
+        if (!(b->seen & MAT_TEXTURE_KIND)) {
+            p->mat.texture_kind = TEXTURE_IMAGE;
+        }
         return;
     }
 
@@ -1321,7 +1348,8 @@ static void sd_close_material(Parser *p, SceneDesc *d, const Block *b)
         sd_overlay_explicit(&final, &p->mat, b->seen);
     }
 
-    if (scene_desc_add_material(d, p->mat_name, &final) < 0)
+    const char *tex_file = (p->mat_tex_file[0] != '\0') ? p->mat_tex_file : NULL;
+    if (scene_desc_add_material_tex(d, p->mat_name, &final, tex_file) < 0)
         sd_err(p, "out of memory", p->mat_name);
 }
 
@@ -2422,8 +2450,10 @@ void scene_desc_free(SceneDesc *d)
         return;
 
     if (d->materials != NULL) {
-        for (i = 0; i < d->material_count; i++)
+        for (i = 0; i < d->material_count; i++) {
             free(d->materials[i].name);
+            free(d->materials[i].texture_file);
+        }
         free(d->materials);
     }
 
@@ -2611,7 +2641,7 @@ int scene_desc_load_string(SceneDesc *d, const char *text, const char *name,
 /* Construction helpers                                                */
 /* ------------------------------------------------------------------ */
 
-int scene_desc_add_material(SceneDesc *d, const char *name, const Material *mat)
+int scene_desc_add_material_tex(SceneDesc *d, const char *name, const Material *mat, const char *texture_file)
 {
     MaterialDesc *slot;
 
@@ -2626,10 +2656,20 @@ int scene_desc_add_material(SceneDesc *d, const char *name, const Material *mat)
     slot->name = sd_strdup(name);
     if (name != NULL && slot->name == NULL)
         return -1;                       /* keep count unchanged on failure */
+    slot->texture_file = sd_strdup(texture_file);
+    if (texture_file != NULL && slot->texture_file == NULL) {
+        free(slot->name);
+        return -1;
+    }
     if (mat != NULL)
         slot->mat = *mat;
 
     return d->material_count++;
+}
+
+int scene_desc_add_material(SceneDesc *d, const char *name, const Material *mat)
+{
+    return scene_desc_add_material_tex(d, name, mat, NULL);
 }
 
 int scene_desc_add_displace(SceneDesc *d, const SceneDisplaceDesc *disp)

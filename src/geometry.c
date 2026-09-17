@@ -17,6 +17,7 @@
 
 #include <math.h>
 #include <stdlib.h>
+#include <string.h>
 
 /* Parallel-ray guard for the plane test (cosine of unit vectors). */
 #define GEO_PARALLEL_EPS 1e-12
@@ -28,6 +29,7 @@
 #define GEO_AXIS_EPS     1e-12
 /* Half extent of the finite AABB used to represent an infinite plane. */
 #define GEO_PLANE_EXTENT 1e4
+#define GEO_PI           3.14159265358979323846
 
 /* ------------------------------------------------------------------ */
 /* Small local helpers                                                 */
@@ -39,7 +41,7 @@
  * Note: prim_index is intentionally NOT touched here; geometry_intersect
  * seeds it before dispatching, and primitive_intersect preserves it. */
 static void geo_store_hit(Hit *out, double t, Vec3 point, Vec3 unit_geo_normal,
-                          Ray r, int material_index)
+                          Ray r, int material_index, double u, double v)
 {
     int front = vec3_dot(r.dir, unit_geo_normal) < 0.0;
     Vec3 n = front ? unit_geo_normal : vec3_neg(unit_geo_normal);
@@ -49,6 +51,8 @@ static void geo_store_hit(Hit *out, double t, Vec3 point, Vec3 unit_geo_normal,
     out->normal = n;
     out->material_index = material_index;
     out->front_face = front ? 1 : 0;
+    out->u = u;
+    out->v = v;
 }
 
 /* ------------------------------------------------------------------ */
@@ -96,6 +100,7 @@ int geometry_add(Geometry *g, Primitive p)
 static Primitive prim_zero(PrimKind kind, int material_index)
 {
     Primitive p;
+    memset(&p, 0, sizeof(Primitive));
     p.kind = kind;
     p.material_index = material_index;
     p.center = vec3(0.0, 0.0, 0.0);
@@ -106,6 +111,10 @@ static Primitive prim_zero(PrimKind kind, int material_index)
     p.c = vec3(0.0, 0.0, 0.0);
     p.radius = 0.0;
     p.radius2 = 0.0;
+    p.has_uv = 0;
+    p.uva = vec3(0.0, 0.0, 0.0);
+    p.uvb = vec3(0.0, 0.0, 0.0);
+    p.uvc = vec3(0.0, 0.0, 0.0);
     return p;
 }
 
@@ -142,6 +151,19 @@ Primitive prim_triangle(Vec3 a, Vec3 b, Vec3 c, int material_index)
     return p;
 }
 
+Primitive prim_triangle_uv(Vec3 a, Vec3 b, Vec3 c, Vec3 uva, Vec3 uvb, Vec3 uvc, int material_index)
+{
+    Primitive p = prim_zero(PRIM_TRIANGLE, material_index);
+    p.a = a;
+    p.b = b;
+    p.c = c;
+    p.has_uv = 1;
+    p.uva = uva;
+    p.uvb = uvb;
+    p.uvc = uvc;
+    return p;
+}
+
 Primitive prim_triangle_smooth(Vec3 a, Vec3 b, Vec3 c, Vec3 na, Vec3 nb, Vec3 nc, int material_index)
 {
     Primitive p = prim_zero(PRIM_TRIANGLE, material_index);
@@ -152,6 +174,24 @@ Primitive prim_triangle_smooth(Vec3 a, Vec3 b, Vec3 c, Vec3 na, Vec3 nb, Vec3 nc
     p.axis = nb;
     p.half = nc;
     p.radius = 1.0;
+    return p;
+}
+
+Primitive prim_triangle_smooth_uv(Vec3 a, Vec3 b, Vec3 c, Vec3 na, Vec3 nb, Vec3 nc,
+                                 Vec3 uva, Vec3 uvb, Vec3 uvc, int material_index)
+{
+    Primitive p = prim_zero(PRIM_TRIANGLE, material_index);
+    p.a = a;
+    p.b = b;
+    p.c = c;
+    p.center = na;
+    p.axis = nb;
+    p.half = nc;
+    p.radius = 1.0;
+    p.has_uv = 1;
+    p.uva = uva;
+    p.uvb = uvb;
+    p.uvc = uvc;
     return p;
 }
 
@@ -201,7 +241,13 @@ static int intersect_sphere(const Primitive *p, Ray r, double tmin, double tmax,
 
     Vec3 point = vec3_at(r, t);
     Vec3 n = vec3_scale(vec3_sub(point, p->center), 1.0 / p->radius);
-    geo_store_hit(out, t, point, n, r, p->material_index);
+    double phi = atan2(n.z, n.x);
+    double theta = asin(fmax(-1.0, fmin(1.0, n.y)));
+    double u = 0.5 + phi / (2.0 * GEO_PI);
+    double v = 0.5 + theta / GEO_PI;
+    u = u - floor(u);
+    v = fmax(0.0, fmin(1.0, v));
+    geo_store_hit(out, t, point, n, r, p->material_index, u, v);
     return 1;
 }
 
@@ -217,7 +263,15 @@ static int intersect_plane(const Primitive *p, Ray r, double tmin, double tmax,
     if (t < tmin || t > tmax) return 0;
 
     Vec3 point = vec3_at(r, t);
-    geo_store_hit(out, t, point, n, r, p->material_index);
+    Vec3 up_hint = (fabs(n.y) > 0.9) ? vec3(0.0, 0.0, 1.0) : vec3(0.0, 1.0, 0.0);
+    Vec3 T = vec3_normalize(vec3_cross(up_hint, n));
+    Vec3 B = vec3_cross(n, T);
+    Vec3 diff = vec3_sub(point, p->center);
+    double u = vec3_dot(diff, T);
+    double v = vec3_dot(diff, B);
+    u = u - floor(u);
+    v = v - floor(v);
+    geo_store_hit(out, t, point, n, r, p->material_index, u, v);
     return 1;
 }
 
@@ -287,7 +341,23 @@ static int intersect_box(const Primitive *p, Ray r, double tmin, double tmax,
         else if (axis == 1) n.y = (double)axis_sign;
         else n.z = (double)axis_sign;
     }
-    geo_store_hit(out, t_hit, point, n, r, p->material_index);
+    double u = 0.0, v = 0.0;
+    double dx = hi[0] - lo[0];
+    double dy = hi[1] - lo[1];
+    double dz = hi[2] - lo[2];
+    if (axis == 0) {
+        u = (dz > 1e-12) ? (point.z - lo[2]) / dz : 0.0;
+        v = (dy > 1e-12) ? (point.y - lo[1]) / dy : 0.0;
+    } else if (axis == 1) {
+        u = (dx > 1e-12) ? (point.x - lo[0]) / dx : 0.0;
+        v = (dz > 1e-12) ? (point.z - lo[2]) / dz : 0.0;
+    } else {
+        u = (dx > 1e-12) ? (point.x - lo[0]) / dx : 0.0;
+        v = (dy > 1e-12) ? (point.y - lo[1]) / dy : 0.0;
+    }
+    u = fmax(0.0, fmin(1.0, u));
+    v = fmax(0.0, fmin(1.0, v));
+    geo_store_hit(out, t_hit, point, n, r, p->material_index, u, v);
     return 1;
 }
 
@@ -336,7 +406,17 @@ static int intersect_triangle(const Primitive *p, Ray r, double tmin, double tma
         n = vec3_scale(n, 1.0 / nlen);
     }
 
-    geo_store_hit(out, t, point, n, r, p->material_index);
+    double hit_u, hit_v;
+    if (p->has_uv) {
+        double w = 1.0 - u - v;
+        hit_u = w * p->uva.x + u * p->uvb.x + v * p->uvc.x;
+        hit_v = w * p->uva.y + u * p->uvb.y + v * p->uvc.y;
+    } else {
+        hit_u = u;
+        hit_v = v;
+    }
+
+    geo_store_hit(out, t, point, n, r, p->material_index, hit_u, hit_v);
     return 1;
 }
 
@@ -378,6 +458,9 @@ static int intersect_cylinder(const Primitive *p, Ray r, double tmin, double tma
     int found = 0;
     double best_t = 0.0;
     Vec3 best_n = vec3(0.0, 0.0, 0.0);
+    int best_is_cap = 0;
+    int best_cap = 0;
+    double best_s = 0.0;
 
     /* --- Lateral surface --- */
     if (fabs(qa) > 1e-15) {
@@ -414,6 +497,8 @@ static int intersect_cylinder(const Primitive *p, Ray r, double tmin, double tma
                     found = 1;
                     best_t = t;
                     best_n = n;
+                    best_is_cap = 0;
+                    best_s = s;
                 }
             }
         }
@@ -434,6 +519,8 @@ static int intersect_cylinder(const Primitive *p, Ray r, double tmin, double tma
                 found = 1;
                 best_t = t;
                 best_n = n;
+                best_is_cap = 0;
+                best_s = s;
             }
         }
     }
@@ -458,6 +545,8 @@ static int intersect_cylinder(const Primitive *p, Ray r, double tmin, double tma
                 found = 1;
                 best_t = t;
                 best_n = n;
+                best_is_cap = 1;
+                best_cap = cap;
             }
         }
     }
@@ -465,7 +554,30 @@ static int intersect_cylinder(const Primitive *p, Ray r, double tmin, double tma
     if (!found) return 0;
 
     Vec3 point = vec3_at(r, best_t);
-    geo_store_hit(out, best_t, point, best_n, r, p->material_index);
+    double u = 0.0, v = 0.0;
+    if (best_is_cap) {
+        Vec3 cap_center = (best_cap == 0) ? p->a : p->b;
+        double r_cap = (best_cap == 0) ? r0 : r1;
+        Vec3 radial = vec3_sub(point, cap_center);
+        Vec3 up_hint = (fabs(axis.y) > 0.9) ? vec3(0.0, 0.0, 1.0) : vec3(0.0, 1.0, 0.0);
+        Vec3 T = vec3_normalize(vec3_cross(up_hint, axis));
+        Vec3 B = vec3_cross(axis, T);
+        double rx = (r_cap > 1e-12) ? vec3_dot(radial, T) / (2.0 * r_cap) : 0.0;
+        double ry = (r_cap > 1e-12) ? vec3_dot(radial, B) / (2.0 * r_cap) : 0.0;
+        u = fmax(0.0, fmin(1.0, 0.5 + rx));
+        v = fmax(0.0, fmin(1.0, 0.5 + ry));
+    } else {
+        Vec3 up_hint = (fabs(axis.y) > 0.9) ? vec3(0.0, 0.0, 1.0) : vec3(0.0, 1.0, 0.0);
+        Vec3 T = vec3_normalize(vec3_cross(up_hint, axis));
+        Vec3 B = vec3_cross(axis, T);
+        Vec3 axis_pt = vec3_add(p->a, vec3_scale(axis, best_s * h));
+        Vec3 radial = vec3_sub(point, axis_pt);
+        double phi = atan2(vec3_dot(radial, B), vec3_dot(radial, T));
+        u = 0.5 + phi / (2.0 * GEO_PI);
+        u = u - floor(u);
+        v = fmax(0.0, fmin(1.0, best_s));
+    }
+    geo_store_hit(out, best_t, point, best_n, r, p->material_index, u, v);
     return 1;
 }
 
@@ -558,7 +670,7 @@ static inline int occlude_triangle(const Primitive *p, Ray r, double tmin, doubl
     return (t >= tmin && t <= tmax);
 }
 
-static int occlude_cylinder(const Primitive *p, Ray r, double tmin, double tmax)
+static inline int occlude_cylinder(const Primitive *p, Ray r, double tmin, double tmax)
 {
     Vec3 A = vec3_sub(p->b, p->a);
     double h = vec3_length(A);
@@ -583,20 +695,18 @@ static int occlude_cylinder(const Primitive *p, Ray r, double tmin, double tmax)
     double qb = vec3_dot(D_perp, d0_perp) - rb * ra;
     double qc = vec3_length_sq(d0_perp) - rb * rb;
 
-    /* --- Lateral surface --- */
     if (fabs(qa) > 1e-15) {
         double disc = qb * qb - qa * qc;
         if (disc >= 0.0) {
             double sq = sqrt(disc);
-            double inv_qa = 1.0 / qa;
-            double t0 = (-qb - sq) * inv_qa;
-            double t1 = (-qb + sq) * inv_qa;
-            if (t0 >= tmin && t0 <= tmax) {
-                double s = (d0d + t0 * Od) / h;
+            double t = (-qb - sq) / qa;
+            if (t >= tmin && t <= tmax) {
+                double s = (d0d + t * Od) / h;
                 if (s >= 0.0 && s <= 1.0) return 1;
             }
-            if (t1 >= tmin && t1 <= tmax) {
-                double s = (d0d + t1 * Od) / h;
+            t = (-qb + sq) / qa;
+            if (t >= tmin && t <= tmax) {
+                double s = (d0d + t * Od) / h;
                 if (s >= 0.0 && s <= 1.0) return 1;
             }
         }
@@ -608,24 +718,19 @@ static int occlude_cylinder(const Primitive *p, Ray r, double tmin, double tmax)
         }
     }
 
-    /* --- Caps --- */
     if (fabs(Od) > 1e-15) {
-        double inv_Od = 1.0 / Od;
-        if (r0 > 0.0) {
-            double t = -d0d * inv_Od;
-            if (t >= tmin && t <= tmax) {
-                Vec3 point = vec3_at(r, t);
-                Vec3 radial = vec3_sub(point, p->a);
-                if (vec3_length_sq(radial) <= r0 * r0) return 1;
-            }
-        }
-        if (r1 > 0.0) {
-            double t = (h - d0d) * inv_Od;
-            if (t >= tmin && t <= tmax) {
-                Vec3 point = vec3_at(r, t);
-                Vec3 radial = vec3_sub(point, p->b);
-                if (vec3_length_sq(radial) <= r1 * r1) return 1;
-            }
+        for (int cap = 0; cap < 2; ++cap) {
+            double s_cap = (cap == 0) ? 0.0 : 1.0;
+            double r_cap = (cap == 0) ? r0 : r1;
+            if (r_cap <= 0.0) continue;
+
+            Vec3 cap_center = (cap == 0) ? p->a : p->b;
+            double t = ((s_cap * h) - d0d) / Od;
+            if (t < tmin || t > tmax) continue;
+
+            Vec3 point = vec3_at(r, t);
+            Vec3 radial = vec3_sub(point, cap_center);
+            if (vec3_length_sq(radial) <= r_cap * r_cap) return 1;
         }
     }
 
@@ -650,7 +755,13 @@ int primitive_intersect_norm(const Primitive *p, Ray r, double tmin, double tmax
         double hit_t;
         Vec3 hit_pt, hit_norm;
         if (sdf_intersect(&p->sdf, r, tmin, tmax, &hit_t, &hit_pt, &hit_norm)) {
-            geo_store_hit(out, hit_t, hit_pt, hit_norm, r, p->material_index);
+            double phi = atan2(hit_norm.z, hit_norm.x);
+            double theta = asin(fmax(-1.0, fmin(1.0, hit_norm.y)));
+            double u = 0.5 + phi / (2.0 * GEO_PI);
+            double v = 0.5 + theta / GEO_PI;
+            u = u - floor(u);
+            v = fmax(0.0, fmin(1.0, v));
+            geo_store_hit(out, hit_t, hit_pt, hit_norm, r, p->material_index, u, v);
             return 1;
         }
         return 0;

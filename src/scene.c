@@ -334,6 +334,17 @@ void scene_free(Scene *s)
     s->materials = NULL;
     s->material_count = 0;
 
+    if (s->textures) {
+        for (int i = 0; i < s->texture_count; ++i) {
+            free(s->textures[i].path);
+            texture_image_free(s->textures[i].image);
+        }
+        free(s->textures);
+        s->textures = NULL;
+        s->texture_count = 0;
+        s->texture_capacity = 0;
+    }
+
     bvh_free(s->bvh);
     s->bvh = NULL;
 
@@ -659,6 +670,48 @@ static void scene_collect_emissive_lights(Scene *s)
     }
 }
 
+static ImageTexture *scene_get_or_load_texture(Scene *s, const char *path)
+{
+    if (!s || !path || path[0] == '\0') return NULL;
+
+    /* Check cache */
+    for (int i = 0; i < s->texture_count; ++i) {
+        if (s->textures[i].path && strcmp(s->textures[i].path, path) == 0) {
+            return s->textures[i].image;
+        }
+    }
+
+    /* Load from disk */
+    ImageTexture *img = texture_image_load_bmp(path);
+    if (!img) return NULL;
+
+    /* Grow cache */
+    if (s->texture_count >= s->texture_capacity) {
+        int ncap = (s->texture_capacity > 0) ? s->texture_capacity * 2 : 8;
+        SceneTexture *grown = (SceneTexture *)realloc(s->textures, (size_t)ncap * sizeof(SceneTexture));
+        if (!grown) {
+            texture_image_free(img);
+            return NULL;
+        }
+        s->textures = grown;
+        s->texture_capacity = ncap;
+    }
+
+    /* Allocate and duplicate path */
+    size_t plen = strlen(path);
+    char *dup = (char *)malloc(plen + 1);
+    if (!dup) {
+        texture_image_free(img);
+        return NULL;
+    }
+    memcpy(dup, path, plen + 1);
+
+    s->textures[s->texture_count].path = dup;
+    s->textures[s->texture_count].image = img;
+    s->texture_count++;
+    return img;
+}
+
 int scene_build_from_desc(Scene *s, const SceneDesc *d)
 {
     Material *mats;
@@ -671,6 +724,9 @@ int scene_build_from_desc(Scene *s, const SceneDesc *d)
     s->bvh = NULL;
     s->materials = NULL;
     s->material_count = 0;
+    s->textures = NULL;
+    s->texture_count = 0;
+    s->texture_capacity = 0;
     s->water_level = d->water_level;
     s->water_material = -1;
     s->emissive_light_count = 0;   /* empty until the collector runs below */
@@ -689,6 +745,17 @@ int scene_build_from_desc(Scene *s, const SceneDesc *d)
              * (texture_kind / texture_scale / texture_color_a / texture_color_b)
              * into the runtime Material table with no per-field wiring. */
             mats[i] = d->materials[i].mat;
+            if (d->materials[i].texture_file != NULL && d->materials[i].texture_file[0] != '\0') {
+                ImageTexture *img = scene_get_or_load_texture(s, d->materials[i].texture_file);
+                if (img) {
+                    mats[i].texture_image = img;
+                    mats[i].texture_kind = TEXTURE_IMAGE;
+                } else {
+                    fprintf(stderr, "scene: warning: failed to load texture '%s' for material '%s'\n",
+                            d->materials[i].texture_file,
+                            d->materials[i].name ? d->materials[i].name : "<unnamed>");
+                }
+            }
         }
         s->materials = mats;
         s->material_count = d->material_count;

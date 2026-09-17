@@ -425,6 +425,41 @@ static void test_odd_sizes(void)
     free(rgb);
 }
 
+static void test_bmp_read(void)
+{
+    unsigned char *read_buf = NULL;
+    int rw = 0, rh = 0;
+
+    /* Invalid arguments */
+    CHECK(bmp_read(NULL, &read_buf, &rw, &rh) != 0, "bmp_read null path rejected");
+    CHECK(bmp_read(TMP_FILES[0], NULL, &rw, &rh) != 0, "bmp_read null rgb rejected");
+    CHECK(bmp_read(TMP_FILES[0], &read_buf, NULL, &rh) != 0, "bmp_read null width rejected");
+    CHECK(bmp_read(TMP_FILES[0], &read_buf, &rw, NULL) != 0, "bmp_read null height rejected");
+    CHECK(bmp_read("/nonexistent/file_xyz.bmp", &read_buf, &rw, &rh) != 0, "bmp_read non-existent file rejected");
+
+    /* Round-trip with known content */
+    const int w = 7, h = 5;
+    unsigned char *orig = (unsigned char *)malloc((size_t)w * (size_t)h * 3);
+    for (int i = 0; i < w * h * 3; ++i) {
+        orig[i] = (unsigned char)((i * 37 + 13) & 0xFF);
+    }
+
+    const char *path = TMP_FILES[2];
+    CHECK(bmp_write(path, orig, w, h) == 0, "bmp_write for bmp_read test");
+
+    CHECK(bmp_read(path, &read_buf, &rw, &rh) == 0, "bmp_read succeeds");
+    CHECK(rw == w, "bmp_read width matches");
+    CHECK(rh == h, "bmp_read height matches");
+    CHECK(read_buf != NULL, "bmp_read allocated buffer");
+
+    if (read_buf) {
+        int match = (memcmp(orig, read_buf, (size_t)w * (size_t)h * 3) == 0);
+        CHECK(match, "bmp_read pixel data matches original bit-for-bit");
+        free(read_buf);
+    }
+    free(orig);
+}
+
 /* ------------------------------------------------------------------ */
 
 int main(void)
@@ -435,6 +470,7 @@ int main(void)
     test_bottom_up_bgr();
     test_roundtrip();
     test_odd_sizes();
+    test_bmp_read();
 
     /* Clean up every temp file we may have created. */
     {
@@ -447,3 +483,4 @@ int main(void)
     printf("test_bmp.c: %d passed, %d failed\n", g_pass, g_fail);
     return g_fail ? 1 : 0;
 }
+

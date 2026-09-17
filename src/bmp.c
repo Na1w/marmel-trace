@@ -210,3 +210,132 @@ int ppm_write(const char *path, const unsigned char *rgb, int width, int height)
 
     return 0;
 }
+
+/* ------------------------------------------------------------------------- */
+/* BMP reader                                                                */
+/* ------------------------------------------------------------------------- */
+
+static unsigned short get_u16_le(const unsigned char *p)
+{
+    return (unsigned short)(p[0] | ((unsigned short)p[1] << 8));
+}
+
+static unsigned int get_u32_le(const unsigned char *p)
+{
+    return (unsigned int)(p[0] | ((unsigned int)p[1] << 8) |
+                          ((unsigned int)p[2] << 16) | ((unsigned int)p[3] << 24));
+}
+
+int bmp_read(const char *path, unsigned char **out_rgb, int *out_width, int *out_height)
+{
+    FILE          *fp;
+    unsigned char  hdr[54];
+    unsigned char *row = NULL;
+    unsigned char *buf = NULL;
+    unsigned int   off;
+    int            w, hgt, abs_h, bpp, y, x;
+    size_t         row_size, pixel_size;
+    unsigned int   compression;
+
+    if (path == NULL || out_rgb == NULL || out_width == NULL || out_height == NULL) {
+        fprintf(stderr, "bmp_read: invalid arguments\n");
+        return -1;
+    }
+    *out_rgb = NULL;
+    *out_width = 0;
+    *out_height = 0;
+
+    fp = fopen(path, "rb");
+    if (fp == NULL) {
+        fprintf(stderr, "bmp_read: cannot open '%s' for reading\n", path);
+        return -1;
+    }
+
+    if (fread(hdr, 1, sizeof hdr, fp) != sizeof hdr) {
+        fprintf(stderr, "bmp_read: '%s' is too short or cannot read header\n", path);
+        fclose(fp);
+        return -1;
+    }
+
+    if (hdr[0] != 'B' || hdr[1] != 'M') {
+        fprintf(stderr, "bmp_read: '%s' is not a valid BMP file (magic != BM)\n", path);
+        fclose(fp);
+        return -1;
+    }
+
+    off         = get_u32_le(hdr + 10);
+    w           = (int)get_u32_le(hdr + 18);
+    hgt         = (int)get_u32_le(hdr + 22);
+    bpp         = (int)get_u16_le(hdr + 28);
+    compression = get_u32_le(hdr + 30);
+
+    if ((bpp != 24 && bpp != 32) || w <= 0 || hgt == 0 || (compression != 0 && compression != 3)) {
+        fprintf(stderr, "bmp_read: '%s' has unsupported format (bpp=%d, w=%d, h=%d, comp=%u)\n",
+                path, bpp, w, hgt, compression);
+        fclose(fp);
+        return -1;
+    }
+
+    abs_h = (hgt < 0) ? -hgt : hgt;
+    if (bpp == 24) {
+        row_size = (((size_t)w * 3u + 3u) / 4u) * 4u;
+    } else {
+        row_size = (size_t)w * 4u;
+    }
+
+    pixel_size = (size_t)w * (size_t)abs_h * 3u;
+    buf = (unsigned char *)malloc(pixel_size);
+    row = (unsigned char *)malloc(row_size);
+    if (buf == NULL || row == NULL) {
+        fprintf(stderr, "bmp_read: out of memory allocating image buffer\n");
+        free(buf);
+        free(row);
+        fclose(fp);
+        return -1;
+    }
+
+    for (y = 0; y < abs_h; ++y) {
+        /* File row 0 is the BOTTOM row when biHeight > 0 */
+        int dst_y = (hgt > 0) ? (abs_h - 1 - y) : y;
+        long seek_pos = (long)(off + (unsigned int)y * (unsigned int)row_size);
+        if (fseek(fp, seek_pos, SEEK_SET) != 0 ||
+            fread(row, 1, row_size, fp) != row_size) {
+            fprintf(stderr, "bmp_read: failed reading pixel row %d from '%s'\n", y, path);
+            free(buf);
+            free(row);
+            fclose(fp);
+            return -1;
+        }
+
+        if (bpp == 24) {
+            for (x = 0; x < w; ++x) {
+                unsigned char b = row[x * 3 + 0];
+                unsigned char g = row[x * 3 + 1];
+                unsigned char r = row[x * 3 + 2];
+                unsigned char *p = buf + ((size_t)dst_y * (size_t)w + (size_t)x) * 3u;
+                p[0] = r;
+                p[1] = g;
+                p[2] = b;
+            }
+        } else { /* 32 bpp */
+            for (x = 0; x < w; ++x) {
+                unsigned char b = row[x * 4 + 0];
+                unsigned char g = row[x * 4 + 1];
+                unsigned char r = row[x * 4 + 2];
+                unsigned char *p = buf + ((size_t)dst_y * (size_t)w + (size_t)x) * 3u;
+                p[0] = r;
+                p[1] = g;
+                p[2] = b;
+            }
+        }
+    }
+
+    free(row);
+    fclose(fp);
+
+    *out_rgb = buf;
+    *out_width = w;
+    *out_height = abs_h;
+    return 0;
+}
+

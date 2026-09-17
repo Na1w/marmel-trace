@@ -31,9 +31,11 @@ extern "C" {
  * `Material.texture_kind` stores one of these values.
  */
 typedef enum {
-    TEXTURE_NONE    = 0,  /* no texture: albedo is used verbatim          */
-    TEXTURE_CHECKER = 1,  /* 3D checkerboard on world position            */
-    TEXTURE_STRIPES = 2   /* sinusoidal/triangular bands along world Y    */
+    TEXTURE_NONE       = 0,  /* no texture: albedo is used verbatim          */
+    TEXTURE_CHECKER    = 1,  /* 3D checkerboard on world position            */
+    TEXTURE_STRIPES    = 2,  /* sinusoidal/triangular bands along world Y    */
+    TEXTURE_IMAGE      = 3,  /* 2D image texture mapped via UV coordinates   */
+    TEXTURE_UV_CHECKER = 4   /* 2D checkerboard mapped via UV coordinates    */
 } TextureKind;
 
 /* Defaults for the texture fields, shared by the parser and the writer so the
@@ -87,11 +89,12 @@ typedef struct {
                            * 1 = microfacet PBR. 0 keeps behaviour — and the
                            * rendered output — byte-identical.                 */
 
-    /* --- procedural texture (position-modulated albedo) -------------- */
-    int    texture_kind;  /* TextureKind: 0 none, 1 checker, 2 stripes   */
-    double texture_scale; /* world units per cell; 0 or <=0 => default 1  */
-    Vec3   texture_color_a; /* first cell / band colour                  */
-    Vec3   texture_color_b; /* second cell / band colour                 */
+    /* --- procedural & image texture (albedo modulation) -------------- */
+    int         texture_kind;    /* TextureKind: 0 none, 1 checker, 2 stripes, 3 image, 4 uv_checker */
+    double      texture_scale;   /* world units per cell, or UV repeat factor; 0 or <=0 => default 1 */
+    Vec3        texture_color_a; /* first cell / band colour                  */
+    Vec3        texture_color_b; /* second cell / band colour                 */
+    const void *texture_image;   /* pointer to ImageTexture (or NULL)         */
 } Material;
 
 /*

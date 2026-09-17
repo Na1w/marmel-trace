@@ -637,7 +637,7 @@ Vec3 pathtrace_radiance(const Scene *scene, Ray primary, int max_depth,
 
         /* Texture-modulated albedo on a local copy (physical fields intact). */
         Material m_local = *m;
-        m_local.albedo = texture_albedo(m, P);
+        m_local.albedo = texture_albedo_uv(m, P, h.u, h.v);
         const Material *mm = &m_local;
 
         /* Emitted radiance of a directly-hit light (zero for ordinary mats).

@@ -132,10 +132,13 @@ int obj_load_mem(const char *data, size_t len, Geometry *g, int material_index, 
     Vec3 *normals = NULL;
     int   norm_count = 0, norm_cap = 0;
 
+    Vec3 *texcoords = NULL;
+    int   tex_count = 0, tex_cap = 0;
+
     Vec3 bmin = vec3(1e30, 1e30, 1e30);
     Vec3 bmax = vec3(-1e30, -1e30, -1e30);
 
-    /* --- PASS 1: Parse vertices (v) and normals (vn) --- */
+    /* --- PASS 1: Parse vertices (v), normals (vn), and texcoords (vt) --- */
     const char *p = data;
     const char *end = data + len;
 
@@ -172,6 +175,14 @@ int obj_load_mem(const char *data, size_t len, Geometry *g, int material_index, 
                         normals[norm_count++] = vec3(nx, ny, nz);
                     }
                 }
+            } else if (line[0] == 'v' && line[1] == 't' && isspace((unsigned char)line[2])) {
+                double u = 0.0, v = 0.0, w = 0.0;
+                int nmatch = sscanf(line + 3, "%lf %lf %lf", &u, &v, &w);
+                if (nmatch >= 2) {
+                    if (grow_vec3_array(&texcoords, &tex_cap, tex_count) == 0) {
+                        texcoords[tex_count++] = vec3(u, v, (nmatch >= 3) ? w : 0.0);
+                    }
+                }
             }
         }
 
@@ -181,6 +192,7 @@ int obj_load_mem(const char *data, size_t len, Geometry *g, int material_index, 
     if (pos_count == 0) {
         free(positions);
         free(normals);
+        free(texcoords);
         return 0;
     }
 
@@ -228,7 +240,7 @@ int obj_load_mem(const char *data, size_t len, Geometry *g, int material_index, 
                 int vi = 0, vti = 0, vni = 0;
                 if (parse_face_vertex(tok, &vi, &vti, &vni)) {
                     fverts[fcount].vi = resolve_index(vi, pos_count);
-                    fverts[fcount].vti = resolve_index(vti, 0);
+                    fverts[fcount].vti = resolve_index(vti, tex_count);
                     fverts[fcount].vni = resolve_index(vni, norm_count);
                     if (fverts[fcount].vi >= 0 && fverts[fcount].vi < pos_count) {
                         fcount++;
@@ -254,17 +266,31 @@ int obj_load_mem(const char *data, size_t len, Geometry *g, int material_index, 
                 int nb_idx = fverts[i].vni;
                 int nc_idx = fverts[i + 1].vni;
 
+                int ta_idx = fverts[0].vti;
+                int tb_idx = fverts[i].vti;
+                int tc_idx = fverts[i + 1].vti;
+                int has_uv = (ta_idx >= 0 && ta_idx < tex_count &&
+                              tb_idx >= 0 && tb_idx < tex_count &&
+                              tc_idx >= 0 && tc_idx < tex_count);
+                Vec3 uva = has_uv ? texcoords[ta_idx] : vec3(0.0, 0.0, 0.0);
+                Vec3 uvb = has_uv ? texcoords[tb_idx] : vec3(0.0, 0.0, 0.0);
+                Vec3 uvc = has_uv ? texcoords[tc_idx] : vec3(0.0, 0.0, 0.0);
+
                 if (xf.smooth_normals && na_idx >= 0 && na_idx < norm_count &&
                     nb_idx >= 0 && nb_idx < norm_count &&
                     nc_idx >= 0 && nc_idx < norm_count) {
                     Vec3 na = transform_normal(normals[na_idx], xf.scale, xf.rotation_deg);
                     Vec3 nb = transform_normal(normals[nb_idx], xf.scale, xf.rotation_deg);
                     Vec3 nc = transform_normal(normals[nc_idx], xf.scale, xf.rotation_deg);
-                    if (geometry_add(g, prim_triangle_smooth(va, vb, vc, na, nb, nc, material_index)) >= 0) {
+                    Primitive tri = has_uv ? prim_triangle_smooth_uv(va, vb, vc, na, nb, nc, uva, uvb, uvc, material_index)
+                                           : prim_triangle_smooth(va, vb, vc, na, nb, nc, material_index);
+                    if (geometry_add(g, tri) >= 0) {
                         triangles_loaded++;
                     }
                 } else {
-                    if (geometry_add(g, prim_triangle(va, vb, vc, material_index)) >= 0) {
+                    Primitive tri = has_uv ? prim_triangle_uv(va, vb, vc, uva, uvb, uvc, material_index)
+                                           : prim_triangle(va, vb, vc, material_index);
+                    if (geometry_add(g, tri) >= 0) {
                         triangles_loaded++;
                     }
                 }
@@ -276,6 +302,7 @@ int obj_load_mem(const char *data, size_t len, Geometry *g, int material_index, 
 
     free(positions);
     free(normals);
+    free(texcoords);
     return triangles_loaded;
 }
 

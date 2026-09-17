@@ -83,6 +83,7 @@ static void test_obj_quad_fan_triangulation(void)
         }
         CHECK(hit_rc == 1, "ray hits triangulated quad");
         CHECK(hit.normal.z > 0.99, "normal points towards +Z");
+        CHECK(fabs(hit.u - 0.5) < 1e-4 && fabs(hit.v - 0.5) < 1e-4, "interpolated UV at center of quad is (0.5, 0.5)");
     }
 
     geometry_free(&g);

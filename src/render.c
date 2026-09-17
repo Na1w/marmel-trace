@@ -614,7 +614,7 @@ static Vec3 trace_hit(const Scene *scene, Ray r, int depth, int max_depth,
      * verbatim, so reflection/refraction below behaves exactly as before.
      */
     Material m_local = *m;
-    m_local.albedo = texture_albedo(m, P);
+    m_local.albedo = texture_albedo_uv(m, P, h->u, h->v);
     const Material *mm = &m_local;
 
     /*

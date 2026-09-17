@@ -95,6 +95,7 @@ void material_texture_defaults(Material *m)
     m->texture_scale   = TEXTURE_DEFAULT_SCALE;
     m->texture_color_a = TEXTURE_DEFAULT_COLOR_A;
     m->texture_color_b = TEXTURE_DEFAULT_COLOR_B;
+    m->texture_image   = NULL;
 }
 
 /* ------------------------------------------------------------------ */
