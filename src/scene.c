@@ -24,9 +24,10 @@
  */
 
 #include "scene.h"
-#include "scene_desc.h"
 #include "noise.h"
+#include "obj.h"
 
+#include <stdio.h>
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>
@@ -707,6 +708,17 @@ void scene_free(Scene *s)
     s->materials = NULL;
     s->material_count = 0;
 
+    if (s->textures) {
+        for (int i = 0; i < s->texture_count; ++i) {
+            free(s->textures[i].path);
+            texture_image_free(s->textures[i].image);
+        }
+        free(s->textures);
+        s->textures = NULL;
+        s->texture_count = 0;
+        s->texture_capacity = 0;
+    }
+
     bvh_free(s->bvh);
     s->bvh = NULL;
 
@@ -839,9 +851,59 @@ static const char *const scene_mat_names[MAT_COUNT] = {
  * Translate one explicit ScenePrimDesc into a Primitive via the existing
  * geometry constructors, preserving the exact field layout.
  */
-static Primitive scene_prim_from_desc(const ScenePrimDesc *pd, int mat)
+static void populate_sdf_displaces(SdfData *sdf, const SceneDesc *d, const ScenePrimDesc *pd)
+{
+    sdf->displace_count = 0;
+    for (int k = 0; k < pd->displace_count; k++) {
+        int di = pd->displace_indices[k];
+        if (di >= 0 && di < d->displace_count && sdf->displace_count < SDF_MAX_DISPLACEMENTS) {
+            sdf->displaces[sdf->displace_count++] = d->displaces[di].displace;
+        }
+    }
+    if (sdf->displace_count > 0) {
+        sdf->displace = sdf->displaces[0];
+    } else if (pd->displace_index >= 0 && pd->displace_index < d->displace_count) {
+        sdf->displaces[0] = d->displaces[pd->displace_index].displace;
+        sdf->displace_count = 1;
+        sdf->displace = sdf->displaces[0];
+    }
+}
+
+static Primitive scene_prim_from_desc(const SceneDesc *d, const ScenePrimDesc *pd, int mat)
 {
     int m = (pd->material_index >= 0) ? pd->material_index : mat;
+
+    if (pd->kind == PRIM_SDF_SHAPE) {
+        SdfData sdf = pd->sdf;
+        populate_sdf_displaces(&sdf, d, pd);
+        return prim_sdf(sdf, m);
+    }
+    if (pd->displace_count > 0 || (pd->displace_index >= 0 && pd->displace_index < d->displace_count)) {
+        /* Primitive has displacement modifier(s) applied: convert to PRIM_SDF_SHAPE */
+        SdfData sdf;
+        memset(&sdf, 0, sizeof(sdf));
+        sdf.op = SDF_OP_NONE;
+        populate_sdf_displaces(&sdf, d, pd);
+        if (pd->kind == PRIM_BOX) {
+            sdf.shape_a = SDF_SHAPE_BOX;
+            sdf.center_a = pd->center;
+            sdf.param1_a = pd->half;
+            return prim_sdf(sdf, m);
+        } else if (pd->kind == PRIM_SPHERE) {
+            sdf.shape_a = SDF_SHAPE_SPHERE;
+            sdf.center_a = pd->center;
+            sdf.param2_a = pd->radius;
+            return prim_sdf(sdf, m);
+        } else if (pd->kind == PRIM_CYLINDER) {
+            sdf.shape_a = SDF_SHAPE_CYLINDER;
+            sdf.center_a = vec3_scale(vec3_add(pd->base, pd->top), 0.5);
+            double h = vec3_length(vec3_sub(pd->top, pd->base));
+            sdf.param1_a = vec3(0.0, h * 0.5, 0.0);
+            sdf.param2_a = pd->radius;
+            return prim_sdf(sdf, m);
+        }
+    }
+
     switch (pd->kind) {
     case PRIM_SPHERE:
         return prim_sphere(pd->center, pd->radius, m);
@@ -854,10 +916,12 @@ static Primitive scene_prim_from_desc(const ScenePrimDesc *pd, int mat)
     case PRIM_CYLINDER:
         return prim_cylinder(pd->base, pd->top, pd->radius, pd->radius2, m);
     case PRIM_CSG: {
-        Primitive left = pd->left ? scene_prim_from_desc(pd->left, m) : prim_sphere(vec3(0,0,0), 0, m);
-        Primitive right = pd->right ? scene_prim_from_desc(pd->right, m) : prim_sphere(vec3(0,0,0), 0, m);
+        Primitive left = pd->left ? scene_prim_from_desc(d, pd->left, m) : prim_sphere(vec3(0,0,0), 0, m);
+        Primitive right = pd->right ? scene_prim_from_desc(d, pd->right, m) : prim_sphere(vec3(0,0,0), 0, m);
         return prim_csg(pd->csg_op, left, right, m);
     }
+    case PRIM_SDF_SHAPE:
+        return prim_sdf(pd->sdf, m);
     }
     /* Unreachable for a well-formed PrimKind; default to a degenerate
      * plane so the caller never sees an uninitialised Primitive. */
@@ -1097,6 +1161,48 @@ static void scene_collect_emissive_lights(Scene *s)
     }
 }
 
+static ImageTexture *scene_get_or_load_texture(Scene *s, const char *path)
+{
+    if (!s || !path || path[0] == '\0') return NULL;
+
+    /* Check cache */
+    for (int i = 0; i < s->texture_count; ++i) {
+        if (s->textures[i].path && strcmp(s->textures[i].path, path) == 0) {
+            return s->textures[i].image;
+        }
+    }
+
+    /* Load from disk */
+    ImageTexture *img = texture_image_load_bmp(path);
+    if (!img) return NULL;
+
+    /* Grow cache */
+    if (s->texture_count >= s->texture_capacity) {
+        int ncap = (s->texture_capacity > 0) ? s->texture_capacity * 2 : 8;
+        SceneTexture *grown = (SceneTexture *)realloc(s->textures, (size_t)ncap * sizeof(SceneTexture));
+        if (!grown) {
+            texture_image_free(img);
+            return NULL;
+        }
+        s->textures = grown;
+        s->texture_capacity = ncap;
+    }
+
+    /* Allocate and duplicate path */
+    size_t plen = strlen(path);
+    char *dup = (char *)malloc(plen + 1);
+    if (!dup) {
+        texture_image_free(img);
+        return NULL;
+    }
+    memcpy(dup, path, plen + 1);
+
+    s->textures[s->texture_count].path = dup;
+    s->textures[s->texture_count].image = img;
+    s->texture_count++;
+    return img;
+}
+
 int scene_build_from_desc(Scene *s, const SceneDesc *d)
 {
     Material *mats;
@@ -1109,6 +1215,9 @@ int scene_build_from_desc(Scene *s, const SceneDesc *d)
     s->bvh = NULL;
     s->materials = NULL;
     s->material_count = 0;
+    s->textures = NULL;
+    s->texture_count = 0;
+    s->texture_capacity = 0;
     s->water_level = d->water_level;
     s->water_material = -1;
     s->emissive_light_count = 0;   /* empty until the collector runs below */
@@ -1129,6 +1238,17 @@ int scene_build_from_desc(Scene *s, const SceneDesc *d)
              * (texture_kind / texture_scale / texture_color_a / texture_color_b)
              * into the runtime Material table with no per-field wiring. */
             mats[i] = d->materials[i].mat;
+            if (d->materials[i].texture_file != NULL && d->materials[i].texture_file[0] != '\0') {
+                ImageTexture *img = scene_get_or_load_texture(s, d->materials[i].texture_file);
+                if (img) {
+                    mats[i].texture_image = img;
+                    mats[i].texture_kind = TEXTURE_IMAGE;
+                } else {
+                    fprintf(stderr, "scene: warning: failed to load texture '%s' for material '%s'\n",
+                            d->materials[i].texture_file,
+                            d->materials[i].name ? d->materials[i].name : "<unnamed>");
+                }
+            }
         }
         for (i = 0; i < d->light_count; ++i) {
             int l_mat_idx = d->material_count + i;
@@ -1147,7 +1267,7 @@ int scene_build_from_desc(Scene *s, const SceneDesc *d)
     for (i = 0; i < d->prim_count; ++i) {
         const ScenePrimDesc *pd = &d->prims[i];
         int mat = (pd->material_index >= 0) ? pd->material_index : MAT_GROUND;
-        if (geometry_add(&s->geo, scene_prim_from_desc(pd, mat)) < 0) {
+        if (geometry_add(&s->geo, scene_prim_from_desc(d, pd, mat)) < 0) {
             goto fail;
         }
     }
@@ -1189,6 +1309,23 @@ int scene_build_from_desc(Scene *s, const SceneDesc *d)
             if (scene_add_plant_desc(&s->geo, pd, bark_mat, leaf_mat, seed) != 0) {
                 goto fail;
             }
+        }
+    }
+
+    /* --- Wavefront OBJ meshes, in file order ------------------------ */
+    for (i = 0; i < d->mesh_count; ++i) {
+        const SceneMeshDesc *m = &d->meshes[i];
+        int mat = (m->material_index >= 0) ? m->material_index : MAT_GROUND;
+        ObjTransform xf = obj_transform_default();
+        xf.position = m->center;
+        xf.scale = m->scale;
+        xf.rotation_deg = m->rotate;
+        xf.smooth_normals = m->smooth;
+        xf.auto_center = m->auto_center;
+        xf.auto_scale = m->auto_scale;
+        int ntri = obj_load_file(m->file, &s->geo, mat, &xf);
+        if (ntri < 0) {
+            fprintf(stderr, "warning: failed to load mesh '%s'\n", m->file ? m->file : "(null)");
         }
     }
 

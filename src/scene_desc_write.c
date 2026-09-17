@@ -281,6 +281,7 @@ static int vec3_is_zero(Vec3 v)
 static int mat_texture_is_default(const Material *m)
 {
     return m->texture_kind == TEXTURE_DEFAULT_KIND &&
+           m->texture_image == NULL &&
            m->texture_scale == TEXTURE_DEFAULT_SCALE &&
            vec3_is(m->texture_color_a, TEXTURE_DEFAULT_COLOR_A.x,
                    TEXTURE_DEFAULT_COLOR_A.y, TEXTURE_DEFAULT_COLOR_A.z) &&
@@ -599,6 +600,8 @@ static void emit_material_texture(Writer *w, const Material *m)
     case TEXTURE_PLANET_EARTH: w_key_name(w, "texture", "earth");   break;
     case TEXTURE_PLANET_MOON:  w_key_name(w, "texture", "moon");    break;
     case TEXTURE_NOISE:        w_key_name(w, "texture", "noise");   break;
+    case TEXTURE_IMAGE:        w_key_name(w, "texture", "image"); break;
+    case TEXTURE_UV_CHECKER:   w_key_name(w, "texture", "uv_checker"); break;
     case TEXTURE_NONE:
     default:                   w_key_name(w, "texture", "none");    break;
     }
@@ -638,39 +641,40 @@ static void emit_material(Writer *w, const SceneDesc *d, int i)
 {
     const MaterialDesc *md = &d->materials[i];
     const Material     *m  = &md->mat;
+    int has_custom_tex = (md->texture_file != NULL && md->texture_file[0] != '\0');
 
     w_blank(w);
     w_open(w, "material", (md->name != NULL) ? md->name : "");
 
-    if (mat_is_water_preset(m)) {
+    if (!has_custom_tex && mat_is_water_preset(m)) {
         w_key_name(w, "type", "water");
-    } else if (mat_is_opaque_preset(m)) {
+    } else if (!has_custom_tex && mat_is_opaque_preset(m)) {
         w_key_name(w, "type", "opaque");
-    } else if (mat_is_glass_preset(m)) {
+    } else if (!has_custom_tex && mat_is_glass_preset(m)) {
         w_key_name(w, "type", "glass");
-    } else if (mat_is_gold_preset(m)) {
+    } else if (!has_custom_tex && mat_is_gold_preset(m)) {
         w_key_name(w, "type", "gold");
-    } else if (mat_is_copper_preset(m)) {
+    } else if (!has_custom_tex && mat_is_copper_preset(m)) {
         w_key_name(w, "type", "copper");
-    } else if (mat_is_silver_preset(m)) {
+    } else if (!has_custom_tex && mat_is_silver_preset(m)) {
         w_key_name(w, "type", "silver");
-    } else if (mat_is_aluminum_preset(m)) {
+    } else if (!has_custom_tex && mat_is_aluminum_preset(m)) {
         w_key_name(w, "type", "aluminum");
-    } else if (mat_is_iron_preset(m)) {
+    } else if (!has_custom_tex && mat_is_iron_preset(m)) {
         w_key_name(w, "type", "iron");
-    } else if (mat_is_chrome_preset(m)) {
+    } else if (!has_custom_tex && mat_is_chrome_preset(m)) {
         w_key_name(w, "type", "chrome");
-    } else if (mat_is_brass_preset(m)) {
+    } else if (!has_custom_tex && mat_is_brass_preset(m)) {
         w_key_name(w, "type", "brass");
-    } else if (mat_is_plastic_preset(m)) {
+    } else if (!has_custom_tex && mat_is_plastic_preset(m)) {
         w_key_name(w, "type", "plastic");
-    } else if (mat_is_rubber_preset(m)) {
+    } else if (!has_custom_tex && mat_is_rubber_preset(m)) {
         w_key_name(w, "type", "rubber");
-    } else if (mat_is_ceramic_preset(m)) {
+    } else if (!has_custom_tex && mat_is_ceramic_preset(m)) {
         w_key_name(w, "type", "ceramic");
-    } else if (mat_is_diamond_preset(m)) {
+    } else if (!has_custom_tex && mat_is_diamond_preset(m)) {
         w_key_name(w, "type", "diamond");
-    } else if (mat_is_emissive_preset(m)) {
+    } else if (!has_custom_tex && mat_is_emissive_preset(m)) {
         w_key_name(w, "type", "emissive");
     } else {
         w_key_vec3(w, "albedo", m->albedo);
@@ -697,6 +701,9 @@ static void emit_material(Writer *w, const SceneDesc *d, int i)
                      MATERIAL_DEFAULT_ATMOSPHERE_GLOW.y,
                      MATERIAL_DEFAULT_ATMOSPHERE_GLOW.z))
             w_key_vec3(w, "atmosphere_glow", m->atmosphere_glow);
+        if (has_custom_tex) {
+            w_key_name(w, "texture_file", md->texture_file);
+        }
     }
     w_close(w);
 }

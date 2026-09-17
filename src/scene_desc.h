@@ -99,8 +99,9 @@ typedef struct {
  * whole-struct copy wires them into the runtime Material with no extra code.
  */
 typedef struct {
-    char     *name;   /* owned, may be NULL (unset) */
-    Material  mat;    /* reused material payload    */
+    char     *name;         /* owned, may be NULL (unset) */
+    Material  mat;          /* reused material payload    */
+    char     *texture_file; /* path to image texture, owned, may be NULL */
 } MaterialDesc;
 
 /* ------------------------------------------------------------------ */
@@ -135,12 +136,39 @@ typedef struct ScenePrimDesc {
     Vec3     base, top;       /* cylinder base / top centers               */
     double   radius;          /* sphere radius / cylinder r_bottom         */
     double   radius2;         /* cylinder r_top                            */
+#define SCENE_MAX_PRIM_DISPLACES 8
+
     char    *material_name;   /* owned referenced name, may be NULL        */
-    int      material_index;  /* resolved index, or SCENE_DESC_NO_MATERIAL */
+    int      material_index;  /* resolved material index, or NO_MATERIAL   */
     CsgOp    csg_op;          /* CSG boolean operation                     */
     struct ScenePrimDesc *left;  /* owned left sub-primitive               */
     struct ScenePrimDesc *right; /* owned right sub-primitive              */
+    char    *displace_name;   /* owned referenced displacement, or NULL    */
+    int      displace_index;  /* resolved displace index, or -1            */
+    char    *displace_names[SCENE_MAX_PRIM_DISPLACES];
+    int      displace_indices[SCENE_MAX_PRIM_DISPLACES];
+    int      displace_count;
+    SdfData  sdf;             /* populated for PRIM_SDF_SHAPE              */
 } ScenePrimDesc;
+
+/* Named displacement modifier (docs/scene_format.md) */
+typedef struct {
+    char            *name;          /* owned */
+    DisplaceModifier displace;      /* reused DisplaceModifier from sdf.h */
+} SceneDisplaceDesc;
+
+/* Wavefront OBJ mesh directive */
+typedef struct {
+    char        *file;            /* path to .obj file, owned */
+    char        *material_name;   /* owned referenced material name, or NULL */
+    int          material_index;  /* resolved material index, or NO_MATERIAL */
+    Vec3         center;          /* translation / position */
+    Vec3         scale;           /* scale (default: 1, 1, 1) */
+    Vec3         rotate;          /* Euler angles in degrees (default: 0, 0, 0) */
+    int          smooth;          /* 1: smooth normals, 0: flat (default: 1) */
+    int          auto_center;     /* 1: auto center bounding box at origin */
+    double       auto_scale;      /* if > 0: fit bounding box max dimension */
+} SceneMeshDesc;
 
 /* ------------------------------------------------------------------ */
 /* Procedural plant directive (docs/scene_format.md §4.9 - §4.10)      */
@@ -286,6 +314,10 @@ typedef struct {
     int              material_count;
     int              material_capacity;
 
+    SceneDisplaceDesc *displaces;   /* owned dynamic array                 */
+    int                displace_count;
+    int                displace_capacity;
+
     ScenePrimDesc   *prims;         /* owned dynamic array                 */
     int              prim_count;
     int              prim_capacity;
@@ -301,6 +333,10 @@ typedef struct {
     SceneLightDesc  *lights;        /* owned dynamic array                 */
     int              light_count;
     int              light_capacity;
+
+    SceneMeshDesc   *meshes;        /* owned dynamic array                 */
+    int              mesh_count;
+    int              mesh_capacity;
 } SceneDesc;
 
 /* ------------------------------------------------------------------ */
@@ -365,10 +401,13 @@ int scene_desc_write(const SceneDesc *d, const char *path, char *errbuf, size_t 
  * SCENE_DESC_NO_MATERIAL; scene_desc_load()'s resolution pass fills them in.
  */
 int scene_desc_add_material(SceneDesc *d, const char *name, const Material *mat);
+int scene_desc_add_material_tex(SceneDesc *d, const char *name, const Material *mat, const char *texture_file);
+int scene_desc_add_displace(SceneDesc *d, const SceneDisplaceDesc *disp);
 int scene_desc_add_prim(SceneDesc *d, const ScenePrimDesc *prim);
 int scene_desc_add_plant(SceneDesc *d, const ScenePlantDesc *plant);
 int scene_desc_add_boulder(SceneDesc *d, const SceneBoulderDesc *boulder);
 int scene_desc_add_light(SceneDesc *d, const SceneLightDesc *light);
+int scene_desc_add_mesh(SceneDesc *d, const SceneMeshDesc *mesh);
 
 #ifdef __cplusplus
 }

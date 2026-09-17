@@ -412,25 +412,30 @@ not area lights.)
 declared `<name>` via `material = <name>` (a name value, §3.4). Names are
 case-sensitive. Resolution rules are in §5.
 
-**Procedural textures.** `texture` selects a procedural, position-modulated
-albedo (implemented in `src/texture.c`, applied per hit in `src/render.c`).
-There is no UV parameterisation, so the patterns are functions of the
-**world-space hit position**:
+**Textures and UV Mapping.** `texture` selects a procedural pattern or image-based
+albedo (implemented in `src/texture.c`, applied per hit in `src/render.c` and `src/pathtrace.c`).
+Hit points carry surface parameter coordinates $(u, v) \in [0, 1]$ computed for each primitive
+(spheres use equirectangular projection, boxes use per-face coordinates, planes use planar grids,
+cylinders use polar caps + mantle wrap, and triangles / OBJ meshes use interpolated vertex UVs):
 
 - `texture = none` — the albedo is used verbatim (the default; no-op).
-- `texture = checker` — a 3D checkerboard: cells are `floor(p / texture_scale)`
+- `texture = checker` — a 3D world-space checkerboard: cells are `floor(p / texture_scale)`
   and the parity of `floor(p.x/s) + floor(p.y/s) + floor(p.z/s)` selects
   `texture_color_a` or `texture_color_b`.
 - `texture = stripes` — sinusoidal bands along world Y: `0.5·(1+sin(2π·p.y/s))`
   thresholded at `0.5` selects `texture_color_a` or `texture_color_b`.
+- `texture = uv_checker` — a 2D checkerboard mapped onto the primitive's surface $(u, v)$:
+  `floor(u·s) + floor(v·s)` parity selects `texture_color_a` or `texture_color_b`.
+- `texture = image` — samples a 24-bit or 32-bit uncompressed Windows BMP file specified by
+  `texture_file = "path/to/file.bmp"`. Texels are bilinearly interpolated and converted from
+  sRGB to linear RGB. `texture_scale` repeats the texture $(u \cdot s, v \cdot s)$ (default: `1.0`).
 
-The selected pattern colour is **multiplied by the base `albedo`**, so the base
-colour still tints the texture. `texture_scale` is the world-space cell size
-(`1` by default; a non-positive value falls back to `1`). Any other `texture`
-value is a hard error (`E_BAD_TEXTURE_KIND`). The default values
-(`texture=none`, `texture_scale=1`, `texture_color_a=1 1 1`,
-`texture_color_b=0 0 0`) are a no-op and are **not** emitted by the canonical
-writer (§9.2), so untextured materials round-trip with no `texture*` lines.
+The sampled texture colour is **multiplied by the base `albedo`**, so the base colour
+tints the texture (setting `albedo = 1 1 1` preserves the image's original colours).
+Any other `texture` value is a hard error (`E_BAD_TEXTURE_KIND`). The default values
+(`texture=none`, `texture_scale=1`, `texture_color_a=1 1 1`, `texture_color_b=0 0 0`)
+are a no-op and are **not** emitted by the canonical writer (§9.2), so untextured materials
+round-trip with no `texture*` lines.
 
 ### 4.4 `sphere` — repeatable primitive block
 

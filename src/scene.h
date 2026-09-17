@@ -27,7 +27,16 @@
 #include "geometry.h"
 #include "bvh.h"
 #include "material.h"
+#include "texture.h"
 #include "scene_desc.h"   /* SceneDesc: declarative scene description model */
+
+/*
+ * One loaded 2D image texture associated with a file path.
+ */
+typedef struct {
+    char         *path;
+    ImageTexture *image;
+} SceneTexture;
 
 /*
  * One emissive PBR primitive acting as a sampled AREA LIGHT.
@@ -58,14 +67,17 @@ typedef struct {
 #define SCENE_MAX_EMISSIVE_LIGHTS 8
 
 typedef struct {
-    Geometry   geo;              /* all primitives                            */
-    Bvh       *bvh;              /* acceleration structure over geo (owned)   */
-    Material  *materials;        /* material table (owned)                    */
-    int        material_count;
-    SkyParams  sky;              /* sun + sky/cloud parameters                */
-    FogParams  fog;              /* atmospheric fog / smoke parameters        */
-    double     water_level;      /* world-space y of the water surface        */
-    int        water_material;   /* index of the water material, or -1        */
+    Geometry      geo;              /* all primitives                            */
+    Bvh          *bvh;              /* acceleration structure over geo (owned)   */
+    Material     *materials;        /* material table (owned)                    */
+    int           material_count;
+    SceneTexture *textures;         /* loaded image textures (owned)             */
+    int           texture_count;
+    int           texture_capacity;
+    SkyParams     sky;              /* sun + sky/cloud parameters                */
+    FogParams     fog;              /* atmospheric fog / smoke parameters        */
+    double        water_level;      /* world-space y of the water surface        */
+    int           water_material;   /* index of the water material, or -1        */
 
     /*
      * Emissive PBR primitives promoted to sampled area lights (see
@@ -126,10 +138,6 @@ void scene_default_desc(SceneDesc *out);
  */
 void scene_free(Scene *s);
 
-/*
- * Nearest-hit query. Wraps bvh_intersect() (falling back to a linear scan if
- * no BVH is present). Returns 1 on hit, 0 otherwise.
- */
 int scene_intersect(const Scene *s, Ray r, double tmin, double tmax, Hit *out);
 
 /*
@@ -141,7 +149,6 @@ int scene_occluded(const Scene *s, Ray r, double tmin, double tmax);
 
 /* Any-hit occlusion query with caller-supplied shadow cache pointer. */
 int scene_occluded_cached(const Scene *s, Ray r, double tmin, double tmax, int *cache_prim);
-
 /* Material lookup by index; returns NULL if out of range (or s is NULL). */
 const Material *scene_material(const Scene *s, int index);
 

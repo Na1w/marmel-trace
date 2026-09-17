@@ -21,7 +21,13 @@
  * `pathtrace_to_byte` helper below.
  */
 
+#if !defined(_POSIX_C_SOURCE)
+#define _POSIX_C_SOURCE 200809L
+#endif
+
 #include "pathtrace.h"
+
+#include <time.h>
 
 #include "geometry.h"
 #include "material.h"
@@ -648,7 +654,7 @@ Vec3 pathtrace_radiance(const Scene *scene, Ray primary, int max_depth,
 
         /* Texture-modulated albedo on a local copy (physical fields intact). */
         Material m_local = *m;
-        m_local.albedo = texture_albedo(m, P);
+        m_local.albedo = texture_albedo_uv(m, P, h.u, h.v);
         const Material *mm = &m_local;
 
         /* Emitted radiance of a directly-hit light (zero for ordinary mats).
@@ -1008,6 +1014,9 @@ int pathtrace_render(const Scene *scene, const Camera *cam, int width, int heigh
         return 3; /* bad sample / depth counts */
     }
 
+    struct timespec ts0, ts1;
+    clock_gettime(CLOCK_MONOTONIC, &ts0);
+
     /* Progress is stderr-only and easily silenced via RAYTRACER_NO_PROGRESS. */
 #ifdef USE_PTHREADS
     int progress = render_progress_enabled();
@@ -1073,6 +1082,9 @@ int pathtrace_render(const Scene *scene, const Camera *cam, int width, int heigh
     }
 
     render_progress_finish(&pr);
+    clock_gettime(CLOCK_MONOTONIC, &ts1);
+    render_set_last_seconds((double)(ts1.tv_sec - ts0.tv_sec) +
+                            (double)(ts1.tv_nsec - ts0.tv_nsec) * 1e-9);
     return 0;
 #else
     /*
@@ -1090,6 +1102,9 @@ int pathtrace_render(const Scene *scene, const Camera *cam, int width, int heigh
     }
 
     render_progress_finish(NULL);
+    clock_gettime(CLOCK_MONOTONIC, &ts1);
+    render_set_last_seconds((double)(ts1.tv_sec - ts0.tv_sec) +
+                            (double)(ts1.tv_nsec - ts0.tv_nsec) * 1e-9);
     return 0;
 #endif
 }

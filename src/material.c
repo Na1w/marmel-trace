@@ -14,6 +14,9 @@
 
 /* Local PI so we do not depend on M_PI (POSIX-only). */
 #define MATERIAL_PI 3.14159265358979323846
+#ifndef M_PI
+#define M_PI MATERIAL_PI
+#endif
 
 /* ------------------------------------------------------------------ */
 /* Small scalar helpers                                                */
@@ -116,6 +119,7 @@ void material_texture_defaults(Material *m)
     m->texture_scale   = TEXTURE_DEFAULT_SCALE;
     m->texture_color_a = TEXTURE_DEFAULT_COLOR_A;
     m->texture_color_b = TEXTURE_DEFAULT_COLOR_B;
+    m->texture_image   = NULL;
 }
 
 /* ------------------------------------------------------------------ */

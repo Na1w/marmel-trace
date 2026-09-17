@@ -18,6 +18,8 @@
  * a plain single-threaded loop and never references pthread.
  */
 
+#define _POSIX_C_SOURCE 200809L
+
 #include "render.h"
 
 #include "scene.h"
@@ -194,8 +196,8 @@ static void render_progress_emit(ProgressState *st, long long done)
         pct = 100;
     }
 
-    char el[16];
-    char et[16];
+    char el[32];
+    char et[32];
     render_progress_mmss(elapsed, el, sizeof el);
 
     /* Work rate and ETA from the completed fraction; only meaningful once
@@ -615,7 +617,7 @@ static Vec3 trace_hit(const Scene *scene, Ray r, int depth, int max_depth,
      * verbatim, so reflection/refraction below behaves exactly as before.
      */
     Material m_local = *m;
-    m_local.albedo = texture_albedo(m, P);
+    m_local.albedo = texture_albedo_uv(m, P, h->u, h->v);
     const Material *mm = &m_local;
 
     /*
@@ -1499,6 +1501,11 @@ static int render_image_adaptive(const Scene *scene, const Camera *cam,
 double render_last_seconds(void)
 {
     return g_render_last_seconds;
+}
+
+void render_set_last_seconds(double s)
+{
+    g_render_last_seconds = s;
 }
 
 unsigned long long render_last_total_samples(void)

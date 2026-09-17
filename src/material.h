@@ -36,7 +36,9 @@ typedef enum {
     TEXTURE_STRIPES      = 2,  /* sinusoidal/triangular bands along world Y    */
     TEXTURE_PLANET_EARTH = 3,  /* procedural earth: oceans, continents, clouds */
     TEXTURE_PLANET_MOON  = 4,  /* procedural moon: basalt maria, highlands     */
-    TEXTURE_NOISE        = 5   /* continuous 3D fBm noise blend                */
+    TEXTURE_NOISE        = 5,  /* continuous 3D fBm noise blend                */
+    TEXTURE_IMAGE        = 6,  /* 2D image texture mapped via UV coordinates   */
+    TEXTURE_UV_CHECKER   = 7   /* 2D checkerboard mapped via UV coordinates    */
 } TextureKind;
 
 /* Defaults for the texture fields, shared by the parser and the writer so the
@@ -90,11 +92,12 @@ typedef struct {
                            * 1 = microfacet PBR. 0 keeps behaviour — and the
                            * rendered output — byte-identical.                 */
 
-    /* --- procedural texture (position-modulated albedo) -------------- */
-    int    texture_kind;  /* TextureKind: 0 none, 1 checker, 2 stripes   */
-    double texture_scale; /* world units per cell; 0 or <=0 => default 1  */
-    Vec3   texture_color_a; /* first cell / band colour                  */
-    Vec3   texture_color_b; /* second cell / band colour                 */
+    /* --- procedural & image texture (albedo modulation) -------------- */
+    int         texture_kind;    /* TextureKind: 0 none, 1 checker, 2 stripes, 3 earth, 4 moon, 5 noise, 6 image, 7 uv_checker */
+    double      texture_scale;   /* world units per cell, or UV repeat factor; 0 or <=0 => default 1 */
+    Vec3        texture_color_a; /* first cell / band colour                  */
+    Vec3        texture_color_b; /* second cell / band colour                 */
+    const void *texture_image;   /* pointer to ImageTexture (or NULL)         */
 
     /* --- procedural bump mapping & planetary atmosphere ------------- */
     double bump_strength;   /* normal perturbation strength (0 = off)   */

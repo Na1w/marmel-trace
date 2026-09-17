@@ -6,12 +6,12 @@
  *
  * This module owns the shape representation used by the renderer:
  *   - a tagged-union style Primitive (sphere / plane / box / triangle /
- *     tapered cylinder),
+ *     tapered cylinder / analytical CSG / SDF shape),
  *   - a dynamically growing Geometry container,
  *   - convenience constructors,
  *   - the ray intersection routines and axis-aligned bounding boxes.
  *
- * It depends ONLY on src/vec3.h. There is no I/O and no global state.
+ * It depends ONLY on src/vec3.h and src/sdf.h. There is no I/O and no global state.
  *
  * Conventions:
  *   - All normals stored in a Hit are UNIT length and oriented to oppose the
@@ -21,6 +21,7 @@
  */
 
 #include "vec3.h"
+#include "sdf.h"
 
 typedef enum {
     CSG_UNION = 0,
@@ -34,7 +35,8 @@ typedef enum {
     PRIM_BOX,       /* axis-aligned box */
     PRIM_TRIANGLE,
     PRIM_CYLINDER,  /* finite, capped, with independent bottom/top radii (tapered frustum) */
-    PRIM_CSG        /* constructive solid geometry boolean combination */
+    PRIM_CSG,       /* constructive solid geometry boolean combination */
+    PRIM_SDF_SHAPE  /* ray-marched SDF shape with optional CSG and domain warping/displacement */
 } PrimKind;
 
 typedef struct Primitive {
@@ -45,7 +47,8 @@ typedef struct Primitive {
        BOX:       center = box center, half = half extents
        TRIANGLE:  a, b, c
        CYLINDER:  a = base center, b = top center, radius = bottom radius, radius2 = top radius
-       CSG:       csg_op, left, right (sub-primitives) */
+       CSG:       csg_op, left, right (sub-primitives)
+       SDF_SHAPE: sdf payload */
     Vec3 center;
     Vec3 axis;
     Vec3 half;
@@ -57,6 +60,9 @@ typedef struct Primitive {
     CsgOp csg_op;
     struct Primitive *left;
     struct Primitive *right;
+    SdfData sdf;
+    int has_uv;
+    Vec3 uva, uvb, uvc;   /* vertex texture coordinates (u=x, v=y) for triangles */
 } Primitive;
 
 typedef struct {
@@ -72,6 +78,8 @@ typedef struct {
     int material_index;
     int prim_index;       /* index of the hit primitive in Geometry.prims */
     int front_face;       /* 1 if the ray hit the outside surface, 0 if inside */
+    double u;             /* surface texture coordinate u */
+    double v;             /* surface texture coordinate v */
 } Hit;
 
 /* ------------------------------------------------------------------ */
@@ -90,11 +98,16 @@ Primitive prim_sphere(Vec3 center, double radius, int material_index);
 Primitive prim_plane(Vec3 point, Vec3 normal, int material_index);
 Primitive prim_box(Vec3 center, Vec3 half, int material_index);
 Primitive prim_triangle(Vec3 a, Vec3 b, Vec3 c, int material_index);
+Primitive prim_triangle_uv(Vec3 a, Vec3 b, Vec3 c, Vec3 uva, Vec3 uvb, Vec3 uvc, int material_index);
+Primitive prim_triangle_smooth(Vec3 a, Vec3 b, Vec3 c, Vec3 na, Vec3 nb, Vec3 nc, int material_index);
+Primitive prim_triangle_smooth_uv(Vec3 a, Vec3 b, Vec3 c, Vec3 na, Vec3 nb, Vec3 nc,
+                                 Vec3 uva, Vec3 uvb, Vec3 uvc, int material_index);
 Primitive prim_cylinder(Vec3 base, Vec3 top, double r_bottom, double r_top, int material_index);
 Primitive prim_csg(CsgOp op, Primitive left, Primitive right, int material_index);
 Primitive prim_csg_difference(Primitive a, Primitive b, int material_index);
 Primitive prim_csg_intersection(Primitive a, Primitive b, int material_index);
 Primitive prim_csg_union(Primitive a, Primitive b, int material_index);
+Primitive prim_sdf(SdfData sdf, int material_index);
 
 /* Deep copy and destruction of primitives (for CSG subtrees) */
 Primitive primitive_clone(const Primitive *p);
@@ -110,9 +123,15 @@ void      primitive_destroy(Primitive *p);
  * `r.dir` is normalized internally if it is not already unit length. */
 int primitive_intersect(const Primitive *p, Ray r, double tmin, double tmax, Hit *out);
 
+/* Same as primitive_intersect, but assumes `r.dir` is already unit length. */
+int primitive_intersect_norm(const Primitive *p, Ray r, double tmin, double tmax, Hit *out);
+
 /* Any-hit occlusion query for shadow rays. Returns 1 if ray `r` hits `p` within
  * [tmin, tmax], without computing surface normal or hit point. */
 int primitive_occluded(const Primitive *p, Ray r, double tmin, double tmax);
+
+/* Fast any-hit occlusion test assuming `r.dir` is already unit length. */
+int primitive_occluded_norm(const Primitive *p, Ray r, double tmin, double tmax);
 
 /* Linear scan over all primitives, returning 1 on the first hit within [tmin, tmax]. */
 int geometry_occluded(const Geometry *g, Ray r, double tmin, double tmax);
