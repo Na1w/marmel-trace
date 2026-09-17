@@ -89,6 +89,13 @@ Primitive prim_cylinder(Vec3 base, Vec3 top, double r_bottom, double r_top, int 
  * `r.dir` is normalized internally if it is not already unit length. */
 int primitive_intersect(const Primitive *p, Ray r, double tmin, double tmax, Hit *out);
 
+/* Same as primitive_intersect, but assumes `r.dir` is already unit length. */
+int primitive_intersect_norm(const Primitive *p, Ray r, double tmin, double tmax, Hit *out);
+
+/* Fast any-hit occlusion test assuming `r.dir` is already unit length. Returns
+ * 1 on any hit in [tmin, tmax], 0 otherwise, without computing surface details. */
+int primitive_occluded_norm(const Primitive *p, Ray r, double tmin, double tmax);
+
 /* Linear scan over all primitives, keeping the nearest hit. */
 int geometry_intersect(const Geometry *g, Ray r, double tmin, double tmax, Hit *out);
 

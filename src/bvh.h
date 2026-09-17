@@ -41,6 +41,10 @@ void bvh_free(Bvh *b);
  * 0 otherwise. */
 int bvh_intersect(const Bvh *b, const Geometry *g, Ray r, double tmin, double tmax, Hit *out);
 
+/* Any-hit / occlusion query for shadow rays. Returns 1 if any primitive
+ * intersects within [tmin, tmax], 0 otherwise. Early-exits on the first hit. */
+int bvh_occluded(const Bvh *b, const Geometry *g, Ray r, double tmin, double tmax);
+
 /* Introspection helpers (useful for tests/diagnostics). */
 int bvh_node_count(const Bvh *b);
 /* Maximum leaf depth (root = 1). Not bounded by the build; highly skewed

@@ -146,7 +146,7 @@ static void bvh_range_info(const Geometry *g, const int *order, int first, int c
     Vec3 cmx = mx;
 
     for (int i = 0; i < count; ++i) {
-        Vec3 pmin, pmax;
+        Vec3 pmin = vec3(0.0, 0.0, 0.0), pmax = vec3(0.0, 0.0, 0.0);
         primitive_bounds(&g->prims[order[first + i]], &pmin, &pmax);
         mn = vec3_min(mn, pmin);
         mx = vec3_max(mx, pmax);
@@ -216,7 +216,7 @@ static int bvh_build_node(Bvh *b, const Geometry *g, int first, int count, int d
 
     for (int i = 0; i < count; ++i) {
         int pi = b->order[first + i];
-        Vec3 pmin, pmax;
+        Vec3 pmin = vec3(0.0, 0.0, 0.0), pmax = vec3(0.0, 0.0, 0.0);
         primitive_bounds(&g->prims[pi], &pmin, &pmax);
         Vec3 c = vec3_scale(vec3_add(pmin, pmax), 0.5);
         double cv = bvh_axis(&c, axis);
@@ -287,7 +287,7 @@ static int bvh_build_node(Bvh *b, const Geometry *g, int first, int count, int d
         int i = first, j = first + count - 1;
         while (i <= j) {
             int pi = b->order[i];
-            Vec3 pmin, pmax;
+            Vec3 pmin = vec3(0.0, 0.0, 0.0), pmax = vec3(0.0, 0.0, 0.0);
             primitive_bounds(&g->prims[pi], &pmin, &pmax);
             Vec3 c = vec3_scale(vec3_add(pmin, pmax), 0.5);
             double cv = bvh_axis(&c, axis);
@@ -313,7 +313,7 @@ static int bvh_build_node(Bvh *b, const Geometry *g, int first, int count, int d
         int i = first, j = first + count - 1;
         while (i <= j) {
             int pi = b->order[i];
-            Vec3 pmin, pmax;
+            Vec3 pmin = vec3(0.0, 0.0, 0.0), pmax = vec3(0.0, 0.0, 0.0);
             primitive_bounds(&g->prims[pi], &pmin, &pmax);
             Vec3 c = vec3_scale(vec3_add(pmin, pmax), 0.5);
             double cv = bvh_axis(&c, axis);
@@ -427,37 +427,51 @@ void bvh_free(Bvh *b)
 /* Traversal                                                           */
 /* ------------------------------------------------------------------ */
 
+static inline double bvh_fmin(double a, double b)
+{
+    return (a < b) ? a : ((a != a) ? b : b);
+}
+
+static inline double bvh_fmax(double a, double b)
+{
+    return (a > b) ? a : ((a != a) ? b : b);
+}
+
 /* Ray-AABB slab test. Computes the entry distance along the ray and reports
  * whether the box is hit within [tmin, tmax]. `inv` holds 1/dir per axis.
  * Returns 1 on hit and writes the entry distance to *t_enter. */
-static int bvh_slab(Vec3 mn, Vec3 mx, Vec3 origin, Vec3 inv,
-                    double tmin, double tmax, double *t_enter)
+static inline int bvh_slab(const Vec3 *mn, const Vec3 *mx,
+                           const Vec3 *origin, const Vec3 *inv,
+                           double tmin, double tmax, double *t_enter)
 {
-    /* fmin/fmax return the non-NaN operand, which makes the `0 * inf = NaN`
-     * case (parallel ray exactly on a slab boundary) well behaved. */
-    double t1x = (mn.x - origin.x) * inv.x;
-    double t2x = (mx.x - origin.x) * inv.x;
-    double txmin = fmin(t1x, t2x);
-    double txmax = fmax(t1x, t2x);
+    /* bvh_fmin/bvh_fmax compile to minsd/maxsd instructions and return the
+     * non-NaN operand, which makes the `0 * inf = NaN` case (parallel ray
+     * exactly on a slab boundary) well behaved without calling libm. */
+    double t1x = (mn->x - origin->x) * inv->x;
+    double t2x = (mx->x - origin->x) * inv->x;
+    double txmin = bvh_fmin(t1x, t2x);
+    double txmax = bvh_fmax(t1x, t2x);
 
-    double t1y = (mn.y - origin.y) * inv.y;
-    double t2y = (mx.y - origin.y) * inv.y;
-    double tymin = fmin(t1y, t2y);
-    double tymax = fmax(t1y, t2y);
+    double t1y = (mn->y - origin->y) * inv->y;
+    double t2y = (mx->y - origin->y) * inv->y;
+    double tymin = bvh_fmin(t1y, t2y);
+    double tymax = bvh_fmax(t1y, t2y);
 
-    double t1z = (mn.z - origin.z) * inv.z;
-    double t2z = (mx.z - origin.z) * inv.z;
-    double tzmin = fmin(t1z, t2z);
-    double tzmax = fmax(t1z, t2z);
+    double t1z = (mn->z - origin->z) * inv->z;
+    double t2z = (mx->z - origin->z) * inv->z;
+    double tzmin = bvh_fmin(t1z, t2z);
+    double tzmax = bvh_fmax(t1z, t2z);
 
-    double enter = fmax(fmax(txmin, tymin), tzmin);
-    double exit = fmin(fmin(txmax, tymax), tzmax);
+    double enter = bvh_fmax(bvh_fmax(txmin, tymin), tzmin);
+    double exit = bvh_fmin(bvh_fmin(txmax, tymax), tzmax);
 
     if (exit < tmin || enter > tmax) return 0;
     if (enter < tmin) enter = tmin;
     *t_enter = enter;
     return 1;
 }
+
+
 
 int bvh_intersect(const Bvh *b, const Geometry *g, Ray r, double tmin, double tmax, Hit *out)
 {
@@ -485,7 +499,7 @@ int bvh_intersect(const Bvh *b, const Geometry *g, Ray r, double tmin, double tm
         int pi = b->planes[i];
         Hit h;
         h.prim_index = pi;
-        if (primitive_intersect(&g->prims[pi], r, tmin, closest, &h)) {
+        if (primitive_intersect_norm(&g->prims[pi], r, tmin, closest, &h)) {
             if (!found || h.t < best.t ||
                 (h.t == best.t && h.prim_index < best.prim_index)) {
                 best = h;
@@ -506,8 +520,8 @@ int bvh_intersect(const Bvh *b, const Geometry *g, Ray r, double tmin, double tm
         int sp = 0;
 
         double t_root;
-        if (bvh_slab(b->nodes[0].bounds_min, b->nodes[0].bounds_max, r.origin,
-                     inv, tmin, closest, &t_root)) {
+        if (bvh_slab(&b->nodes[0].bounds_min, &b->nodes[0].bounds_max, &r.origin,
+                     &inv, tmin, closest, &t_root)) {
             stack[sp].idx = 0;
             stack[sp].t = t_root;
             ++sp;
@@ -530,7 +544,7 @@ int bvh_intersect(const Bvh *b, const Geometry *g, Ray r, double tmin, double tm
                     int pi = b->order[node->first + i];
                     Hit h;
                     h.prim_index = pi;
-                    if (primitive_intersect(&g->prims[pi], r, tmin, closest, &h)) {
+                    if (primitive_intersect_norm(&g->prims[pi], r, tmin, closest, &h)) {
                         /* Tie-break on equal t by LOWEST prim_index so that the
                          * result is identical to geometry_intersect(), which
                          * scans in index order with a strict `h.t < best.t`
@@ -554,12 +568,12 @@ int bvh_intersect(const Bvh *b, const Geometry *g, Ray r, double tmin, double tm
                  * `closest` early and lets the far child be culled at pop. A
                  * child whose AABB is missed is simply not pushed. */
                 double tl = 0.0, tr = 0.0;
-                int hl = bvh_slab(b->nodes[node->left].bounds_min,
-                                  b->nodes[node->left].bounds_max,
-                                  r.origin, inv, tmin, closest, &tl);
-                int hr = bvh_slab(b->nodes[node->right].bounds_min,
-                                  b->nodes[node->right].bounds_max,
-                                  r.origin, inv, tmin, closest, &tr);
+                int hl = bvh_slab(&b->nodes[node->left].bounds_min,
+                                  &b->nodes[node->left].bounds_max,
+                                  &r.origin, &inv, tmin, closest, &tl);
+                int hr = bvh_slab(&b->nodes[node->right].bounds_min,
+                                  &b->nodes[node->right].bounds_max,
+                                  &r.origin, &inv, tmin, closest, &tr);
 
                 if (hl || hr) {
                     /* Ensure room for up to two pushes (never overflow the
@@ -611,6 +625,103 @@ int bvh_intersect(const Bvh *b, const Geometry *g, Ray r, double tmin, double tm
     if (!found) return 0;
     *out = best;
     return 1;
+}
+
+int bvh_occluded(const Bvh *b, const Geometry *g, Ray r, double tmin, double tmax)
+{
+    if (!b || !g) return 0;
+
+    double len_sq = vec3_length_sq(r.dir);
+    if (len_sq > 0.0 && fabs(len_sq - 1.0) > 1e-12) {
+        r.dir = vec3_normalize(r.dir);
+    }
+
+    Vec3 inv = vec3(1.0 / r.dir.x, 1.0 / r.dir.y, 1.0 / r.dir.z);
+
+    for (int i = 0; i < b->plane_count; ++i) {
+        int pi = b->planes[i];
+        if (primitive_occluded_norm(&g->prims[pi], r, tmin, tmax)) {
+            return 1;
+        }
+    }
+
+    if (b->node_count > 0) {
+        BvhStackEntry fixed[BVH_STACK_FIXED];
+        BvhStackEntry *stack = fixed;
+        int cap = BVH_STACK_FIXED;
+        int sp = 0;
+
+        double t_root;
+        if (bvh_slab(&b->nodes[0].bounds_min, &b->nodes[0].bounds_max, &r.origin,
+                     &inv, tmin, tmax, &t_root)) {
+            stack[sp].idx = 0;
+            stack[sp].t = t_root;
+            ++sp;
+        }
+
+        while (sp > 0) {
+            BvhStackEntry e = stack[--sp];
+            if (e.t > tmax) continue;
+
+            const BvhNode *node = &b->nodes[e.idx];
+
+            if (node->count > 0) {
+                for (int i = 0; i < node->count; ++i) {
+                    int pi = b->order[node->first + i];
+                    if (primitive_occluded_norm(&g->prims[pi], r, tmin, tmax)) {
+                        if (stack != fixed) free(stack);
+                        return 1;
+                    }
+                }
+            } else {
+                double tl = 0.0, tr = 0.0;
+                int hl = bvh_slab(&b->nodes[node->left].bounds_min,
+                                  &b->nodes[node->left].bounds_max,
+                                  &r.origin, &inv, tmin, tmax, &tl);
+                int hr = bvh_slab(&b->nodes[node->right].bounds_min,
+                                  &b->nodes[node->right].bounds_max,
+                                  &r.origin, &inv, tmin, tmax, &tr);
+
+                if (hl || hr) {
+                    if (sp + 2 > cap) {
+                        int ncap = cap * 2;
+                        BvhStackEntry *ns;
+                        if (stack == fixed) {
+                            ns = (BvhStackEntry *)malloc(
+                                (size_t)ncap * sizeof(BvhStackEntry));
+                            if (ns)
+                                memcpy(ns, fixed,
+                                       (size_t)sp * sizeof(BvhStackEntry));
+                        } else {
+                            ns = (BvhStackEntry *)realloc(
+                                stack, (size_t)ncap * sizeof(BvhStackEntry));
+                        }
+                        if (!ns) break;
+                        stack = ns;
+                        cap = ncap;
+                    }
+
+                    if (hl && hr) {
+                        if (tl <= tr) {
+                            stack[sp].idx = node->right; stack[sp].t = tr; ++sp;
+                            stack[sp].idx = node->left;  stack[sp].t = tl; ++sp;
+                        } else {
+                            stack[sp].idx = node->left;  stack[sp].t = tl; ++sp;
+                            stack[sp].idx = node->right; stack[sp].t = tr; ++sp;
+                        }
+                    } else if (hl) {
+                        stack[sp].idx = node->left; stack[sp].t = tl; ++sp;
+                    } else {
+                        stack[sp].idx = node->right; stack[sp].t = tr; ++sp;
+                    }
+                }
+            }
+        }
+
+        if (stack != fixed) free(stack);
+    }
+
+    return 0;
 }
 
 int bvh_node_count(const Bvh *b)

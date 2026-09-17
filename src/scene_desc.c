@@ -388,7 +388,7 @@ typedef struct {
     BlockKind kind;
     int       line;      /* line of the opening header (for diagnostics) */
     unsigned  seen;      /* bitmask of keys already seen in this block   */
-    char      kw[32];    /* opening keyword                              */
+    char      kw[SD_TOK_TEXT]; /* opening keyword                         */
 } Block;
 
 enum {

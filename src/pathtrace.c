@@ -21,7 +21,13 @@
  * `pathtrace_to_byte` helper below.
  */
 
+#if !defined(_POSIX_C_SOURCE)
+#define _POSIX_C_SOURCE 200809L
+#endif
+
 #include "pathtrace.h"
+
+#include <time.h>
 
 #include "geometry.h"
 #include "material.h"
@@ -498,9 +504,8 @@ static Vec3 pt_nee_sun(const Scene *scene, const Material *mm, Vec3 P, Vec3 N, V
     double r2 = pt_rand01(seed_key, (unsigned)bounce, PT_CH_NEE_SUN_B);
     Vec3 L = sky_sun_disk_dir(sun, scene->sky.sun_radius, r1, r2);
     if (!pt_is_finite(L) || vec3_dot(N, L) <= 0.0) return vec3(0.0, 0.0, 0.0);
-    Hit sh;
     Ray sr; sr.origin = vec3_add(P, vec3_scale(N, 1e-3)); sr.dir = L;
-    if (scene_intersect(scene, sr, 1e-3, 1e30, &sh)) return vec3(0.0, 0.0, 0.0);
+    if (scene_occluded(scene, sr, 1e-3, 1e30)) return vec3(0.0, 0.0, 0.0);
     double rad = scene->sky.sun_radius * 3.14159265358979323846 / 180.0;
     double Omega = (scene->sky.sun_radius > 0.0)
                        ? 2.0 * 3.14159265358979323846 * (1.0 - cos(rad))
@@ -969,6 +974,9 @@ int pathtrace_render(const Scene *scene, const Camera *cam, int width, int heigh
         return 3; /* bad sample / depth counts */
     }
 
+    struct timespec ts0, ts1;
+    clock_gettime(CLOCK_MONOTONIC, &ts0);
+
     /* Progress is stderr-only and easily silenced via RAYTRACER_NO_PROGRESS. */
 #ifdef USE_PTHREADS
     int progress = render_progress_enabled();
@@ -1034,6 +1042,9 @@ int pathtrace_render(const Scene *scene, const Camera *cam, int width, int heigh
     }
 
     render_progress_finish(&pr);
+    clock_gettime(CLOCK_MONOTONIC, &ts1);
+    render_set_last_seconds((double)(ts1.tv_sec - ts0.tv_sec) +
+                            (double)(ts1.tv_nsec - ts0.tv_nsec) * 1e-9);
     return 0;
 #else
     /*
@@ -1051,6 +1062,9 @@ int pathtrace_render(const Scene *scene, const Camera *cam, int width, int heigh
     }
 
     render_progress_finish(NULL);
+    clock_gettime(CLOCK_MONOTONIC, &ts1);
+    render_set_last_seconds((double)(ts1.tv_sec - ts0.tv_sec) +
+                            (double)(ts1.tv_nsec - ts0.tv_nsec) * 1e-9);
     return 0;
 #endif
 }

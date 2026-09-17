@@ -385,6 +385,17 @@ int scene_intersect(const Scene *s, Ray r, double tmin, double tmax, Hit *out)
     return geometry_intersect(&s->geo, r, tmin, tmax, out);
 }
 
+int scene_occluded(const Scene *s, Ray r, double tmin, double tmax)
+{
+    if (!s) return 0;
+
+    if (s->bvh) {
+        return bvh_occluded(s->bvh, &s->geo, r, tmin, tmax);
+    }
+    Hit h;
+    return geometry_intersect(&s->geo, r, tmin, tmax, &h);
+}
+
 const Material *scene_material(const Scene *s, int index)
 {
     if (!s || !s->materials) return NULL;

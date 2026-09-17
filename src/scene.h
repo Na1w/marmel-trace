@@ -125,11 +125,13 @@ void scene_default_desc(SceneDesc *out);
  */
 void scene_free(Scene *s);
 
-/*
- * Nearest-hit query. Wraps bvh_intersect() (falling back to a linear scan if
- * no BVH is present). Returns 1 on hit, 0 otherwise.
- */
 int scene_intersect(const Scene *s, Ray r, double tmin, double tmax, Hit *out);
+
+/*
+ * Any-hit occlusion query for shadow rays. Returns 1 if any primitive
+ * occludes the ray in [tmin, tmax], 0 otherwise. Early-exits on the first hit.
+ */
+int scene_occluded(const Scene *s, Ray r, double tmin, double tmax);
 
 /* Material lookup by index; returns NULL if out of range (or s is NULL). */
 const Material *scene_material(const Scene *s, int index);

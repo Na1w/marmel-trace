@@ -27,10 +27,10 @@ THREAD_CFLAGS  := -DUSE_PTHREADS -pthread
 THREAD_LDFLAGS := -pthread
 endif
 
-CFLAGS    ?= -std=c11 -O2 -Wall -Wextra
+CFLAGS    ?= -std=c11 -O3 -flto -Wall -Wextra
 CFLAGS    += $(THREAD_CFLAGS)
 CPPFLAGS  += -Isrc
-LDFLAGS   ?=
+LDFLAGS   ?= -flto
 LDFLAGS   += $(THREAD_LDFLAGS)
 LDLIBS    += -lm            # MUST come AFTER objects on the link line
 
