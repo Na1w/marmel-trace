@@ -1,0 +1,508 @@
+# scenes/ashenvale_forest.scene
+#
+# Recreation of the enchanted morning forest from example_scene.png:
+#   * Morning sun blooming in the upper-left with volumetric Mie god-rays
+#   * Dusky amethyst/purple mist settling into the woodland floor and right glade
+#   * Rolling velvety moss mounds and lichen-encrusted boulders
+#   * Massive ancient central tree with sprawling buttress roots and dense canopy
+#   * Dark foreground tree framing the sun on the left
+#   * Purple/plum-foliaged canopies on the right
+#   * Weathered elven ruin columns and architraves nestled in the mist
+
+camera {
+    eye = 0.0 1.9 9.5
+    target = 0.1 2.1 0.0
+    up = 0 1 0
+    vfov = 43.0
+}
+
+sky {
+    sun_dir = -0.32 0.22 -0.92
+    sun_color = 1.75 1.38 0.95
+    horizon_color = 0.45 0.24 0.44
+    zenith_color = 0.12 0.07 0.22
+    gradient_gamma = 0.80
+    sun_glow_exponent = 260.0
+    sun_glow_strength = 1.6
+    sun_radius = 2.6
+    cloud_height = 140.0
+    cloud_scale = 0.0028
+    cloud_coverage = 0.18
+    cloud_softness = 0.20
+    cloud_sharpness = 1.3
+    seed = 777
+}
+
+fog {
+    density = 0.012
+    color = 0.36 0.15 0.40
+    height = 5.2
+    height_falloff = 0.20
+    inscatter_strength = 0.16
+    sun_anisotropy = 0.80
+    noise_scale = 0.16
+    noise_amount = 0.25
+}
+
+# --- Materials -------------------------------------------------------------
+
+material moss_turf {
+    pbr = 1
+    albedo = 0.14 0.25 0.09
+    roughness = 0.90
+    bump_strength = 0.12
+    bump_scale = 1.5
+}
+
+material moss_rock {
+    pbr = 1
+    albedo = 0.20 0.24 0.16
+    roughness = 0.85
+    bump_strength = 0.15
+    bump_scale = 1.2
+}
+
+material ancient_bark {
+    pbr = 1
+    albedo = 0.15 0.11 0.08
+    roughness = 0.90
+    bump_strength = 0.22
+    bump_scale = 2.0
+}
+
+material dark_bark {
+    pbr = 1
+    albedo = 0.04 0.03 0.03
+    roughness = 0.95
+}
+
+material nightelf_canopy {
+    pbr = 1
+    albedo = 0.13 0.25 0.08
+    specular = 0.04 0.06 0.03
+    roughness = 0.65
+}
+
+material purple_canopy {
+    pbr = 1
+    albedo = 0.32 0.08 0.24
+    specular = 0.05 0.03 0.06
+    roughness = 0.60
+}
+
+material dark_leaf {
+    pbr = 1
+    albedo = 0.05 0.08 0.04
+    roughness = 0.85
+}
+
+material red_shrub {
+    pbr = 1
+    albedo = 0.52 0.08 0.18
+    roughness = 0.70
+}
+
+material elven_marble {
+    pbr = 1
+    albedo = 0.46 0.44 0.48
+    specular = 0.06 0.06 0.06
+    roughness = 0.68
+    bump_strength = 0.08
+    bump_scale = 3.0
+}
+
+# --- Terrain & Moss Mounds -------------------------------------------------
+
+# Ground base plane
+plane {
+    point = 0.0 0.0 0.0
+    normal = 0.0 1.0 0.0
+    material = moss_turf
+}
+
+# Rolling mossy central mound where the ancient tree sits
+sphere {
+    center = 0.2 -8.9 0.5
+    radius = 9.8
+    material = moss_turf
+}
+
+# Left bank rising under framing silhouette tree
+sphere {
+    center = -4.0 -8.6 4.5
+    radius = 9.6
+    material = moss_turf
+}
+
+# Right rising glade mound
+sphere {
+    center = 4.5 -8.7 2.5
+    radius = 9.6
+    material = moss_turf
+}
+
+# Foreground right prominent mossy boulder
+boulder {
+    position = 2.1 0.30 6.6
+    radius = 1.35
+    roughness = 0.32
+    flatness = 0.74
+    seed = 202
+    material = moss_rock
+}
+
+# Foreground left mossy boulder
+boulder {
+    position = -1.9 0.25 6.8
+    radius = 1.15
+    roughness = 0.35
+    flatness = 0.72
+    seed = 101
+    material = moss_rock
+}
+
+# Foreground low mossy stones in pathway
+boulder {
+    position = -0.3 0.04 7.6
+    radius = 0.65
+    roughness = 0.34
+    flatness = 0.78
+    seed = 456
+    material = moss_rock
+}
+
+boulder {
+    position = 1.0 0.04 7.8
+    radius = 0.75
+    roughness = 0.32
+    flatness = 0.76
+    seed = 789
+    material = moss_rock
+}
+
+# Midground boulders hugging the central mound base
+boulder {
+    position = -1.3 0.65 1.2
+    radius = 1.15
+    roughness = 0.32
+    flatness = 0.74
+    seed = 303
+    material = moss_rock
+}
+
+boulder {
+    position = 1.5 0.60 0.6
+    radius = 1.15
+    roughness = 0.30
+    flatness = 0.76
+    seed = 404
+    material = moss_rock
+}
+
+boulder {
+    position = -0.2 0.80 1.5
+    radius = 0.80
+    roughness = 0.30
+    flatness = 0.78
+    seed = 505
+    material = moss_rock
+}
+
+# Small reddish-magenta flower dots nestled on the central moss mound
+sphere {
+    center = -0.8 1.05 0.8
+    radius = 0.12
+    material = red_shrub
+}
+sphere {
+    center = -0.6 1.02 1.0
+    radius = 0.10
+    material = red_shrub
+}
+sphere {
+    center = -1.0 0.95 1.2
+    radius = 0.13
+    material = red_shrub
+}
+sphere {
+    center = 0.7 0.92 0.4
+    radius = 0.11
+    material = red_shrub
+}
+sphere {
+    center = 0.9 0.85 0.6
+    radius = 0.10
+    material = red_shrub
+}
+sphere {
+    center = -1.4 0.70 2.8
+    radius = 0.12
+    material = red_shrub
+}
+
+# --- Central Ancient Tree & Canopy -----------------------------------------
+
+# Massive ancient trunk rising high into the mist
+cylinder {
+    base = 0.3 0.0 -2.5
+    top = 0.3 12.0 -2.5
+    r_bottom = 2.00
+    r_top = 1.45
+    material = ancient_bark
+}
+
+# Buttress root 1 (left flare)
+cylinder {
+    base = -1.3 0.4 -1.6
+    top = 0.1 3.2 -2.3
+    r_bottom = 0.70
+    r_top = 0.26
+    material = ancient_bark
+}
+
+# Buttress root 2 (right flare)
+cylinder {
+    base = 1.7 0.4 -1.8
+    top = 0.5 3.0 -2.4
+    r_bottom = 0.65
+    r_top = 0.24
+    material = ancient_bark
+}
+
+# Buttress root 3 (forward center flare)
+cylinder {
+    base = 0.3 0.6 -0.9
+    top = 0.3 2.6 -2.1
+    r_bottom = 0.60
+    r_top = 0.20
+    material = ancient_bark
+}
+
+# Foreground leafy tree in front of the giant trunk:
+# Raised base on mound, full rounded crown
+tree {
+    position = 0.3 0.0 -0.8
+    height = 2.3
+    radius = 0.26
+    seed = 101
+    foliage = spheres
+    max_depth = 4
+    spread_deg = 42.0
+    len_decay = 0.74
+    leaf_min = 28
+    leaf_span = 14
+    min_branch_radius = 0.02
+    material_bark = ancient_bark
+    material_leaf = nightelf_canopy
+}
+
+# Secondary higher canopy behind giant trunk
+tree {
+    position = 0.6 0.0 -3.6
+    height = 2.6
+    radius = 0.30
+    seed = 303
+    foliage = spheres
+    max_depth = 4
+    spread_deg = 38.0
+    leaf_min = 26
+    leaf_span = 12
+    material_bark = ancient_bark
+    material_leaf = nightelf_canopy
+}
+
+# --- Left Foreground Framing Tree (Dark silhouette framing morning sun) ----
+
+# Prominent dark silhouette trunk on the left edge of frame
+cylinder {
+    base = -2.2 0.0 5.0
+    top = -2.0 4.2 4.4
+    r_bottom = 0.75
+    r_top = 0.50
+    material = dark_bark
+}
+
+cylinder {
+    base = -2.0 4.2 4.4
+    top = -2.3 7.5 4.0
+    r_bottom = 0.50
+    r_top = 0.35
+    material = dark_bark
+}
+
+# Root reaching forward into the left bank
+cylinder {
+    base = -1.7 0.2 5.6
+    top = -2.1 1.6 5.1
+    r_bottom = 0.35
+    r_top = 0.18
+    material = dark_bark
+}
+
+# Gnarled branch arching across the top left
+cylinder {
+    base = -2.0 3.8 4.2
+    top = -0.7 5.4 3.0
+    r_bottom = 0.30
+    r_top = 0.14
+    material = dark_bark
+}
+
+# Hanging vine / secondary droop branch
+cylinder {
+    base = -1.3 4.5 3.5
+    top = -1.2 3.2 3.6
+    r_bottom = 0.06
+    r_top = 0.04
+    material = dark_bark
+}
+
+# Dark canopy foliage clusters framing the top-left corner
+sphere {
+    center = -2.3 4.2 4.0
+    radius = 1.10
+    material = dark_leaf
+}
+sphere {
+    center = -1.9 5.0 3.5
+    radius = 1.05
+    material = dark_leaf
+}
+sphere {
+    center = -1.1 5.3 3.0
+    radius = 0.90
+    material = dark_leaf
+}
+sphere {
+    center = -0.5 5.6 2.6
+    radius = 0.80
+    material = dark_leaf
+}
+
+# --- Right Glade Trees (Purple / Plum Canopies) -----------------------------
+
+# Medium purple canopy tree hovering over the elven ruins
+tree {
+    position = 3.6 0.0 -0.6
+    height = 2.2
+    radius = 0.24
+    seed = 444
+    foliage = spheres
+    max_depth = 4
+    spread_deg = 42.0
+    leaf_min = 28
+    leaf_span = 12
+    material_bark = ancient_bark
+    material_leaf = purple_canopy
+}
+
+# Background purple tree deeper in the mist
+tree {
+    position = 5.2 0.0 -3.8
+    height = 2.8
+    radius = 0.30
+    seed = 555
+    foliage = spheres
+    max_depth = 4
+    spread_deg = 38.0
+    leaf_min = 28
+    leaf_span = 12
+    material_bark = ancient_bark
+    material_leaf = purple_canopy
+}
+
+# Distant colossal tree trunk in the purple haze
+cylinder {
+    base = 4.8 0.0 -7.5
+    top = 4.8 13.0 -7.5
+    r_bottom = 1.50
+    r_top = 1.20
+    material = dark_bark
+}
+
+# --- Ancient Elven Ruins in the Right Mist ---------------------------------
+
+# Column 1 (front left ruin pillar)
+box {
+    center = 2.4 0.22 3.2
+    half = 0.22 0.09 0.22
+    material = elven_marble
+}
+cylinder {
+    base = 2.4 0.31 3.2
+    top = 2.4 2.25 3.2
+    r_bottom = 0.17
+    r_top = 0.15
+    material = elven_marble
+}
+box {
+    center = 2.4 2.31 3.2
+    half = 0.22 0.06 0.22
+    material = elven_marble
+}
+
+# Column 2 (front right ruin pillar)
+box {
+    center = 3.3 0.22 2.6
+    half = 0.22 0.09 0.22
+    material = elven_marble
+}
+cylinder {
+    base = 3.3 0.31 2.6
+    top = 3.3 2.35 2.6
+    r_bottom = 0.17
+    r_top = 0.15
+    material = elven_marble
+}
+box {
+    center = 3.3 2.41 2.6
+    half = 0.22 0.06 0.22
+    material = elven_marble
+}
+
+# Architrave / Lintel connecting Column 1 and 2
+box {
+    center = 2.85 2.51 2.9
+    half = 0.65 0.09 0.18
+    material = elven_marble
+}
+
+# Column 3 (broken column stump next to it)
+box {
+    center = 4.0 0.15 2.0
+    half = 0.22 0.09 0.22
+    material = elven_marble
+}
+cylinder {
+    base = 4.0 0.24 2.0
+    top = 4.0 1.45 2.0
+    r_bottom = 0.17
+    r_top = 0.16
+    material = elven_marble
+}
+box {
+    center = 4.0 1.50 2.0
+    half = 0.20 0.05 0.20
+    material = elven_marble
+}
+
+# Fallen ruined stone slab on the grass
+box {
+    center = 2.9 0.12 3.8
+    half = 0.32 0.07 0.16
+    material = elven_marble
+}
+
+# Column 4 (in the purple mist further back)
+cylinder {
+    base = 4.2 0.0 -1.5
+    top = 4.2 2.6 -1.5
+    r_bottom = 0.20
+    r_top = 0.18
+    material = elven_marble
+}
+box {
+    center = 4.2 2.66 -1.5
+    half = 0.24 0.06 0.24
+    material = elven_marble
+}
