@@ -1,0 +1,65 @@
+# Photorealistic Apollo 8 Earthrise with Galaxy & Nebula
+# Scale: 1 unit = 100 km
+
+camera {
+  eye = 0.0000 1.1200 0.0000
+  target = 0.8727 -27.8539 95.7069
+  up = 0 1 0
+  vfov = 14.00
+  aperture = 0.0
+  focus_distance = 100.0
+}
+
+sky {
+  sun_dir = -0.7203 0.3802 0.5802
+  sun_color = 1.35 1.32 1.28
+  horizon_color = 0.0 0.0 0.0
+  zenith_color = 0.0 0.0 0.0
+  sun_radius = 0.267
+  sun_glow_exponent = 200.0
+  sun_glow_strength = 0.0
+  star_intensity = 0.85
+  star_density = 550.0
+  nebula_intensity = 0.85
+  nebula_dir = -0.1059 -0.2060 0.9728
+  galaxy_intensity = 0.90
+  galaxy_dir = 0.1303 -0.2124 0.9684
+  galaxy_tilt = 55.0
+  galaxy_roll = -38.0
+}
+
+material mat_moon {
+  pbr = 1
+  albedo = 1.0 1.0 1.0
+  roughness = 0.94
+  metallic = 0.0
+  texture = moon
+  texture_scale = 17.374
+  bump_strength = 0.45
+  bump_scale = 1.2
+}
+
+material mat_earth {
+  pbr = 1
+  albedo = 1.0 1.0 1.0
+  roughness = 0.65
+  metallic = 0.0
+  texture = earth
+  texture_scale = 63.710
+  bump_strength = 0.20
+  bump_scale = 0.6
+  atmosphere_glow = 0.28 0.58 0.95
+}
+
+sphere {
+  center = 0.0000 -17.3740 0.0000
+  radius = 17.3740
+  material = mat_moon
+}
+
+sphere {
+  center = 65.0823 -931.5816 3728.5611
+  radius = 63.7100
+  material = mat_earth
+}
+

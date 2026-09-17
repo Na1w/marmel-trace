@@ -1,0 +1,371 @@
+# Physical Apollo 8 Earthrise Recreation
+# Scale: 1 unit = 100 km
+
+camera {
+    eye = 0.0000 1.1500 0.0000
+    target = 1.3090 -27.2434 95.8762
+    up = 0 1 0
+    vfov = 15.00
+    aperture = 0.0
+    focus_distance = 100.0
+}
+
+sky {
+    sun_dir = -0.7504 0.4202 0.5103
+    sun_color = 1.35 1.32 1.28
+    horizon_color = 0.0 0.0 0.0
+    zenith_color = 0.0 0.0 0.0
+    sun_radius = 0.267
+    sun_glow_exponent = 200.0
+    sun_glow_strength = 0.0
+}
+
+material moon_regolith {
+    albedo = 0.12 0.12 0.11
+    roughness = 0.94
+    metallic = 0.0
+}
+
+material moon_highlands {
+    albedo = 0.16 0.15 0.14
+    roughness = 0.92
+    metallic = 0.0
+}
+
+material moon_crater_shadow {
+    albedo = 0.08 0.08 0.08
+    roughness = 0.98
+    metallic = 0.0
+}
+
+material earth_ocean {
+    albedo = 0.05 0.14 0.38
+    roughness = 0.22
+    metallic = 0.0
+}
+
+material earth_land {
+    albedo = 0.28 0.32 0.20
+    roughness = 0.82
+    metallic = 0.0
+}
+
+material earth_clouds {
+    albedo = 0.72 0.74 0.76
+    roughness = 0.88
+    metallic = 0.0
+}
+
+material earth_atmo {
+    albedo = 0.18 0.45 0.85
+    roughness = 0.90
+    metallic = 0.0
+}
+
+material star_mat {
+    albedo = 1.0 1.0 1.0
+    roughness = 0.1
+    emissive = 4.0 4.0 4.0
+}
+
+sphere 0.0 -17.374 0.0 17.3740 moon_regolith
+sphere -0.96515 -0.89405 5.44002 0.0969 moon_highlands
+sphere -0.94933 -1.05326 5.91829 0.1688 moon_regolith
+sphere -0.81342 -0.78494 5.11975 0.0674 moon_highlands
+sphere -0.77776 -0.85663 5.39032 0.1099 moon_regolith
+sphere -0.61546 -0.66569 4.77272 0.1269 moon_highlands
+sphere -0.65363 -0.86615 5.42949 0.1445 moon_regolith
+sphere -0.53939 -0.64115 4.69270 0.1041 moon_highlands
+sphere -0.48213 -0.68305 4.85744 0.2166 moon_regolith
+sphere -0.44918 -0.61665 4.59006 0.0630 moon_highlands
+sphere -0.35591 -0.57429 4.47433 0.0761 moon_regolith
+sphere -0.34042 -0.55825 4.44150 0.2095 moon_highlands
+sphere -0.31002 -0.67743 4.84170 0.1144 moon_regolith
+sphere -0.26019 -0.74907 5.11251 0.1904 moon_highlands
+sphere -0.18170 -0.60876 4.58721 0.0982 moon_regolith
+sphere -0.17072 -0.66647 4.81456 0.1262 moon_highlands
+sphere -0.08284 -0.83430 5.38248 0.2011 moon_regolith
+sphere -0.04096 -0.84650 5.40630 0.0750 moon_highlands
+sphere -0.02313 -0.76392 5.12803 0.0951 moon_regolith
+sphere 0.07706 -1.01343 5.88515 0.0887 moon_highlands
+sphere 0.09131 -0.66173 4.80077 0.1376 moon_regolith
+sphere 0.12150 -0.60628 4.59689 0.2014 moon_highlands
+sphere 0.18260 -0.73817 5.05606 0.0657 moon_regolith
+sphere 0.31166 -1.10881 6.13864 0.1284 moon_highlands
+sphere 0.28252 -0.58882 4.55118 0.1355 moon_regolith
+sphere 0.38249 -0.90412 5.54059 0.1897 moon_highlands
+sphere 0.38074 -0.59877 4.58199 0.1571 moon_regolith
+sphere 0.44924 -0.68866 4.87173 0.0647 moon_highlands
+sphere 0.49424 -0.72342 4.97552 0.1296 moon_regolith
+sphere 0.65318 -1.00885 5.84068 0.1034 moon_highlands
+sphere 0.73325 -0.98784 5.75819 0.1138 moon_regolith
+sphere 0.79280 -0.99151 5.79091 0.0809 moon_highlands
+sphere 0.84447 -0.95269 5.67453 0.0911 moon_regolith
+sphere 0.78390 -0.77256 5.10998 0.1589 moon_highlands
+sphere 0.83603 -0.79337 5.15729 0.1092 moon_regolith
+sphere 0.79594 -0.59504 4.49272 0.0690 moon_highlands
+sphere 97.5947 -934.9897 3726.9899 63.7100 earth_ocean
+sphere 103.3953 -904.7312 3658.3497 24.0000 earth_land
+sphere 83.8662 -917.1106 3661.8430 28.0000 earth_land
+sphere 117.6264 -929.2178 3664.0728 20.0000 earth_land
+sphere 89.8820 -938.4630 3670.4278 22.0000 earth_land
+sphere 99.1183 -895.1486 3654.5824 18.0000 earth_land
+sphere 99.1425 -885.0844 3650.2918 14.0000 earth_clouds
+sphere 107.2934 -889.6025 3654.8780 16.0000 earth_clouds
+sphere 86.6346 -897.8998 3663.2776 19.0000 earth_clouds
+sphere 114.6892 -913.6048 3660.4098 22.0000 earth_clouds
+sphere 80.4076 -929.1523 3672.7206 20.0000 earth_clouds
+sphere 102.2273 -947.8092 3676.1034 24.0000 earth_clouds
+sphere 92.8655 -957.3509 3678.7154 16.0000 earth_clouds
+sphere 119.8678 -938.5364 3669.2323 15.0000 earth_clouds
+sphere 74.0766 -910.3349 3667.5000 17.0000 earth_clouds
+sphere 1284.64 -518.02 4804.18 1.48 star_mat
+sphere 26.69 -657.77 4956.32 0.72 star_mat
+sphere 382.38 -765.82 4926.01 1.13 star_mat
+sphere -621.61 -807.05 4894.94 0.77 star_mat
+sphere 980.93 -224.24 4897.65 0.98 star_mat
+sphere -648.81 -1102.28 4833.37 1.43 star_mat
+sphere 1093.39 -405.41 4862.02 1.17 star_mat
+sphere -234.93 -1074.64 4877.24 0.62 star_mat
+sphere -175.28 -559.68 4965.35 0.72 star_mat
+sphere -680.02 -338.01 4941.92 1.60 star_mat
+sphere 1182.29 -401.05 4841.53 1.59 star_mat
+sphere -1008.93 -243.98 4891.01 0.97 star_mat
+sphere 786.37 -370.04 4923.80 0.83 star_mat
+sphere -680.89 -887.34 4873.09 1.59 star_mat
+sphere 115.94 -1028.58 4891.44 1.68 star_mat
+sphere 1038.21 -668.10 4845.02 1.73 star_mat
+sphere 1250.59 -1123.05 4708.73 0.94 star_mat
+sphere -180.09 -670.58 4951.40 0.89 star_mat
+sphere -87.93 -296.17 4990.38 0.86 star_mat
+sphere 1307.37 -845.74 4751.16 0.70 star_mat
+sphere 599.57 -1044.38 4852.56 0.60 star_mat
+sphere -837.44 -315.97 4919.16 1.26 star_mat
+sphere 1253.69 -894.88 4756.61 0.95 star_mat
+sphere 1073.44 -1106.61 4756.11 1.43 star_mat
+sphere -999.05 -592.08 4863.12 1.46 star_mat
+sphere 371.26 -605.44 4949.16 0.82 star_mat
+sphere 799.59 -708.32 4884.39 1.11 star_mat
+sphere -784.96 -359.33 4924.82 0.99 star_mat
+sphere 490.97 -1193.44 4830.31 1.59 star_mat
+sphere 209.09 -225.31 4990.49 0.66 star_mat
+sphere 1314.67 -696.43 4773.37 1.35 star_mat
+sphere 1185.10 -492.59 4832.37 1.06 star_mat
+sphere 281.56 -530.42 4963.68 1.28 star_mat
+sphere 1213.78 -553.84 4818.58 1.53 star_mat
+sphere 1152.56 -392.47 4849.40 0.87 star_mat
+sphere -1049.63 -448.18 4867.89 1.59 star_mat
+sphere 852.44 -622.07 4887.22 1.24 star_mat
+sphere -899.85 -640.36 4876.34 0.67 star_mat
+sphere -561.95 -235.11 4962.70 1.15 star_mat
+sphere -282.35 -727.29 4938.59 1.46 star_mat
+sphere 891.07 -1205.51 4769.69 0.75 star_mat
+sphere -721.09 -1223.12 4793.87 1.44 star_mat
+sphere 1278.00 -671.48 4786.89 1.62 star_mat
+sphere -944.93 -581.84 4875.16 0.81 star_mat
+sphere 696.68 -792.55 4887.19 1.69 star_mat
+sphere 1150.40 -679.64 4818.00 0.76 star_mat
+sphere -753.52 -264.66 4935.74 1.11 star_mat
+sphere -15.04 -846.98 4927.52 1.53 star_mat
+sphere 264.65 -1308.53 4818.16 1.16 star_mat
+sphere -235.97 -1032.99 4886.19 0.71 star_mat
+sphere 760.63 -1137.34 4808.87 0.99 star_mat
+sphere 142.44 -934.51 4909.61 1.56 star_mat
+sphere -800.47 -1148.82 4799.67 0.70 star_mat
+sphere 207.83 -971.51 4900.08 1.39 star_mat
+sphere -682.87 -1023.56 4845.99 0.87 star_mat
+sphere -568.26 -505.75 4941.67 1.38 star_mat
+sphere 341.31 -400.55 4972.14 1.10 star_mat
+sphere 242.98 -1185.57 4851.05 0.86 star_mat
+sphere -141.32 -873.30 4920.91 1.39 star_mat
+sphere 497.31 -1297.46 4802.74 1.43 star_mat
+sphere 20.78 -726.65 4946.70 1.35 star_mat
+sphere 370.65 -1011.54 4882.32 0.74 star_mat
+sphere -369.16 -1273.75 4820.62 1.73 star_mat
+sphere 821.94 -605.60 4894.52 0.65 star_mat
+sphere 440.98 -630.36 4940.32 0.93 star_mat
+sphere 376.16 -1173.83 4845.40 1.42 star_mat
+sphere -733.21 -1178.03 4803.32 0.97 star_mat
+sphere 1140.66 -878.37 4788.04 0.91 star_mat
+sphere 1200.57 -1052.41 4738.00 1.67 star_mat
+sphere -706.45 -1193.66 4803.47 1.32 star_mat
+sphere 793.06 -944.92 4845.20 0.81 star_mat
+sphere 681.90 -1296.31 4780.33 1.68 star_mat
+sphere 481.54 -421.55 4958.77 1.09 star_mat
+sphere 601.98 -694.20 4914.68 1.50 star_mat
+sphere 296.99 -798.16 4926.75 0.74 star_mat
+sphere 202.53 -1292.43 4825.52 1.77 star_mat
+sphere 116.16 -459.01 4977.43 1.21 star_mat
+sphere -178.54 -464.99 4975.02 0.90 star_mat
+sphere 460.32 -1179.12 4836.85 1.61 star_mat
+sphere -801.14 -635.98 4894.10 1.63 star_mat
+sphere 705.19 -454.96 4928.96 1.03 star_mat
+sphere 816.74 -772.07 4871.87 1.54 star_mat
+sphere -442.00 -945.99 4889.54 0.81 star_mat
+sphere -367.78 -1194.89 4840.89 0.81 star_mat
+sphere 552.64 -1316.48 4791.50 0.90 star_mat
+sphere -281.68 -1132.78 4861.57 1.58 star_mat
+sphere -372.78 -820.09 4917.99 1.15 star_mat
+sphere 636.48 -811.10 4892.36 1.38 star_mat
+sphere 1084.60 -1323.98 4697.62 1.51 star_mat
+sphere 103.04 -236.66 4993.28 1.54 star_mat
+sphere 556.85 -601.70 4932.19 1.41 star_mat
+sphere 1270.21 -238.20 4830.04 0.83 star_mat
+sphere 1251.64 -357.72 4827.48 0.75 star_mat
+sphere 925.25 -297.03 4904.59 0.78 star_mat
+sphere 376.65 -720.87 4933.24 0.81 star_mat
+sphere -245.50 -928.24 4906.73 0.77 star_mat
+sphere -216.66 -598.37 4959.20 1.38 star_mat
+sphere -234.59 -1292.56 4824.03 1.41 star_mat
+sphere 1007.03 -784.92 4834.05 1.62 star_mat
+sphere -187.27 -541.16 4966.97 0.66 star_mat
+sphere -115.58 -522.19 4971.19 1.45 star_mat
+sphere 763.88 -642.84 4899.16 1.15 star_mat
+sphere 1104.68 -939.53 4784.85 0.74 star_mat
+sphere -424.99 -318.85 4971.62 1.66 star_mat
+sphere -47.40 -1279.94 4832.86 1.34 star_mat
+sphere 236.03 -389.86 4979.10 0.98 star_mat
+sphere 229.39 -1085.67 4875.06 0.71 star_mat
+sphere 1062.52 -1055.78 4770.11 1.34 star_mat
+sphere 856.52 -1043.57 4814.04 1.68 star_mat
+sphere -146.15 -326.33 4987.12 1.01 star_mat
+sphere 1137.89 -1181.97 4722.86 1.47 star_mat
+sphere 621.54 -424.25 4942.95 1.47 star_mat
+sphere 518.24 -464.87 4951.19 1.47 star_mat
+sphere 1292.44 -527.26 4801.08 0.95 star_mat
+sphere -209.21 -1227.73 4842.12 1.13 star_mat
+sphere -1055.07 -358.31 4874.18 0.69 star_mat
+sphere 1311.40 -477.22 4801.19 0.78 star_mat
+sphere 1292.02 -932.25 4739.14 1.28 star_mat
+sphere 1332.08 -265.94 4811.89 1.33 star_mat
+sphere 62.76 -303.30 4990.33 1.20 star_mat
+sphere -256.95 -824.14 4924.72 1.38 star_mat
+sphere -934.70 -401.88 4895.29 1.33 star_mat
+sphere 1189.17 -237.73 4850.65 1.26 star_mat
+sphere -189.20 -641.14 4954.96 1.06 star_mat
+sphere 721.78 -591.19 4912.04 1.48 star_mat
+sphere 992.58 -1332.53 4715.52 1.66 star_mat
+sphere -716.10 -538.18 4918.98 1.37 star_mat
+sphere 344.26 -877.38 4910.16 0.87 star_mat
+sphere -732.30 -808.61 4879.35 1.51 star_mat
+sphere -502.49 -989.51 4875.05 1.23 star_mat
+sphere 388.27 -1258.78 4823.05 1.75 star_mat
+sphere -1023.52 -1223.53 4738.41 1.72 star_mat
+sphere -527.13 -1123.98 4843.16 0.73 star_mat
+sphere 909.60 -344.85 4904.38 1.51 star_mat
+sphere 659.65 -537.79 4926.91 1.08 star_mat
+sphere -351.00 -688.47 4939.76 0.85 star_mat
+sphere 1170.65 -1230.36 4702.44 0.65 star_mat
+sphere 1030.05 -1135.55 4758.88 1.09 star_mat
+sphere -726.18 -1032.85 4837.72 1.45 star_mat
+sphere -216.49 -1280.28 4828.15 1.25 star_mat
+sphere -891.74 -402.85 4903.22 0.74 star_mat
+sphere 412.24 -733.97 4928.45 0.87 star_mat
+sphere -761.56 -690.85 4892.97 1.05 star_mat
+sphere 553.42 -244.69 4963.19 1.70 star_mat
+sphere -492.17 -626.51 4935.97 1.17 star_mat
+sphere -744.63 -523.22 4916.36 1.68 star_mat
+sphere 610.86 -254.09 4955.98 1.55 star_mat
+sphere 1140.97 -269.13 4860.57 1.14 star_mat
+sphere -452.24 -1295.58 4807.70 1.33 star_mat
+sphere -189.07 -723.06 4943.66 0.64 star_mat
+sphere 790.04 -597.69 4900.74 1.50 star_mat
+sphere -315.64 -1095.33 4868.07 1.22 star_mat
+sphere -826.56 -224.69 4926.03 1.61 star_mat
+sphere -36.04 -1242.25 4842.80 1.67 star_mat
+sphere 409.42 -399.20 4967.10 0.67 star_mat
+sphere -255.79 -315.68 4983.39 1.47 star_mat
+sphere -100.12 -317.24 4988.85 1.73 star_mat
+sphere -744.36 -365.78 4930.65 1.52 star_mat
+sphere 1055.59 -883.91 4806.50 1.20 star_mat
+sphere 713.75 -458.52 4927.40 0.97 star_mat
+sphere -1025.69 -1213.76 4740.46 1.79 star_mat
+sphere 194.57 -468.97 4974.05 0.75 star_mat
+sphere -291.84 -1076.14 4873.84 1.05 star_mat
+sphere 811.84 -532.96 4904.66 1.31 star_mat
+sphere 676.13 -926.99 4866.35 1.55 star_mat
+sphere 819.54 -900.31 4849.30 1.38 star_mat
+sphere 148.14 -920.37 4912.11 1.55 star_mat
+sphere -138.41 -810.59 4931.73 1.54 star_mat
+sphere -324.38 -1178.13 4848.10 1.47 star_mat
+sphere 851.14 -275.57 4919.25 0.92 star_mat
+sphere 303.43 -286.06 4982.51 1.40 star_mat
+sphere 914.90 -537.11 4886.02 0.93 star_mat
+sphere 1297.06 -520.22 4800.60 1.50 star_mat
+sphere 829.37 -1273.37 4763.16 0.90 star_mat
+sphere 36.26 -716.16 4948.15 0.80 star_mat
+sphere -689.81 -1293.32 4780.01 0.77 star_mat
+sphere 337.22 -984.41 4890.29 0.85 star_mat
+sphere -89.75 -744.90 4943.21 1.35 star_mat
+sphere 781.97 -1314.78 4759.92 1.05 star_mat
+sphere 137.47 -970.55 4902.75 1.48 star_mat
+sphere -567.43 -925.19 4880.57 1.56 star_mat
+sphere -662.34 -1258.67 4793.14 1.42 star_mat
+sphere -169.97 -1010.40 4893.66 1.45 star_mat
+sphere 1049.03 -546.43 4857.95 1.46 star_mat
+sphere 306.68 -806.67 4924.77 0.66 star_mat
+sphere -760.77 -383.78 4926.77 1.77 star_mat
+sphere 453.52 -545.21 4949.32 1.28 star_mat
+sphere -153.66 -816.77 4930.25 1.66 star_mat
+sphere 373.32 -963.44 4891.85 1.15 star_mat
+sphere 1168.77 -824.62 4790.83 1.57 star_mat
+sphere 972.84 -1096.14 4780.12 1.57 star_mat
+sphere -412.55 -856.88 4908.52 0.95 star_mat
+sphere 1001.88 -1203.33 4748.21 1.73 star_mat
+sphere -358.97 -1091.39 4865.95 1.07 star_mat
+sphere 1095.21 -255.43 4871.82 1.29 star_mat
+sphere 1170.25 -914.06 4774.19 1.59 star_mat
+sphere 1003.59 -783.23 4835.03 1.15 star_mat
+sphere -268.72 -334.44 4981.48 0.91 star_mat
+sphere -867.12 -609.08 4886.28 1.55 star_mat
+sphere 1072.47 -1215.23 4729.72 1.39 star_mat
+sphere 1112.38 -289.27 4866.03 0.70 star_mat
+sphere 455.33 -310.52 4969.46 1.58 star_mat
+sphere 1194.45 -1127.15 4722.31 1.54 star_mat
+sphere 5.21 -1018.11 4895.01 1.16 star_mat
+sphere 698.72 -1110.68 4824.48 0.74 star_mat
+sphere 944.59 -530.67 4881.08 1.08 star_mat
+sphere -439.93 -918.35 4894.99 0.98 star_mat
+sphere 498.45 -470.05 4952.73 1.55 star_mat
+sphere 587.65 -765.84 4905.75 1.61 star_mat
+sphere 95.44 -1058.87 4885.41 0.75 star_mat
+sphere 722.64 -1218.09 4794.92 1.38 star_mat
+sphere 331.96 -817.84 4921.29 0.81 star_mat
+sphere -1004.16 -917.80 4811.15 0.85 star_mat
+sphere 259.59 -1241.86 4836.07 0.82 star_mat
+sphere 322.00 -483.72 4966.01 1.07 star_mat
+sphere 263.87 -577.60 4959.38 0.96 star_mat
+sphere 1141.42 -556.83 4835.89 0.96 star_mat
+sphere 477.34 -1054.81 4863.86 1.60 star_mat
+sphere 986.00 -956.75 4807.31 1.69 star_mat
+sphere 386.56 -566.48 4952.61 0.72 star_mat
+sphere -980.25 -1324.79 4720.28 1.79 star_mat
+sphere 889.78 -540.15 4890.33 1.55 star_mat
+sphere -361.80 -682.24 4939.85 1.68 star_mat
+sphere 429.32 -329.70 4970.54 1.69 star_mat
+sphere -63.52 -429.57 4981.01 0.81 star_mat
+sphere -419.33 -293.38 4973.67 0.99 star_mat
+sphere 832.08 -584.59 4895.36 0.69 star_mat
+sphere -247.08 -801.88 4928.90 0.73 star_mat
+sphere 549.74 -385.17 4954.65 1.47 star_mat
+sphere 1202.57 -653.10 4808.93 0.79 star_mat
+sphere 92.43 -1330.14 4818.62 1.11 star_mat
+sphere -346.02 -1261.94 4825.44 1.54 star_mat
+sphere 100.69 -1177.68 4858.01 1.01 star_mat
+sphere 357.20 -472.79 4964.65 0.78 star_mat
+sphere 169.18 -668.69 4952.04 0.87 star_mat
+sphere 818.52 -435.74 4913.16 1.59 star_mat
+sphere -761.43 -524.82 4913.61 1.26 star_mat
+sphere 91.45 -1227.25 4845.89 1.67 star_mat
+sphere 594.44 -269.97 4957.13 0.93 star_mat
+sphere 506.59 -524.53 4946.42 1.59 star_mat
+sphere 1159.94 -1179.48 4718.12 1.10 star_mat
+sphere 626.70 -1217.77 4808.48 1.28 star_mat
+sphere 1202.40 -335.24 4841.60 1.45 star_mat
+sphere 642.12 -513.86 4931.78 1.20 star_mat
+sphere 1123.54 -943.44 4779.69 1.57 star_mat
+sphere 644.62 -307.99 4948.63 1.07 star_mat
+sphere -95.62 -781.82 4937.39 0.65 star_mat
+sphere -968.90 -1056.61 4789.82 1.30 star_mat
+sphere 744.30 -697.07 4894.74 1.22 star_mat
+sphere -942.39 -737.73 4854.48 1.23 star_mat

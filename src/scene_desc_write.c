@@ -523,6 +523,49 @@ static void emit_sky(Writer *w, const SceneDesc *d)
      */
     if (s->sun_radius != SKY_DEFAULT_SUN_RADIUS)
         w_key_double(w, "sun_radius", s->sun_radius);
+    if (s->star_intensity != SKY_DEFAULT_STAR_INTENSITY)
+        w_key_double(w, "star_intensity", s->star_intensity);
+    if (s->star_density != SKY_DEFAULT_STAR_DENSITY)
+        w_key_double(w, "star_density", s->star_density);
+    if (s->nebula_intensity != SKY_DEFAULT_NEBULA_INTENSITY)
+        w_key_double(w, "nebula_intensity", s->nebula_intensity);
+    if (s->galaxy_intensity != SKY_DEFAULT_GALAXY_INTENSITY)
+        w_key_double(w, "galaxy_intensity", s->galaxy_intensity);
+    if (!vec3_is(s->galaxy_dir, SKY_DEFAULT_GALAXY_DIR.x,
+                 SKY_DEFAULT_GALAXY_DIR.y, SKY_DEFAULT_GALAXY_DIR.z))
+        w_key_vec3(w, "galaxy_dir", s->galaxy_dir);
+    if (!vec3_is(s->nebula_dir, SKY_DEFAULT_NEBULA_DIR.x,
+                 SKY_DEFAULT_NEBULA_DIR.y, SKY_DEFAULT_NEBULA_DIR.z))
+        w_key_vec3(w, "nebula_dir", s->nebula_dir);
+    if (s->galaxy_tilt != SKY_DEFAULT_GALAXY_TILT)
+        w_key_double(w, "galaxy_tilt", s->galaxy_tilt);
+    if (s->galaxy_roll != SKY_DEFAULT_GALAXY_ROLL)
+        w_key_double(w, "galaxy_roll", s->galaxy_roll);
+    w_close(w);
+}
+
+static void emit_fog(Writer *w, const SceneDesc *d)
+{
+    const FogParams *f = &d->fog;
+    if (!d->has_fog && f->density <= 0.0)
+        return;
+
+    w_open(w, "fog", NULL);
+    w_key_double(w, "density", f->density);
+    if (!vec3_is(f->color, FOG_DEFAULT_COLOR.x, FOG_DEFAULT_COLOR.y, FOG_DEFAULT_COLOR.z))
+        w_key_vec3(w, "color", f->color);
+    if (f->height != FOG_DEFAULT_HEIGHT)
+        w_key_double(w, "height", f->height);
+    if (f->height_falloff != FOG_DEFAULT_HEIGHT_FALLOFF)
+        w_key_double(w, "height_falloff", f->height_falloff);
+    if (f->inscatter_strength != FOG_DEFAULT_INSCATTER_STRENGTH)
+        w_key_double(w, "inscatter_strength", f->inscatter_strength);
+    if (f->sun_anisotropy != FOG_DEFAULT_SUN_ANISOTROPY)
+        w_key_double(w, "sun_anisotropy", f->sun_anisotropy);
+    if (f->noise_scale != FOG_DEFAULT_NOISE_SCALE)
+        w_key_double(w, "noise_scale", f->noise_scale);
+    if (f->noise_amount != FOG_DEFAULT_NOISE_AMOUNT)
+        w_key_double(w, "noise_amount", f->noise_amount);
     w_close(w);
 }
 
@@ -551,10 +594,13 @@ static void emit_material_texture(Writer *w, const Material *m)
         return; /* untextured: emit nothing (byte-identity preserved) */
 
     switch (m->texture_kind) {
-    case TEXTURE_CHECKER: w_key_name(w, "texture", "checker"); break;
-    case TEXTURE_STRIPES: w_key_name(w, "texture", "stripes"); break;
+    case TEXTURE_CHECKER:      w_key_name(w, "texture", "checker"); break;
+    case TEXTURE_STRIPES:      w_key_name(w, "texture", "stripes"); break;
+    case TEXTURE_PLANET_EARTH: w_key_name(w, "texture", "earth");   break;
+    case TEXTURE_PLANET_MOON:  w_key_name(w, "texture", "moon");    break;
+    case TEXTURE_NOISE:        w_key_name(w, "texture", "noise");   break;
     case TEXTURE_NONE:
-    default:              w_key_name(w, "texture", "none");    break;
+    default:                   w_key_name(w, "texture", "none");    break;
     }
 
     if (!default_scale)
@@ -643,6 +689,14 @@ static void emit_material(Writer *w, const SceneDesc *d, int i)
         w_key_vec3(w, "deep_color", m->deep_color);
         emit_material_pbr(w, m);
         emit_material_texture(w, m);
+        if (m->bump_strength != MATERIAL_DEFAULT_BUMP_STRENGTH)
+            w_key_double(w, "bump_strength", m->bump_strength);
+        if (m->bump_scale != MATERIAL_DEFAULT_BUMP_SCALE)
+            w_key_double(w, "bump_scale", m->bump_scale);
+        if (!vec3_is(m->atmosphere_glow, MATERIAL_DEFAULT_ATMOSPHERE_GLOW.x,
+                     MATERIAL_DEFAULT_ATMOSPHERE_GLOW.y,
+                     MATERIAL_DEFAULT_ATMOSPHERE_GLOW.z))
+            w_key_vec3(w, "atmosphere_glow", m->atmosphere_glow);
     }
     w_close(w);
 }
@@ -775,6 +829,7 @@ int scene_desc_write(const SceneDesc *d, const char *path,
     emit_globals(&w, d);
     emit_camera(&w, d);
     emit_sky(&w, d);
+    emit_fog(&w, d);
     for (i = 0; i < d->material_count; ++i)
         emit_material(&w, d, i);
     for (i = 0; i < d->prim_count; ++i)

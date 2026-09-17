@@ -31,9 +31,12 @@ extern "C" {
  * `Material.texture_kind` stores one of these values.
  */
 typedef enum {
-    TEXTURE_NONE    = 0,  /* no texture: albedo is used verbatim          */
-    TEXTURE_CHECKER = 1,  /* 3D checkerboard on world position            */
-    TEXTURE_STRIPES = 2   /* sinusoidal/triangular bands along world Y    */
+    TEXTURE_NONE         = 0,  /* no texture: albedo is used verbatim          */
+    TEXTURE_CHECKER      = 1,  /* 3D checkerboard on world position            */
+    TEXTURE_STRIPES      = 2,  /* sinusoidal/triangular bands along world Y    */
+    TEXTURE_PLANET_EARTH = 3,  /* procedural earth: oceans, continents, clouds */
+    TEXTURE_PLANET_MOON  = 4,  /* procedural moon: basalt maria, highlands     */
+    TEXTURE_NOISE        = 5   /* continuous 3D fBm noise blend                */
 } TextureKind;
 
 /* Defaults for the texture fields, shared by the parser and the writer so the
@@ -92,6 +95,11 @@ typedef struct {
     double texture_scale; /* world units per cell; 0 or <=0 => default 1  */
     Vec3   texture_color_a; /* first cell / band colour                  */
     Vec3   texture_color_b; /* second cell / band colour                 */
+
+    /* --- procedural bump mapping & planetary atmosphere ------------- */
+    double bump_strength;   /* normal perturbation strength (0 = off)   */
+    double bump_scale;      /* spatial scale for bumps (default 1.0)    */
+    Vec3   atmosphere_glow; /* Rayleigh limb scattering color           */
 } Material;
 
 /*
@@ -105,6 +113,9 @@ typedef struct {
 #define MATERIAL_DEFAULT_ROUGHNESS  0.0
 #define MATERIAL_DEFAULT_EMISSIVE   ((Vec3){ 0.0, 0.0, 0.0 })
 #define MATERIAL_DEFAULT_PBR        0
+#define MATERIAL_DEFAULT_BUMP_STRENGTH   0.0
+#define MATERIAL_DEFAULT_BUMP_SCALE      1.0
+#define MATERIAL_DEFAULT_ATMOSPHERE_GLOW ((Vec3){ 0.0, 0.0, 0.0 })
 
 /* ------------------------------------------------------------------ */
 /* Sky / atmosphere parameters                                         */
@@ -134,15 +145,77 @@ typedef struct {
      * preserving the pre-soft-shadow behaviour and output.
      */
     double sun_radius;
+    double star_intensity;   /* 0 = off, >0 = procedural background starfield */
+    double star_density;     /* angular density/frequency of stars (default 250.0) */
+    double nebula_intensity; /* 0 = off, >0 = cosmic gas / emission nebula */
+    double galaxy_intensity; /* 0 = off, >0 = distant spiral galaxy disk */
+    Vec3   galaxy_dir;       /* celestial direction toward galaxy center */
+    Vec3   nebula_dir;       /* celestial direction toward nebula center */
+    double galaxy_tilt;      /* inclination angle in degrees (0 = face-on, 90 = edge-on, default 50.0) */
+    double galaxy_roll;      /* position angle / roll in degrees (default -38.0) */
 } SkyParams;
 
 /* Default angular radius of the sun disk, in degrees (0 = hard shadow). The
  * canonical scene writer emits `sun_radius` ONLY when it differs from this
  * value, so the default scene stays byte-identical. */
-#define SKY_DEFAULT_SUN_RADIUS 0.0
+#define SKY_DEFAULT_SUN_RADIUS       0.0
+#define SKY_DEFAULT_STAR_INTENSITY   0.0
+#define SKY_DEFAULT_STAR_DENSITY     250.0
+#define SKY_DEFAULT_NEBULA_INTENSITY 0.0
+#define SKY_DEFAULT_GALAXY_INTENSITY 0.0
+#define SKY_DEFAULT_GALAXY_DIR       ((Vec3){ -0.35, 0.45, 0.82 })
+#define SKY_DEFAULT_NEBULA_DIR       ((Vec3){ -0.1059, -0.2060, 0.9728 })
+#define SKY_DEFAULT_GALAXY_TILT      50.0
+#define SKY_DEFAULT_GALAXY_ROLL      -38.0
 
 /* Fill `p` with a pleasant outdoor-day default setup. */
 void sky_default_params(SkyParams *p);
+
+/* ------------------------------------------------------------------ */
+/* Atmospheric Fog & Smoke                                             */
+/* ------------------------------------------------------------------ */
+
+#define FOG_DEFAULT_DENSITY            0.0
+#define FOG_DEFAULT_COLOR              ((Vec3){ 0.70, 0.75, 0.80 })
+#define FOG_DEFAULT_HEIGHT             0.0
+#define FOG_DEFAULT_HEIGHT_FALLOFF     0.0
+#define FOG_DEFAULT_INSCATTER_STRENGTH 0.50
+#define FOG_DEFAULT_SUN_ANISOTROPY     0.70
+#define FOG_DEFAULT_NOISE_SCALE        0.0
+#define FOG_DEFAULT_NOISE_AMOUNT       0.0
+
+typedef struct {
+    double density;            /* fog extinction coefficient >= 0 (0 => disabled) */
+    Vec3   color;              /* base fog / inscattering color (linear RGB)      */
+    double height;             /* reference height y0 for height falloff          */
+    double height_falloff;     /* vertical exponential decay rate lambda >= 0     */
+    double inscatter_strength; /* direct sun inscattering intensity >= 0          */
+    double sun_anisotropy;     /* phase function forward scattering g in (-1, 1)  */
+    double noise_scale;        /* 3D noise frequency for turbulence (0 => smooth) */
+    double noise_amount;       /* noise modulation strength in [0, 1]             */
+} FogParams;
+
+/* Fill `p` with default fog parameters (disabled, density = 0). */
+void fog_default_params(FogParams *p);
+
+/*
+ * Evaluates transmittance and inscattering for a ray segment of length `dist`
+ * from `ray.orig` along `ray.dir`.
+ *
+ * If `dist >= 1e20`, evaluates the infinite optical path to the sky.
+ * Outputs:
+ *   *transmittance: T in [0, 1]
+ *   *inscatter: gathered inscattered radiance
+ */
+void fog_segment(const FogParams *fog, const SkyParams *sky, Ray ray,
+                 double dist, double *transmittance, Vec3 *inscatter);
+
+/*
+ * Convenience wrapper: applies fog to `surface_color` across `dist`:
+ * Returns surface_color * T + inscatter.
+ */
+Vec3 fog_apply(const FogParams *fog, const SkyParams *sky, Ray ray,
+               double dist, Vec3 surface_color);
 
 /* Set the procedural-texture fields of `m` to their no-op defaults
  * (TEXTURE_NONE, scale 1, colors A=white / B=black). Leaves every other field

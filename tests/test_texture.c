@@ -421,6 +421,84 @@ static void test_bad_texture_kind(void)
 }
 
 /* ------------------------------------------------------------------ */
+/* Test 8: planet textures & bump normal                               */
+/* ------------------------------------------------------------------ */
+
+static void test_planet_textures_and_bump(void)
+{
+    Material m_earth = make_material(TEXTURE_PLANET_EARTH, 10.0,
+                                     vec3(1, 1, 1), vec3(0, 0, 0));
+    Material m_moon  = make_material(TEXTURE_PLANET_MOON, 10.0,
+                                     vec3(1, 1, 1), vec3(0, 0, 0));
+    Material m_noise = make_material(TEXTURE_NOISE, 5.0,
+                                     vec3(1, 0, 0), vec3(0, 0, 1));
+
+    Vec3 p1 = vec3(2.5, 4.0, 1.0);
+    Vec3 p2 = vec3(-3.0, 0.5, 5.5);
+
+    Vec3 e1 = texture_albedo(&m_earth, p1);
+    Vec3 e2 = texture_albedo(&m_earth, p2);
+    CHECK(e1.x > 0.0 && e1.z > 0.0, "earth texture produces non-zero color");
+    CHECK(!vec3_eq(e1, e2), "earth texture varies across space");
+
+    Vec3 m1 = texture_albedo(&m_moon, p1);
+    Vec3 m2 = texture_albedo(&m_moon, p2);
+    CHECK(m1.x > 0.0 && m1.y > 0.0, "moon texture produces non-zero color");
+    CHECK(!vec3_eq(m1, m2), "moon texture varies across space");
+
+    Vec3 n1 = texture_albedo(&m_noise, p1);
+    CHECK(n1.x >= 0.0 && n1.z >= 0.0, "noise texture produces valid color");
+
+    /* Determinism */
+    Vec3 e1_again = texture_albedo(&m_earth, p1);
+    CHECK(vec3_eq(e1, e1_again), "earth texture is deterministic");
+
+    /* Bump normal */
+    Vec3 n = vec3(0.0, 1.0, 0.0);
+    Material m_flat = m_moon;
+    m_flat.bump_strength = 0.0;
+    Vec3 n_flat = texture_normal(&m_flat, p1, n);
+    CHECK(vec3_eq(n_flat, n), "zero bump strength leaves normal unchanged");
+
+    Material m_bumpy = m_moon;
+    m_bumpy.bump_strength = 0.5;
+    m_bumpy.bump_scale = 1.0;
+    Vec3 n_bumpy = texture_normal(&m_bumpy, p1, n);
+    CHECK(!vec3_eq(n_bumpy, n), "bump mapping perturbs normal");
+    double len = vec3_length(n_bumpy);
+    CHECK(fabs(len - 1.0) < 1e-6, "perturbed normal is unit length");
+}
+
+static void test_planet_parser_roundtrip(void)
+{
+    const char *src =
+        "material earth_mat {\n"
+        "    albedo = 1.0 1.0 1.0\n"
+        "    texture = earth\n"
+        "    texture_scale = 63.7\n"
+        "    bump_strength = 0.4\n"
+        "    bump_scale = 2.0\n"
+        "    atmosphere_glow = 0.2 0.5 0.9\n"
+        "}\n";
+
+    SceneDesc d;
+    char errbuf[256];
+    scene_desc_init(&d);
+    CHECK(scene_desc_load_string(&d, src, "<test>", errbuf, sizeof errbuf) == 0,
+          "planet material parses successfully");
+    CHECK(d.material_count == 1, "one material loaded");
+    const Material *m = &d.materials[0].mat;
+    CHECK(m->texture_kind == TEXTURE_PLANET_EARTH, "texture_kind is earth");
+    CHECK(fabs(m->texture_scale - 63.7) < 1e-6, "texture_scale preserved");
+    CHECK(fabs(m->bump_strength - 0.4) < 1e-6, "bump_strength preserved");
+    CHECK(fabs(m->bump_scale - 2.0) < 1e-6, "bump_scale preserved");
+    CHECK(fabs(m->atmosphere_glow.x - 0.2) < 1e-6, "atmosphere_glow.x preserved");
+    CHECK(fabs(m->atmosphere_glow.y - 0.5) < 1e-6, "atmosphere_glow.y preserved");
+    CHECK(fabs(m->atmosphere_glow.z - 0.9) < 1e-6, "atmosphere_glow.z preserved");
+    scene_desc_free(&d);
+}
+
+/* ------------------------------------------------------------------ */
 
 int main(void)
 {
@@ -431,6 +509,8 @@ int main(void)
     test_null_safety();
     test_parser_roundtrip();
     test_bad_texture_kind();
+    test_planet_textures_and_bump();
+    test_planet_parser_roundtrip();
 
     printf("test_texture: %d passed, %d failed\n", g_pass, g_fail);
     return (g_fail == 0) ? 0 : 1;

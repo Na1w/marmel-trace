@@ -1,0 +1,510 @@
+# scenes/cyberpunk_cityscape.scene
+#
+# "Neo-Shinjuku 2099: The Vertical Sprawl"
+#
+# A complex, multi-tiered cyberpunk metropolis skyline viewed from a high rooftop terrace.
+#
+# Key Features:
+#   * Wide canyon view between towering megastructures and needle spires
+#   * Fine architectural window grids and horizontal ventilation louvers
+#   * Multi-level skybridges spanning across the urban canyon
+#   * Glowing holographic neon advertising billboards & vertical kanji banners
+#   * Streams of flying aerocars (spinners) with glowing headlights and red taillights
+#   * Rooftop infrastructure: communications array, radar dishes, and red aviation beacons
+#   * Dark reflective urban canal in the canyon depths reflecting the glowing skyline
+#   * Path-traced global illumination with multithreading (--threads --pathtrace)
+#
+# Render:
+#   ./raytracer --threads --scene scenes/cyberpunk_cityscape.scene --pathtrace \
+#               --width 1280 --height 720 --samples 32 --depth 6 \
+#               --out output/cyberpunk_cityscape.bmp
+
+water_level = 0.05
+water_material = canal_water
+water_enabled = 1
+camera {
+    eye = 0 22 46
+    target = 0 15 -10
+    up = 0 1 0
+    vfov = 50.0
+    aperture = 0.012
+    focus_distance = 46.0
+}
+sky {
+    sun_dir = 0.1 0.9 -0.4
+    sun_color = 0.02 0.02 0.03
+    horizon_color = 0.08 0.07 0.15
+    zenith_color = 0.015 0.02 0.04
+    gradient_gamma = 0.75
+    sun_glow_exponent = 200.0
+    sun_glow_strength = 0.1
+    cloud_height = 120.0
+    cloud_scale = 0.0035
+    cloud_coverage = 0.88
+    cloud_softness = 0.18
+    cloud_sharpness = 1.2
+    cloud_octaves = 5
+    seed = 2099
+}
+material canal_water {
+    type = water
+    albedo = 0.01 0.02 0.03
+    specular = 0.95 0.95 0.95
+    shininess = 256.0
+    reflectivity = 1.0
+    transparency = 0.85
+    ior = 1.333
+    is_water = 1
+    absorption = 0.4 0.15 0.08
+    deep_color = 0.01 0.03 0.05
+}
+material ground_dark {
+    albedo = 0.06 0.06 0.07
+    specular = 0.08 0.08 0.08
+    shininess = 32.0
+    metallic = 0.1
+    roughness = 0.12
+    reflectivity = 0.4
+    pbr = 1
+}
+material building_alloy {
+    albedo = 0.14 0.15 0.18
+    specular = 0.3 0.3 0.32
+    shininess = 96.0
+    metallic = 0.85
+    roughness = 0.18
+    reflectivity = 0.28
+    pbr = 1
+}
+material building_bronze {
+    albedo = 0.24 0.18 0.12
+    specular = 0.35 0.3 0.22
+    shininess = 128.0
+    metallic = 0.8
+    roughness = 0.15
+    reflectivity = 0.35
+    pbr = 1
+}
+material facade_cyan_windows {
+    albedo = 1 1 1
+    specular = 0.14 0.14 0.14
+    shininess = 64.0
+    texture = checker
+    texture_scale = 0.22
+    texture_color_a = 0.08 0.09 0.12
+    texture_color_b = 0.18 0.72 0.92
+    metallic = 0.2
+    roughness = 0.12
+    reflectivity = 0.25
+    pbr = 1
+}
+material facade_warm_windows {
+    albedo = 1 1 1
+    specular = 0.14 0.14 0.14
+    shininess = 64.0
+    texture = checker
+    texture_scale = 0.22
+    texture_color_a = 0.09 0.09 0.1
+    texture_color_b = 0.92 0.65 0.22
+    metallic = 0.2
+    roughness = 0.12
+    reflectivity = 0.25
+    pbr = 1
+}
+material facade_stripes {
+    albedo = 1 1 1
+    specular = 0.2 0.2 0.2
+    shininess = 48.0
+    texture = stripes
+    texture_scale = 0.18
+    texture_color_a = 0.25 0.28 0.32
+    texture_color_b = 0.08 0.09 0.11
+    metallic = 0.75
+    roughness = 0.2
+    pbr = 1
+}
+material cyber_chrome {
+    type = chrome
+    reflectivity = 0.95
+    roughness = 0.03
+}
+material cyber_gold {
+    type = gold
+    reflectivity = 0.9
+    roughness = 0.05
+}
+material neon_magenta {
+    type = emissive
+    albedo = 0.01 0.01 0.01
+    roughness = 0.25
+    emissive = 28 2 15
+    pbr = 1
+}
+material neon_cyan {
+    type = emissive
+    albedo = 0.01 0.01 0.01
+    roughness = 0.25
+    emissive = 2 20 30
+    pbr = 1
+}
+material neon_amber {
+    type = emissive
+    albedo = 0.01 0.01 0.01
+    roughness = 0.25
+    emissive = 28 13 1.8
+    pbr = 1
+}
+material neon_green {
+    type = emissive
+    albedo = 0.01 0.01 0.01
+    roughness = 0.25
+    emissive = 1.5 26 4
+    pbr = 1
+}
+material beacon_red {
+    type = emissive
+    albedo = 0.01 0.01 0.01
+    roughness = 0.2
+    emissive = 35 1.5 1.5
+    pbr = 1
+}
+material headlight_white {
+    type = emissive
+    albedo = 0.01 0.01 0.01
+    roughness = 0.15
+    emissive = 32 32 38
+    pbr = 1
+}
+material vehicle_hull {
+    albedo = 0.06 0.06 0.08
+    specular = 0.6 0.6 0.6
+    shininess = 128.0
+    metallic = 0.85
+    roughness = 0.08
+    reflectivity = 0.65
+    pbr = 1
+}
+plane {
+    point = 0 0 0
+    normal = 0 1 0
+    material = ground_dark
+}
+box {
+    center = 0 8 44
+    half = 18 9 6
+    material = building_alloy
+}
+box {
+    center = 0 17.5 38.2
+    half = 17.5 0.5 0.25
+    material = cyber_chrome
+}
+cylinder {
+    base = 14 17 41
+    top = 14 24 41
+    r_bottom = 0.35
+    r_top = 0.12
+    material = building_alloy
+}
+sphere {
+    center = 14 24.3 41
+    radius = 0.35
+    material = beacon_red
+}
+cylinder {
+    base = -14 17 41
+    top = -14 23 41
+    r_bottom = 0.3
+    r_top = 0.12
+    material = building_alloy
+}
+sphere {
+    center = -14 23.3 41
+    radius = 0.3
+    material = beacon_red
+}
+box {
+    center = -16.5 18 12
+    half = 4.8 18 5.5
+    material = facade_warm_windows
+}
+box {
+    center = -16.5 38 12
+    half = 3.5 3 4.2
+    material = building_alloy
+}
+cylinder {
+    base = -16.5 41 12
+    top = -16.5 49 12
+    r_bottom = 0.45
+    r_top = 0.08
+    material = cyber_chrome
+}
+sphere {
+    center = -16.5 49.3 12
+    radius = 0.35
+    material = beacon_red
+}
+box {
+    center = 16.5 19 10
+    half = 4.8 19 5.5
+    material = facade_cyan_windows
+}
+box {
+    center = 16.5 40 10
+    half = 3.5 3 4.2
+    material = building_alloy
+}
+cylinder {
+    base = 16.5 43 10
+    top = 16.5 52 10
+    r_bottom = 0.45
+    r_top = 0.08
+    material = cyber_chrome
+}
+sphere {
+    center = 16.5 52.3 10
+    radius = 0.35
+    material = beacon_red
+}
+box {
+    center = -10.5 20 0
+    half = 4 20 5
+    material = facade_cyan_windows
+}
+box {
+    center = -10.5 42 0
+    half = 3 3 3.8
+    material = building_bronze
+}
+box {
+    center = -6.4 25 4
+    half = 0.3 5.5 0.8
+    material = neon_magenta
+}
+cylinder {
+    base = -10.5 45 0
+    top = -10.5 54 0
+    r_bottom = 0.45
+    r_top = 0.08
+    material = cyber_chrome
+}
+sphere {
+    center = -10.5 54.3 0
+    radius = 0.38
+    material = beacon_red
+}
+box {
+    center = 11 21 -2
+    half = 4.2 21 5
+    material = facade_warm_windows
+}
+box {
+    center = 11 44 -2
+    half = 3 3 3.8
+    material = building_alloy
+}
+box {
+    center = 6.7 26 2
+    half = 0.3 5.5 0.8
+    material = neon_cyan
+}
+cylinder {
+    base = 11 47 -2
+    top = 11 56 -2
+    r_bottom = 0.45
+    r_top = 0.08
+    material = cyber_chrome
+}
+sphere {
+    center = 11 56.3 -2
+    radius = 0.38
+    material = beacon_red
+}
+box {
+    center = 0 28 -24
+    half = 6.5 28 6.5
+    material = facade_stripes
+}
+box {
+    center = 0 58 -24
+    half = 4.5 4 4.5
+    material = building_alloy
+}
+box {
+    center = 0 63.5 -24
+    half = 3 2.5 3
+    material = cyber_gold
+}
+cylinder {
+    base = 0 66 -24
+    top = 0 82 -24
+    r_bottom = 0.55
+    r_top = 0.1
+    material = cyber_chrome
+}
+sphere {
+    center = 0 82.4 -24
+    radius = 0.5
+    material = beacon_red
+}
+box {
+    center = 0 48 -17.3
+    half = 4.5 2.8 0.15
+    material = neon_amber
+}
+box {
+    center = -17.5 24 -18
+    half = 4.5 24 5
+    material = facade_cyan_windows
+}
+box {
+    center = -17.5 50 -18
+    half = 3 3.5 3.5
+    material = building_alloy
+}
+box {
+    center = 18 26 -20
+    half = 4.8 26 5.2
+    material = facade_warm_windows
+}
+box {
+    center = 18 54 -20
+    half = 3.2 3.5 3.5
+    material = building_alloy
+}
+box {
+    center = 18 36 -14.6
+    half = 3.2 3.5 0.15
+    material = neon_green
+}
+box {
+    center = -5.5 14 -10
+    half = 3 14 3.5
+    material = facade_stripes
+}
+box {
+    center = 5.5 15 -11
+    half = 3 15 3.5
+    material = facade_cyan_windows
+}
+box {
+    center = 0.25 32 -1
+    half = 6.8 1.1 1.5
+    material = building_alloy
+}
+box {
+    center = 0.25 32 0.6
+    half = 6.7 0.45 0.1
+    material = cyber_chrome
+}
+box {
+    center = 0.25 30.7 -1
+    half = 6.7 0.1 0.2
+    material = neon_cyan
+}
+box {
+    center = 0 14 8
+    half = 10.5 0.8 2
+    material = building_alloy
+}
+box {
+    center = 0 14.9 8
+    half = 10.4 0.12 0.2
+    material = neon_magenta
+}
+box {
+    center = 0 13.1 8
+    half = 10.4 0.12 0.2
+    material = neon_cyan
+}
+sphere {
+    center = -3.8 24 14
+    radius = 1.0
+    material = neon_magenta
+}
+sphere {
+    center = 4.2 22 7
+    radius = 1.0
+    material = neon_cyan
+}
+sphere {
+    center = 0 19 -4
+    radius = 0.85
+    material = neon_amber
+}
+sphere {
+    center = -1.8 8.5 3
+    radius = 0.75
+    material = neon_green
+}
+box {
+    center = 2.2 18.5 20
+    half = 1.4 0.45 2.5
+    material = vehicle_hull
+}
+box {
+    center = 2.2 18.95 19.8
+    half = 1 0.35 1.4
+    material = cyber_chrome
+}
+sphere {
+    center = 1.6 18.4 17.4
+    radius = 0.22
+    material = headlight_white
+}
+sphere {
+    center = 2.8 18.4 17.4
+    radius = 0.22
+    material = headlight_white
+}
+sphere {
+    center = 1.6 18.5 22.6
+    radius = 0.18
+    material = beacon_red
+}
+sphere {
+    center = 2.8 18.5 22.6
+    radius = 0.18
+    material = beacon_red
+}
+box {
+    center = -4.2 25.5 12
+    half = 1.3 0.42 2.3
+    material = vehicle_hull
+}
+sphere {
+    center = -4.8 25.4 9.6
+    radius = 0.2
+    material = headlight_white
+}
+sphere {
+    center = -3.6 25.4 9.6
+    radius = 0.2
+    material = headlight_white
+}
+sphere {
+    center = -4.8 25.5 14.4
+    radius = 0.16
+    material = beacon_red
+}
+sphere {
+    center = -3.6 25.5 14.4
+    radius = 0.16
+    material = beacon_red
+}
+box {
+    center = 2.8 9.5 -1
+    half = 1.2 0.4 2
+    material = vehicle_hull
+}
+sphere {
+    center = 2.3 9.4 -3.1
+    radius = 0.18
+    material = headlight_white
+}
+sphere {
+    center = 3.3 9.4 -3.1
+    radius = 0.18
+    material = headlight_white
+}

@@ -1,0 +1,390 @@
+# scenes/nordic_fjord.scene
+#
+# "Nordic Fjord Sanctuary at Dawn"
+#
+# A tranquil Scandinavian fjord at crisp misty sunrise with a rustic timber pier,
+# floating warm lanterns, mossy granite boulders, and diverse autumn/evergreen flora.
+#
+# Key Features:
+#   * Deep fjord water with rippling waves and realistic teal-blue absorption
+#   * Floating paper lanterns acting as warm emissive area lights (soft reflections on water)
+#   * Rustic wooden dock/pier extending out from the rocky shore
+#   * Custom Scandinavian Spruce pines and fiery golden/red autumn birch trees
+#   * Granite boulders and shoreline stepping stones
+#   * Soft sunrise dawn sky with warm horizon glow and soft shadow penumbra (sun_radius 5.0)
+#
+# Render:
+#   ./raytracer --scene scenes/nordic_fjord.scene --pathtrace \
+#               --width 1280 --height 720 --samples 32 --depth 6 \
+#               --out output/nordic_fjord.bmp
+
+water_level = 0.03
+water_material = fjord_water
+water_enabled = 1
+camera {
+    eye = 0.0 3.2 13.5
+    target = 0.0 2.2 -6.0
+    up = 0 1 0
+    vfov = 45.0
+    aperture = 0.015
+    focus_distance = 16.5
+}
+sky {
+    sun_dir = 0.75 0.18 -0.64
+    sun_color = 1 0.75 0.44
+    horizon_color = 0.98 0.64 0.42
+    zenith_color = 0.16 0.26 0.56
+    gradient_gamma = 0.85
+    sun_glow_exponent = 150.0
+    sun_glow_strength = 1.3
+    sun_radius = 5.0
+    cloud_height = 140.0
+    cloud_scale = 0.003
+    cloud_coverage = 0.55
+    cloud_softness = 0.22
+    cloud_sharpness = 1.3
+    cloud_octaves = 6
+    seed = 1984
+}
+material lake_bed {
+    albedo = 0.24 0.26 0.22
+    specular = 0.02 0.02 0.02
+    shininess = 4.0
+}
+material fjord_water {
+    type = water
+    albedo = 0.02 0.12 0.16
+    specular = 0.94 0.94 0.94
+    shininess = 256.0
+    reflectivity = 1.0
+    transparency = 0.88
+    ior = 1.333
+    is_water = 1
+    absorption = 0.36 0.1 0.05
+    deep_color = 0.01 0.08 0.12
+}
+material timber_wood {
+    albedo = 0.42 0.3 0.18
+    specular = 0.04 0.04 0.04
+    shininess = 12.0
+    roughness = 0.8
+    pbr = 1
+}
+material dark_timber {
+    albedo = 0.24 0.16 0.1
+    specular = 0.03 0.03 0.03
+    shininess = 8.0
+}
+material granite_rock {
+    albedo = 0.38 0.4 0.42
+    specular = 0.05 0.05 0.05
+    shininess = 16.0
+    roughness = 0.85
+    pbr = 1
+}
+material mossy_rock {
+    albedo = 0.26 0.36 0.18
+    specular = 0.03 0.03 0.03
+    shininess = 8.0
+}
+material lantern_glow {
+    type = emissive
+    albedo = 0.02 0.02 0.02
+    roughness = 0.35
+    emissive = 22 11.5 2
+    pbr = 1
+}
+material lantern_rim {
+    type = brass
+    reflectivity = 0.85
+    roughness = 0.15
+}
+material spruce_bark {
+    albedo = 0.2 0.14 0.1
+    specular = 0.03 0.03 0.03
+    shininess = 6.0
+}
+material spruce_needles {
+    albedo = 0.08 0.22 0.1
+    specular = 0.04 0.04 0.04
+    shininess = 12.0
+}
+material birch_bark {
+    albedo = 0.75 0.72 0.68
+    specular = 0.06 0.06 0.06
+    shininess = 14.0
+}
+material autumn_birch_leaves {
+    albedo = 0.82 0.48 0.08
+    specular = 0.03 0.04 0.03
+    shininess = 10.0
+}
+plane {
+    point = 0 0 0
+    normal = 0 1 0
+    material = lake_bed
+}
+sphere {
+    center = -8.5 -2.5 6
+    radius = 5.5
+    material = granite_rock
+}
+sphere {
+    center = -11 -2 0
+    radius = 6.5
+    material = mossy_rock
+}
+sphere {
+    center = -13 -1.5 -8
+    radius = 7.5
+    material = granite_rock
+}
+sphere {
+    center = 12 -2.5 -12
+    radius = 8.0
+    material = granite_rock
+}
+sphere {
+    center = 14 -2 -4
+    radius = 7.0
+    material = mossy_rock
+}
+box {
+    center = -1.2 0.45 7.5
+    half = 1.1 0.08 0.38
+    material = timber_wood
+}
+box {
+    center = -1.2 0.45 6.7
+    half = 1.1 0.08 0.38
+    material = timber_wood
+}
+box {
+    center = -1.2 0.45 5.9
+    half = 1.1 0.08 0.38
+    material = timber_wood
+}
+box {
+    center = -1.2 0.45 5.1
+    half = 1.1 0.08 0.38
+    material = timber_wood
+}
+box {
+    center = -1.2 0.45 4.3
+    half = 1.1 0.08 0.38
+    material = timber_wood
+}
+box {
+    center = -1.2 0.45 3.5
+    half = 1.1 0.08 0.38
+    material = timber_wood
+}
+box {
+    center = -1.2 0.45 2.7
+    half = 1.1 0.08 0.38
+    material = timber_wood
+}
+box {
+    center = -1.2 0.45 1.9
+    half = 1.1 0.08 0.38
+    material = timber_wood
+}
+box {
+    center = -1.2 0.45 1.1
+    half = 1.1 0.08 0.38
+    material = timber_wood
+}
+box {
+    center = -1.2 0.45 0.3
+    half = 1.1 0.08 0.38
+    material = timber_wood
+}
+cylinder {
+    base = -2.1 -1 6.5
+    top = -2.1 0.45 6.5
+    r_bottom = 0.12
+    r_top = 0.1
+    material = dark_timber
+}
+cylinder {
+    base = -0.3 -1 6.5
+    top = -0.3 0.45 6.5
+    r_bottom = 0.12
+    r_top = 0.1
+    material = dark_timber
+}
+cylinder {
+    base = -2.1 -1 3.5
+    top = -2.1 0.45 3.5
+    r_bottom = 0.12
+    r_top = 0.1
+    material = dark_timber
+}
+cylinder {
+    base = -0.3 -1 3.5
+    top = -0.3 0.45 3.5
+    r_bottom = 0.12
+    r_top = 0.1
+    material = dark_timber
+}
+cylinder {
+    base = -2.1 -1 0.5
+    top = -2.1 0.45 0.5
+    r_bottom = 0.12
+    r_top = 0.1
+    material = dark_timber
+}
+cylinder {
+    base = -0.3 -1 0.5
+    top = -0.3 0.45 0.5
+    r_bottom = 0.12
+    r_top = 0.1
+    material = dark_timber
+}
+box {
+    center = -1.2 0.32 6.5
+    half = 1 0.06 0.08
+    material = dark_timber
+}
+box {
+    center = -1.2 0.32 3.5
+    half = 1 0.06 0.08
+    material = dark_timber
+}
+box {
+    center = -1.2 0.32 0.5
+    half = 1 0.06 0.08
+    material = dark_timber
+}
+sphere {
+    center = -2.8 0.36 1
+    radius = 0.34
+    material = lantern_glow
+}
+cylinder {
+    base = -2.8 0.12 1
+    top = -2.8 0.18 1
+    r_bottom = 0.32
+    r_top = 0.34
+    material = lantern_rim
+}
+sphere {
+    center = 1.8 0.36 2.5
+    radius = 0.32
+    material = lantern_glow
+}
+cylinder {
+    base = 1.8 0.12 2.5
+    top = 1.8 0.18 2.5
+    r_bottom = 0.3
+    r_top = 0.32
+    material = lantern_rim
+}
+sphere {
+    center = -0.5 0.85 0.2
+    radius = 0.28
+    material = lantern_glow
+}
+cylinder {
+    base = -0.5 0.53 0.2
+    top = -0.5 0.6 0.2
+    r_bottom = 0.26
+    r_top = 0.28
+    material = lantern_rim
+}
+sphere {
+    center = -3.8 -0.1 4.2
+    radius = 0.65
+    material = granite_rock
+}
+sphere {
+    center = -4.5 -0.05 1.8
+    radius = 0.85
+    material = mossy_rock
+}
+sphere {
+    center = 3.2 -0.2 -2
+    radius = 1.1
+    material = granite_rock
+}
+sphere {
+    center = 4.8 0.1 1.5
+    radius = 0.95
+    material = mossy_rock
+}
+tree {
+    position = -9.5 0 2
+    height = 11.5
+    radius = 0.26
+    seed = 7110
+    material_bark = spruce_bark
+    material_leaf = spruce_needles
+    max_depth = 4
+    spread_deg = 20.0
+    up_bias = 0.45
+    len_decay = 0.7
+    taper = 0.76
+    leaf_min = 22
+    leaf_span = 6
+}
+tree {
+    position = -12.5 0 -6
+    height = 12.5
+    radius = 0.28
+    seed = 3842
+    material_bark = spruce_bark
+    material_leaf = spruce_needles
+    max_depth = 4
+    spread_deg = 20.0
+    up_bias = 0.45
+    len_decay = 0.7
+    taper = 0.76
+    leaf_min = 22
+    leaf_span = 6
+}
+tree {
+    position = -7.5 0 7
+    height = 9.0
+    radius = 0.22
+    seed = 1295
+    material_bark = birch_bark
+    material_leaf = autumn_birch_leaves
+    max_depth = 4
+    spread_deg = 34.0
+    up_bias = 0.18
+    len_decay = 0.74
+    leaf_min = 18
+    leaf_span = 5
+}
+tree {
+    position = 11.5 0 -6
+    height = 9.5
+    radius = 0.24
+    seed = 8492
+    material_bark = birch_bark
+    material_leaf = autumn_birch_leaves
+    max_depth = 4
+    spread_deg = 34.0
+    up_bias = 0.18
+    len_decay = 0.74
+    leaf_min = 18
+    leaf_span = 5
+}
+bush {
+    position = -8.5 0 9.5
+    height = 2.2
+    radius = 0.08
+    seed = 441
+    material_bark = spruce_bark
+    material_leaf = autumn_birch_leaves
+    leaf_min = 20
+}
+bush {
+    position = 8.5 0 9.5
+    height = 1.8
+    radius = 0.06
+    seed = 882
+    material_bark = spruce_bark
+    material_leaf = spruce_needles
+    leaf_min = 20
+}

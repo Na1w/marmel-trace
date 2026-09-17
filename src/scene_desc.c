@@ -379,6 +379,7 @@ typedef enum {
     BLK_NONE = 0,
     BLK_CAMERA,
     BLK_SKY,
+    BLK_FOG,
     BLK_MATERIAL,
     BLK_PRIM,
     BLK_PLANT
@@ -415,8 +416,16 @@ enum {
     SKY_CLOUD_SOFT  = 1u << 10,
     SKY_CLOUD_SHARP = 1u << 11,
     SKY_CLOUD_OCT   = 1u << 12,
-    SKY_SEED        = 1u << 13,
-    SKY_SUN_RADIUS  = 1u << 14
+    SKY_SEED           = 1u << 13,
+    SKY_SUN_RADIUS     = 1u << 14,
+    SKY_STAR_INTENSITY   = 1u << 15,
+    SKY_STAR_DENSITY     = 1u << 16,
+    SKY_NEBULA_INTENSITY = 1u << 17,
+    SKY_GALAXY_INTENSITY = 1u << 18,
+    SKY_GALAXY_DIR       = 1u << 19,
+    SKY_NEBULA_DIR       = 1u << 20,
+    SKY_GALAXY_TILT      = 1u << 21,
+    SKY_GALAXY_ROLL      = 1u << 22
 };
 
 /* Value kinds a key can take (docs/scene_format.md §3.4). */
@@ -464,8 +473,38 @@ static const KeySpec SKY_KEYS[] = {
     { "cloud_softness",    KT_DOUBLE, SKY_CLOUD_SOFT,  offsetof(SkyParams, cloud_softness) },
     { "cloud_sharpness",   KT_DOUBLE, SKY_CLOUD_SHARP, offsetof(SkyParams, cloud_sharpness) },
     { "cloud_octaves",     KT_INT,    SKY_CLOUD_OCT,   offsetof(SkyParams, cloud_octaves) },
-    { "seed",              KT_UINT,   SKY_SEED,        offsetof(SkyParams, seed) },
-    { "sun_radius",        KT_DOUBLE, SKY_SUN_RADIUS,  offsetof(SkyParams, sun_radius) }
+    { "seed",              KT_UINT,   SKY_SEED,           offsetof(SkyParams, seed) },
+    { "sun_radius",        KT_DOUBLE, SKY_SUN_RADIUS,     offsetof(SkyParams, sun_radius) },
+    { "star_intensity",    KT_DOUBLE, SKY_STAR_INTENSITY,   offsetof(SkyParams, star_intensity) },
+    { "star_density",      KT_DOUBLE, SKY_STAR_DENSITY,     offsetof(SkyParams, star_density) },
+    { "nebula_intensity",  KT_DOUBLE, SKY_NEBULA_INTENSITY, offsetof(SkyParams, nebula_intensity) },
+    { "galaxy_intensity",  KT_DOUBLE, SKY_GALAXY_INTENSITY, offsetof(SkyParams, galaxy_intensity) },
+    { "galaxy_dir",        KT_VEC3,   SKY_GALAXY_DIR,       offsetof(SkyParams, galaxy_dir) },
+    { "nebula_dir",        KT_VEC3,   SKY_NEBULA_DIR,       offsetof(SkyParams, nebula_dir) },
+    { "galaxy_tilt",       KT_DOUBLE, SKY_GALAXY_TILT,      offsetof(SkyParams, galaxy_tilt) },
+    { "galaxy_roll",       KT_DOUBLE, SKY_GALAXY_ROLL,      offsetof(SkyParams, galaxy_roll) }
+};
+
+enum {
+    FOG_DENSITY        = 1u << 0,
+    FOG_COLOR          = 1u << 1,
+    FOG_HEIGHT         = 1u << 2,
+    FOG_HEIGHT_FALLOFF = 1u << 3,
+    FOG_INSCATTER_STR  = 1u << 4,
+    FOG_SUN_ANISOTROPY = 1u << 5,
+    FOG_NOISE_SCALE    = 1u << 6,
+    FOG_NOISE_AMOUNT   = 1u << 7
+};
+
+static const KeySpec FOG_KEYS[] = {
+    { "density",            KT_DOUBLE, FOG_DENSITY,        offsetof(FogParams, density) },
+    { "color",              KT_VEC3,   FOG_COLOR,          offsetof(FogParams, color) },
+    { "height",             KT_DOUBLE, FOG_HEIGHT,         offsetof(FogParams, height) },
+    { "height_falloff",     KT_DOUBLE, FOG_HEIGHT_FALLOFF, offsetof(FogParams, height_falloff) },
+    { "inscatter_strength", KT_DOUBLE, FOG_INSCATTER_STR,  offsetof(FogParams, inscatter_strength) },
+    { "sun_anisotropy",     KT_DOUBLE, FOG_SUN_ANISOTROPY, offsetof(FogParams, sun_anisotropy) },
+    { "noise_scale",        KT_DOUBLE, FOG_NOISE_SCALE,    offsetof(FogParams, noise_scale) },
+    { "noise_amount",       KT_DOUBLE, FOG_NOISE_AMOUNT,   offsetof(FogParams, noise_amount) }
 };
 
 /* ------------------------------------------------------------------ */
@@ -493,10 +532,13 @@ enum {
     MAT_BEER_LAMBERT = 1u << 14,
     /* Opt-in physically-based material keys (§4.3, docs/research_pbr_shading.md).
      * The next free bit above MAT_BEER_LAMBERT (1u<<14) is 1u<<15. */
-    MAT_METALLIC     = 1u << 15,
-    MAT_ROUGHNESS    = 1u << 16,
-    MAT_EMISSIVE     = 1u << 17,
-    MAT_PBR          = 1u << 18
+    MAT_METALLIC        = 1u << 15,
+    MAT_ROUGHNESS       = 1u << 16,
+    MAT_EMISSIVE        = 1u << 17,
+    MAT_PBR             = 1u << 18,
+    MAT_BUMP_STRENGTH   = 1u << 19,
+    MAT_BUMP_SCALE      = 1u << 20,
+    MAT_ATMOSPHERE_GLOW = 1u << 21
 };
 
 static const KeySpec MAT_KEYS[] = {
@@ -517,7 +559,10 @@ static const KeySpec MAT_KEYS[] = {
     { "pbr",          KT_BOOL,   MAT_PBR,          offsetof(Material, pbr) },
     { "texture_scale",   KT_DOUBLE, MAT_TEX_SCALE,   offsetof(Material, texture_scale) },
     { "texture_color_a", KT_VEC3,   MAT_TEX_COLOR_A, offsetof(Material, texture_color_a) },
-    { "texture_color_b", KT_VEC3,   MAT_TEX_COLOR_B, offsetof(Material, texture_color_b) }
+    { "texture_color_b", KT_VEC3,   MAT_TEX_COLOR_B, offsetof(Material, texture_color_b) },
+    { "bump_strength",   KT_DOUBLE, MAT_BUMP_STRENGTH,   offsetof(Material, bump_strength) },
+    { "bump_scale",      KT_DOUBLE, MAT_BUMP_SCALE,      offsetof(Material, bump_scale) },
+    { "atmosphere_glow", KT_VEC3,   MAT_ATMOSPHERE_GLOW, offsetof(Material, atmosphere_glow) }
 };
 
 /*
@@ -1269,8 +1314,14 @@ static void sd_apply_material_key(Parser *p, Block *b, const Token *t, int n)
             kind = TEXTURE_CHECKER;
         else if (strcmp(name, "stripes") == 0)
             kind = TEXTURE_STRIPES;
+        else if (strcmp(name, "earth") == 0)
+            kind = TEXTURE_PLANET_EARTH;
+        else if (strcmp(name, "moon") == 0)
+            kind = TEXTURE_PLANET_MOON;
+        else if (strcmp(name, "noise") == 0)
+            kind = TEXTURE_NOISE;
         else {
-            sd_err(p, "unknown texture kind, expected 'none', 'checker' or 'stripes'", name);
+            sd_err(p, "unknown texture kind, expected 'none', 'checker', 'stripes', 'earth', 'moon' or 'noise'", name);
             return;
         }
         p->mat.texture_kind = kind;
@@ -1649,7 +1700,7 @@ static void sd_open_block(Parser *p, SceneDesc *d, const Token *t, int n, Block 
         return;
     }
     if (strcmp(kw, "camera") == 0 || strcmp(kw, "sky") == 0 ||
-        sd_is_prim_keyword(kw)) {
+        strcmp(kw, "fog") == 0 || sd_is_prim_keyword(kw)) {
         if (n != 2 || t[1].kind != TOK_LBRACE) {
             sd_err(p, "malformed block header, expected `keyword {`", kw);
             return;
@@ -1660,6 +1711,9 @@ static void sd_open_block(Parser *p, SceneDesc *d, const Token *t, int n, Block 
         } else if (strcmp(kw, "sky") == 0) {
             d->has_sky = 1;
             sd_begin_block(b, BLK_SKY, p->line, kw);
+        } else if (strcmp(kw, "fog") == 0) {
+            d->has_fog = 1;
+            sd_begin_block(b, BLK_FOG, p->line, kw);
         } else {
             sd_prim_begin(p);
             sd_begin_block(b, BLK_PRIM, p->line, kw);
@@ -1706,6 +1760,9 @@ static void sd_handle_body(Parser *p, SceneDesc *d, const Token *t, int n, Block
         break;
     case BLK_SKY:
         sd_apply_key(p, &d->sky, SKY_KEYS, SD_ARRAY_LEN(SKY_KEYS), b, t, n);
+        break;
+    case BLK_FOG:
+        sd_apply_key(p, &d->fog, FOG_KEYS, SD_ARRAY_LEN(FOG_KEYS), b, t, n);
         break;
     case BLK_MATERIAL:
         sd_apply_material_key(p, b, t, n);
@@ -1863,6 +1920,9 @@ static void sd_apply_defaults(SceneDesc *d)
     sky_default_params(&d->sky);
     d->has_sky = 0;
 
+    fog_default_params(&d->fog);
+    d->has_fog = 0;
+
     d->water_level = SD_DEFAULT_WATER_LEVEL;
     d->water_material = SCENE_DESC_NO_MATERIAL;
     /* Provisional: sd_resolve_water() re-derives this from the material table
@@ -1997,6 +2057,7 @@ void scene_desc_init(SceneDesc *d)
     if (d == NULL)
         return;
     memset(d, 0, sizeof(*d));
+    fog_default_params(&d->fog);
     d->water_material = SCENE_DESC_NO_MATERIAL;
 }
 

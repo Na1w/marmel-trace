@@ -597,14 +597,23 @@ Vec3 pathtrace_radiance(const Scene *scene, Ray primary, int max_depth,
                 medium = NULL;
             }
             /* Escaped to the environment: add the sky once, weighted by beta. */
-            radiance = vec3_add(radiance,
-                                vec3_mul(throughput, sky_sample(r.dir, &scene->sky)));
+            Vec3 sky_col = sky_sample(r.dir, &scene->sky);
+            if (scene->fog.density > 0.0) {
+                sky_col = fog_apply(&scene->fog, &scene->sky, r, 1e30, sky_col);
+            }
+            radiance = vec3_add(radiance, vec3_mul(throughput, sky_col));
             break;
         }
 
-        /* Attenuate the segment just travelled through a transmissive medium. */
+        /* Attenuate the segment just travelled through a transmissive medium or fog. */
         if (medium != NULL) {
             pt_apply_medium(medium, h.t, &throughput, &radiance);
+        } else if (scene->fog.density > 0.0) {
+            double T = 1.0;
+            Vec3 inscatter = vec3(0.0, 0.0, 0.0);
+            fog_segment(&scene->fog, &scene->sky, r, h.t, &T, &inscatter);
+            radiance = vec3_add(radiance, vec3_mul(throughput, inscatter));
+            throughput = vec3_scale(throughput, T);
         }
 
         const Material *m = scene_material(scene, h.material_index);
@@ -620,6 +629,8 @@ Vec3 pathtrace_radiance(const Scene *scene, Ray primary, int max_depth,
 
         if (m->is_water) {
             N = water_normal(P.x, P.z, 0.0); /* wave-perturbed normal, t = 0 */
+        } else if (m->bump_strength > 1e-6) {
+            N = texture_normal(m, P, N);
         }
         if (vec3_dot(N, d) > 0.0) {
             N = vec3_neg(N); /* safety re-flip */
@@ -649,6 +660,28 @@ Vec3 pathtrace_radiance(const Scene *scene, Ray primary, int max_depth,
          * any mirror/glass/specular bounce, 0 after a diffuse bounce. */
         if (b == 0 || last_bounce_specular) {
             radiance = vec3_add(radiance, vec3_mul(throughput, mm->emissive));
+        }
+
+        /* Atmospheric Rayleigh limb glow */
+        if (b == 0 && vec3_length_sq(mm->atmosphere_glow) > 1e-6) {
+            double cos_v = fmax(0.0, vec3_dot(N, V));
+            double limb = pow(1.0 - cos_v, 3.5);
+            double sun_dot = vec3_dot(N, scene->sky.sun_dir);
+            double day_fac = 0.0;
+            if (sun_dot > -0.15) {
+                day_fac = (sun_dot + 0.15) / 0.35;
+                if (day_fac > 1.0) day_fac = 1.0;
+            }
+            Vec3 glow_col = mm->atmosphere_glow;
+            if (sun_dot > -0.10 && sun_dot < 0.25) {
+                double sunset_t = 1.0 - fabs(sun_dot - 0.05) / 0.20;
+                if (sunset_t > 0.0) {
+                    Vec3 sunset_col = vec3(1.0, 0.45, 0.15);
+                    glow_col = vec3_lerp(glow_col, sunset_col, sunset_t * 0.6);
+                }
+            }
+            Vec3 atmo_term = vec3_scale(glow_col, limb * day_fac * 2.5);
+            radiance = vec3_add(radiance, vec3_mul(throughput, atmo_term));
         }
 
         /* Emissive-sphere Next-Event-Estimation (t-104b2): applied at EVERY

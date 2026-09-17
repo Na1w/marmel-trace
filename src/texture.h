@@ -50,6 +50,16 @@ Vec3 texture_albedo(const Material *m, Vec3 p);
  */
 Vec3 texture_specular(const Material *m, Vec3 p);
 
+/*
+ * Perturbed shading normal for material `m` at world-space point `p`,
+ * given geometric surface normal `n`.
+ *
+ * If `m->bump_strength <= 0`, returns `n` unchanged (bit-for-bit).
+ * If `m->bump_strength > 0`, evaluates procedural displacement gradient and
+ * perturbs `n` in the tangent plane.
+ */
+Vec3 texture_normal(const Material *m, Vec3 p, Vec3 n);
+
 #ifdef __cplusplus
 }
 #endif

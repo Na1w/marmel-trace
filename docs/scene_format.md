@@ -208,6 +208,14 @@ field (see §8). The `seed` field here is the *cloud noise* seed.
 | `cloud_octaves` | int | — | `[1, 12]` | `5` | O |
 | `seed` | int | — | `[0, 2^32-1]` | the CLI `--seed` value | O |
 | `sun_radius` | f64 | degrees | `>= 0` | `0` (hard shadow) | O |
+| `star_intensity` | f64 | — | `[0, ∞)` | `0.0` (off) | O |
+| `star_density` | f64 | — | `> 0` | `250.0` | O |
+| `nebula_intensity` | f64 | — | `[0, ∞)` | `0.0` (off) | O |
+| `nebula_dir` | vec3 | direction | non-zero | `-0.1059 -0.2060 0.9728` | O |
+| `galaxy_intensity` | f64 | — | `[0, ∞)` | `0.0` (off) | O |
+| `galaxy_dir` | vec3 | direction | non-zero | `-0.35 0.45 0.82` | O |
+| `galaxy_tilt` | f64 | degrees | `[0, 90]` | `50.0` (inclination) | O |
+| `galaxy_roll` | f64 | degrees | any | `-38.0` (orientation) | O |
 
 **Soft shadows (`sun_radius`):** the angular radius of the sun disk. When it
 is greater than `0`, the renderer samples the direct sunlight over a cone of
@@ -223,8 +231,29 @@ byte-identical.
 
 **Seed interaction:** if the `sky.seed` key is omitted, the parser sets it to
 the CLI `--seed` value (mirroring `s->sky.seed = seed;` in `scene_build`). If
-present, the file value wins and the CLI seed does **not** override it. The
-writer always emits the resolved value so round-trips are stable.
+present, the file value wins and the CLI seed does **not** override it. The writer always emits the resolved value so round-trips are stable.
+
+### 4.2.1 `fog` — block, at most one
+
+Atmospheric fog, ground mist, and volumetric smoke. When omitted (or `density = 0`),
+fog is disabled with zero performance overhead and byte-identical output to legacy
+renders.
+
+| Key | Type | Units | Range | Default | Req |
+|---|---|---|---|---|---|
+| `density` | f64 | 1/world | `[0, ∞)` | `0.0` (disabled) | O |
+| `color` | vec3 | linear RGB | `≥ 0` | `0.70 0.75 0.80` | O |
+| `height` | f64 | world | any finite | `0.0` | O |
+| `height_falloff` | f64 | 1/world | `[0, ∞)` | `0.0` (uniform) | O |
+| `inscatter_strength` | f64 | — | `[0, ∞)` | `0.50` | O |
+| `sun_anisotropy` | f64 | — | `(-1, 1)` | `0.70` (forward Mie) | O |
+| `noise_scale` | f64 | 1/world | `[0, ∞)` | `0.0` (analytic) | O |
+| `noise_amount` | f64 | — | `[0, 1]` | `0.0` | O |
+
+* **Uniform distance fog:** when `height_falloff = 0`, transmittance attenuates exponentially with line-of-sight distance: $T(d) = e^{-\text{density} \cdot d}$.
+* **Exponential height fog:** when `height_falloff > 0`, density decays exponentially with height: $\rho(y) = \text{density} \cdot e^{-\lambda (y - \text{height})}$. Integrated analytically along every ray in closed form ($O(1)$ constant time).
+* **Sun inscattering:** forward Mie scattering (Henyey-Greenstein phase function) causes the fog to glow warmly when viewed in the direction of the sun disk.
+* **Procedural turbulence:** when `noise_amount > 0` and `noise_scale > 0`, 3D fBm noise modulates the optical density to create drifting mist banks and billowing smoke plumes.
 
 ### 4.3 `material <name>` — repeatable named block
 

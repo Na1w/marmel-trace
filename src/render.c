@@ -595,6 +595,8 @@ static Vec3 trace_hit(const Scene *scene, Ray r, int depth, int max_depth,
     Vec3 N = h->normal; /* already flipped to oppose the ray */
     if (m->is_water) {
         N = water_normal(P.x, P.z, time); /* wave-perturbed normal */
+    } else if (m->bump_strength > 1e-6) {
+        N = texture_normal(m, P, N);
     }
     if (vec3_dot(N, r.dir) > 0) {
         N = vec3_neg(N); /* safety re-flip */
@@ -812,6 +814,26 @@ static Vec3 trace_hit(const Scene *scene, Ray r, int depth, int max_depth,
                     m->emissive.z != 0.0)) {
         out = vec3_add(out, m->emissive);
     }
+    if (depth == 0 && vec3_length_sq(mm->atmosphere_glow) > 1e-6) {
+        double cos_v = fmax(0.0, vec3_dot(N, V));
+        double limb = pow(1.0 - cos_v, 3.5);
+        double sun_dot = vec3_dot(N, scene->sky.sun_dir);
+        double day_fac = 0.0;
+        if (sun_dot > -0.15) {
+            day_fac = (sun_dot + 0.15) / 0.35;
+            if (day_fac > 1.0) day_fac = 1.0;
+        }
+        Vec3 glow_col = mm->atmosphere_glow;
+        if (sun_dot > -0.10 && sun_dot < 0.25) {
+            double sunset_t = 1.0 - fabs(sun_dot - 0.05) / 0.20;
+            if (sunset_t > 0.0) {
+                Vec3 sunset_col = vec3(1.0, 0.45, 0.15);
+                glow_col = vec3_lerp(glow_col, sunset_col, sunset_t * 0.6);
+            }
+        }
+        Vec3 atmo_term = vec3_scale(glow_col, limb * day_fac * 2.5);
+        out = vec3_add(out, atmo_term);
+    }
     return out;
 }
 
@@ -824,10 +846,18 @@ static Vec3 trace(const Scene *scene, Ray r, int depth, int max_depth, double ti
 
     Hit h;
     if (!scene_intersect(scene, r, 1e-4, 1e30, &h)) {
-        return sky_sample(r.dir, &scene->sky);
+        Vec3 sky_col = sky_sample(r.dir, &scene->sky);
+        if (scene->fog.density > 0.0) {
+            return fog_apply(&scene->fog, &scene->sky, r, 1e30, sky_col);
+        }
+        return sky_col;
     }
 
-    return trace_hit(scene, r, depth, max_depth, time, &h, seed_key);
+    Vec3 hit_col = trace_hit(scene, r, depth, max_depth, time, &h, seed_key);
+    if (scene->fog.density > 0.0) {
+        return fog_apply(&scene->fog, &scene->sky, r, h.t, hit_col);
+    }
+    return hit_col;
 }
 
 /* ------------------------------------------------------------------ */

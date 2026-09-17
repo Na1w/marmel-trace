@@ -1,0 +1,775 @@
+# scenes/olympus_temple.scene
+#
+# "The Sunken Sanctuary of Helios"
+#
+# A classical Greek marble colonnade and sanctuary submerged in an emerald
+# reflecting pool at golden sunset.
+#
+# Key Highlights:
+#   * Hellenistic colonnade with classical tapered columns, entablature, and pediment
+#   * Floating solar relic: radiant golden emissive core (area light) encircled by a tilted celestial halo
+#   * Noble PBR metals: polished gold, silver mirror, copper, and ruby glass
+#   * Animated water with Fresnel reflections and deep teal Beer-Lambert absorption
+#   * Submerged checkered marble basin visible through crystal-clear water
+#   * Mediterranean cypress trees framing the scene
+#   * Low golden-hour sun with soft penumbral shadows (sun_radius 3.5)
+#   * Thin-lens depth of field focused on the central solar altar
+#
+# Render:
+#   ./raytracer --scene scenes/olympus_temple.scene --pathtrace \
+#               --width 1280 --height 720 --samples 32 --depth 6 \
+#               --out output/olympus_temple.bmp
+
+water_level = 0.04
+water_material = sanctuary_water
+water_enabled = 1
+camera {
+    eye = 0 4 17.5
+    target = 0 3.8 -6
+    up = 0 1 0
+    vfov = 38.0
+    aperture = 0.015
+    focus_distance = 23.5
+}
+sky {
+    sun_dir = 0.38 0.16 -0.91
+    sun_color = 1 0.7 0.38
+    horizon_color = 0.98 0.56 0.3
+    zenith_color = 0.12 0.18 0.48
+    gradient_gamma = 0.85
+    sun_glow_exponent = 140.0
+    sun_glow_strength = 1.35
+    sun_radius = 3.5
+    cloud_height = 140.0
+    cloud_scale = 0.003
+    cloud_coverage = 0.52
+    cloud_softness = 0.2
+    cloud_sharpness = 1.3
+    cloud_octaves = 6
+    seed = 8844
+}
+material pool_bed {
+    albedo = 0.9 0.9 0.9
+    specular = 0.04 0.04 0.04
+    shininess = 16.0
+    reflectivity = 0.0
+    transparency = 0.0
+    ior = 1.0
+    is_water = 0
+    texture = checker
+    texture_scale = 2.0
+    texture_color_a = 0.78 0.8 0.82
+    texture_color_b = 0.28 0.34 0.38
+}
+material sanctuary_water {
+    type = water
+    albedo = 0.04 0.18 0.2
+    specular = 0.92 0.92 0.92
+    shininess = 256.0
+    reflectivity = 1.0
+    transparency = 0.88
+    ior = 1.333
+    is_water = 1
+    absorption = 0.35 0.08 0.06
+    deep_color = 0.02 0.16 0.18
+}
+material marble {
+    albedo = 0.88 0.87 0.84
+    specular = 0.08 0.08 0.08
+    shininess = 48.0
+    metallic = 0.0
+    roughness = 0.14
+    pbr = 1
+}
+material dark_marble {
+    albedo = 0.45 0.44 0.42
+    specular = 0.06 0.06 0.06
+    shininess = 32.0
+    metallic = 0.0
+    roughness = 0.22
+    pbr = 1
+}
+material temple_gold {
+    type = gold
+    reflectivity = 0.85
+    roughness = 0.06
+}
+material polished_silver {
+    type = silver
+    reflectivity = 0.95
+    roughness = 0.03
+}
+material polished_copper {
+    type = copper
+    reflectivity = 0.85
+    roughness = 0.08
+}
+material solar_core {
+    type = emissive
+    albedo = 0.01 0.01 0.01
+    roughness = 0.2
+    emissive = 20 9.5 2.5
+    pbr = 1
+}
+material diamond_crystal {
+    type = diamond
+    ior = 2.417
+    transparency = 0.96
+}
+material ruby_glass {
+    type = glass
+    ior = 1.62
+    beer_lambert = 1
+    absorption = 0.05 1.2 1.05
+    deep_color = 0.95 0.08 0.04
+}
+material emerald_glass {
+    type = glass
+    ior = 1.58
+    beer_lambert = 1
+    absorption = 1.1 0.05 0.95
+    deep_color = 0.04 0.88 0.22
+}
+material shore_sand {
+    albedo = 0.68 0.54 0.38
+    specular = 0.03 0.03 0.03
+    shininess = 4.0
+    roughness = 0.9
+    pbr = 1
+}
+material cypress_bark {
+    albedo = 0.22 0.16 0.12
+    specular = 0.03 0.03 0.03
+    shininess = 6.0
+}
+material cypress_leaf {
+    albedo = 0.12 0.32 0.14
+    specular = 0.04 0.04 0.04
+    shininess = 12.0
+}
+material autumn_leaf {
+    albedo = 0.72 0.38 0.1
+    specular = 0.03 0.04 0.03
+    shininess = 10.0
+}
+plane {
+    point = 0 0 0
+    normal = 0 1 0
+    material = pool_bed
+}
+sphere {
+    center = -12 -3 -5
+    radius = 6.5
+    material = shore_sand
+}
+sphere {
+    center = 12 -3 -7
+    radius = 6.5
+    material = shore_sand
+}
+sphere {
+    center = -15 -2.5 -13
+    radius = 7.5
+    material = shore_sand
+}
+sphere {
+    center = 15 -2.5 -14
+    radius = 7.5
+    material = shore_sand
+}
+box {
+    center = 0 0.25 -6
+    half = 6.6 0.25 11.5
+    material = dark_marble
+}
+box {
+    center = 0 0.65 -6
+    half = 6 0.15 10.8
+    material = marble
+}
+box {
+    center = 0 0.95 -6
+    half = 3.6 0.15 6.5
+    material = dark_marble
+}
+box {
+    center = 0 0.12 6
+    half = 4.2 0.12 0.8
+    material = marble
+}
+box {
+    center = 0 -0.05 7.2
+    half = 4.5 0.1 0.8
+    material = dark_marble
+}
+cylinder {
+    base = -4.8 0.8 3
+    top = -4.8 1 3
+    r_bottom = 0.58
+    r_top = 0.52
+    material = marble
+}
+cylinder {
+    base = -4.8 1 3
+    top = -4.8 5.2 3
+    r_bottom = 0.44
+    r_top = 0.36
+    material = marble
+}
+cylinder {
+    base = -4.8 5.2 3
+    top = -4.8 5.5 3
+    r_bottom = 0.4
+    r_top = 0.56
+    material = marble
+}
+box {
+    center = -4.8 5.6 3
+    half = 0.6 0.1 0.6
+    material = dark_marble
+}
+cylinder {
+    base = -4.8 0.8 -1.5
+    top = -4.8 1 -1.5
+    r_bottom = 0.58
+    r_top = 0.52
+    material = marble
+}
+cylinder {
+    base = -4.8 1 -1.5
+    top = -4.8 5.2 -1.5
+    r_bottom = 0.44
+    r_top = 0.36
+    material = marble
+}
+cylinder {
+    base = -4.8 5.2 -1.5
+    top = -4.8 5.5 -1.5
+    r_bottom = 0.4
+    r_top = 0.56
+    material = marble
+}
+box {
+    center = -4.8 5.6 -1.5
+    half = 0.6 0.1 0.6
+    material = dark_marble
+}
+cylinder {
+    base = -4.8 0.8 -6
+    top = -4.8 1 -6
+    r_bottom = 0.58
+    r_top = 0.52
+    material = marble
+}
+cylinder {
+    base = -4.8 1 -6
+    top = -4.8 5.2 -6
+    r_bottom = 0.44
+    r_top = 0.36
+    material = marble
+}
+cylinder {
+    base = -4.8 5.2 -6
+    top = -4.8 5.5 -6
+    r_bottom = 0.4
+    r_top = 0.56
+    material = marble
+}
+box {
+    center = -4.8 5.6 -6
+    half = 0.6 0.1 0.6
+    material = dark_marble
+}
+cylinder {
+    base = -4.8 0.8 -10.5
+    top = -4.8 1 -10.5
+    r_bottom = 0.58
+    r_top = 0.52
+    material = marble
+}
+cylinder {
+    base = -4.8 1 -10.5
+    top = -4.8 5.2 -10.5
+    r_bottom = 0.44
+    r_top = 0.36
+    material = marble
+}
+cylinder {
+    base = -4.8 5.2 -10.5
+    top = -4.8 5.5 -10.5
+    r_bottom = 0.4
+    r_top = 0.56
+    material = marble
+}
+box {
+    center = -4.8 5.6 -10.5
+    half = 0.6 0.1 0.6
+    material = dark_marble
+}
+cylinder {
+    base = -4.8 0.8 -15
+    top = -4.8 1 -15
+    r_bottom = 0.58
+    r_top = 0.52
+    material = marble
+}
+cylinder {
+    base = -4.8 1 -15
+    top = -4.8 5.2 -15
+    r_bottom = 0.44
+    r_top = 0.36
+    material = marble
+}
+cylinder {
+    base = -4.8 5.2 -15
+    top = -4.8 5.5 -15
+    r_bottom = 0.4
+    r_top = 0.56
+    material = marble
+}
+box {
+    center = -4.8 5.6 -15
+    half = 0.6 0.1 0.6
+    material = dark_marble
+}
+cylinder {
+    base = 4.8 0.8 3
+    top = 4.8 1 3
+    r_bottom = 0.58
+    r_top = 0.52
+    material = marble
+}
+cylinder {
+    base = 4.8 1 3
+    top = 4.8 5.2 3
+    r_bottom = 0.44
+    r_top = 0.36
+    material = marble
+}
+cylinder {
+    base = 4.8 5.2 3
+    top = 4.8 5.5 3
+    r_bottom = 0.4
+    r_top = 0.56
+    material = marble
+}
+box {
+    center = 4.8 5.6 3
+    half = 0.6 0.1 0.6
+    material = dark_marble
+}
+cylinder {
+    base = 4.8 0.8 -1.5
+    top = 4.8 1 -1.5
+    r_bottom = 0.58
+    r_top = 0.52
+    material = marble
+}
+cylinder {
+    base = 4.8 1 -1.5
+    top = 4.8 5.2 -1.5
+    r_bottom = 0.44
+    r_top = 0.36
+    material = marble
+}
+cylinder {
+    base = 4.8 5.2 -1.5
+    top = 4.8 5.5 -1.5
+    r_bottom = 0.4
+    r_top = 0.56
+    material = marble
+}
+box {
+    center = 4.8 5.6 -1.5
+    half = 0.6 0.1 0.6
+    material = dark_marble
+}
+cylinder {
+    base = 4.8 0.8 -6
+    top = 4.8 1 -6
+    r_bottom = 0.58
+    r_top = 0.52
+    material = marble
+}
+cylinder {
+    base = 4.8 1 -6
+    top = 4.8 5.2 -6
+    r_bottom = 0.44
+    r_top = 0.36
+    material = marble
+}
+cylinder {
+    base = 4.8 5.2 -6
+    top = 4.8 5.5 -6
+    r_bottom = 0.4
+    r_top = 0.56
+    material = marble
+}
+box {
+    center = 4.8 5.6 -6
+    half = 0.6 0.1 0.6
+    material = dark_marble
+}
+cylinder {
+    base = 4.8 0.8 -10.5
+    top = 4.8 1 -10.5
+    r_bottom = 0.58
+    r_top = 0.52
+    material = marble
+}
+cylinder {
+    base = 4.8 1 -10.5
+    top = 4.8 5.2 -10.5
+    r_bottom = 0.44
+    r_top = 0.36
+    material = marble
+}
+cylinder {
+    base = 4.8 5.2 -10.5
+    top = 4.8 5.5 -10.5
+    r_bottom = 0.4
+    r_top = 0.56
+    material = marble
+}
+box {
+    center = 4.8 5.6 -10.5
+    half = 0.6 0.1 0.6
+    material = dark_marble
+}
+cylinder {
+    base = 4.8 0.8 -15
+    top = 4.8 1 -15
+    r_bottom = 0.58
+    r_top = 0.52
+    material = marble
+}
+cylinder {
+    base = 4.8 1 -15
+    top = 4.8 5.2 -15
+    r_bottom = 0.44
+    r_top = 0.36
+    material = marble
+}
+cylinder {
+    base = 4.8 5.2 -15
+    top = 4.8 5.5 -15
+    r_bottom = 0.4
+    r_top = 0.56
+    material = marble
+}
+box {
+    center = 4.8 5.6 -15
+    half = 0.6 0.1 0.6
+    material = dark_marble
+}
+box {
+    center = -4.8 5.95 -6
+    half = 0.5 0.25 9.6
+    material = marble
+}
+box {
+    center = 4.8 5.95 -6
+    half = 0.5 0.25 9.6
+    material = marble
+}
+box {
+    center = 0 5.95 3
+    half = 5.3 0.25 0.5
+    material = marble
+}
+box {
+    center = 0 5.95 -15
+    half = 5.3 0.25 0.5
+    material = marble
+}
+box {
+    center = 0 6.25 3
+    half = 5.35 0.05 0.55
+    material = temple_gold
+}
+triangle {
+    a = -5.4 6.3 3.3
+    b = 5.4 6.3 3.3
+    c = 0 8.5 3.3
+    material = marble
+}
+triangle {
+    a = 5.4 6.3 2.7
+    b = -5.4 6.3 2.7
+    c = 0 8.5 2.7
+    material = marble
+}
+triangle {
+    a = -5.4 6.3 3.3
+    b = 0 8.5 3.3
+    c = -5.4 6.3 -15.3
+    material = dark_marble
+}
+triangle {
+    a = 0 8.5 3.3
+    b = 0 8.5 -15.3
+    c = -5.4 6.3 -15.3
+    material = dark_marble
+}
+triangle {
+    a = 5.4 6.3 3.3
+    b = 5.4 6.3 -15.3
+    c = 0 8.5 3.3
+    material = dark_marble
+}
+triangle {
+    a = 0 8.5 3.3
+    b = 5.4 6.3 -15.3
+    c = 0 8.5 -15.3
+    material = dark_marble
+}
+cylinder {
+    base = 0 1.1 -6
+    top = 0 1.4 -6
+    r_bottom = 1.6
+    r_top = 1.4
+    material = dark_marble
+}
+cylinder {
+    base = 0 1.4 -6
+    top = 0 2.4 -6
+    r_bottom = 1.15
+    r_top = 1.1
+    material = marble
+}
+cylinder {
+    base = 0 2.4 -6
+    top = 0 2.55 -6
+    r_bottom = 1.15
+    r_top = 1.35
+    material = temple_gold
+}
+box {
+    center = 0 2.65 -6
+    half = 1.25 0.1 1.25
+    material = marble
+}
+sphere {
+    center = 0 4 -6
+    radius = 0.72
+    material = solar_core
+}
+sphere {
+    center = 2.4 4 -6
+    radius = 0.12
+    material = temple_gold
+}
+sphere {
+    center = 2.0785 4.8 -5.4
+    radius = 0.12
+    material = diamond_crystal
+}
+sphere {
+    center = 1.2 5.3856 -4.9608
+    radius = 0.12
+    material = temple_gold
+}
+sphere {
+    center = 0 5.6 -4.8
+    radius = 0.12
+    material = diamond_crystal
+}
+sphere {
+    center = -1.2 5.3856 -4.9608
+    radius = 0.12
+    material = temple_gold
+}
+sphere {
+    center = -2.0785 4.8 -5.4
+    radius = 0.12
+    material = diamond_crystal
+}
+sphere {
+    center = -2.4 4 -6
+    radius = 0.12
+    material = temple_gold
+}
+sphere {
+    center = -2.0785 3.2 -6.6
+    radius = 0.12
+    material = diamond_crystal
+}
+sphere {
+    center = -1.2 2.6144 -7.0392
+    radius = 0.12
+    material = temple_gold
+}
+sphere {
+    center = -0 2.4 -7.2
+    radius = 0.12
+    material = diamond_crystal
+}
+sphere {
+    center = 1.2 2.6144 -7.0392
+    radius = 0.12
+    material = temple_gold
+}
+sphere {
+    center = 2.0785 3.2 -6.6
+    radius = 0.12
+    material = diamond_crystal
+}
+cylinder {
+    base = -2.2 1.1 -1.5
+    top = -2.2 2.1 -1.5
+    r_bottom = 0.4
+    r_top = 0.35
+    material = marble
+}
+box {
+    center = -2.2 2.18 -1.5
+    half = 0.42 0.08 0.42
+    material = dark_marble
+}
+sphere {
+    center = -2.2 2.75 -1.5
+    radius = 0.5
+    material = temple_gold
+}
+cylinder {
+    base = 2.2 1.1 -1.5
+    top = 2.2 2.1 -1.5
+    r_bottom = 0.4
+    r_top = 0.35
+    material = marble
+}
+box {
+    center = 2.2 2.18 -1.5
+    half = 0.42 0.08 0.42
+    material = dark_marble
+}
+sphere {
+    center = 2.2 2.75 -1.5
+    radius = 0.5
+    material = polished_silver
+}
+cylinder {
+    base = -2.2 1.1 -10.5
+    top = -2.2 2.1 -10.5
+    r_bottom = 0.4
+    r_top = 0.35
+    material = marble
+}
+box {
+    center = -2.2 2.18 -10.5
+    half = 0.42 0.08 0.42
+    material = dark_marble
+}
+sphere {
+    center = -2.2 2.75 -10.5
+    radius = 0.5
+    material = polished_copper
+}
+cylinder {
+    base = 2.2 1.1 -10.5
+    top = 2.2 2.1 -10.5
+    r_bottom = 0.4
+    r_top = 0.35
+    material = marble
+}
+box {
+    center = 2.2 2.18 -10.5
+    half = 0.42 0.08 0.42
+    material = dark_marble
+}
+sphere {
+    center = 2.2 2.75 -10.5
+    radius = 0.5
+    material = ruby_glass
+}
+sphere {
+    center = -1.5 3.4 -5
+    radius = 0.32
+    material = emerald_glass
+}
+sphere {
+    center = 1.5 3.4 -5
+    radius = 0.32
+    material = diamond_crystal
+}
+sphere {
+    center = 0 5.4 -6
+    radius = 0.28
+    material = ruby_glass
+}
+tree {
+    position = -10.5 0 -5
+    height = 11.5
+    radius = 0.26
+    seed = 4512
+    material_bark = cypress_bark
+    material_leaf = cypress_leaf
+    max_depth = 4
+    spread_deg = 15.0
+    up_bias = 0.46
+    len_decay = 0.68
+    taper = 0.78
+    leaf_min = 20
+    leaf_span = 6
+}
+tree {
+    position = 10.5 0 -7
+    height = 11.8
+    radius = 0.26
+    seed = 9821
+    material_bark = cypress_bark
+    material_leaf = cypress_leaf
+    max_depth = 4
+    spread_deg = 15.0
+    up_bias = 0.46
+    len_decay = 0.68
+    taper = 0.78
+    leaf_min = 20
+    leaf_span = 6
+}
+tree {
+    position = -13.5 0 -14
+    height = 9.5
+    radius = 0.24
+    seed = 3301
+    material_bark = cypress_bark
+    material_leaf = autumn_leaf
+    max_depth = 4
+    spread_deg = 30.0
+    up_bias = 0.2
+    len_decay = 0.74
+    leaf_min = 16
+    leaf_span = 5
+}
+tree {
+    position = 13.5 0 -15
+    height = 9.8
+    radius = 0.24
+    seed = 7712
+    material_bark = cypress_bark
+    material_leaf = autumn_leaf
+    max_depth = 4
+    spread_deg = 30.0
+    up_bias = 0.2
+    len_decay = 0.74
+    leaf_min = 16
+    leaf_span = 5
+}
+bush {
+    position = -8 0 7
+    height = 2.2
+    radius = 0.08
+    seed = 129
+    material_bark = cypress_bark
+    material_leaf = autumn_leaf
+    leaf_min = 20
+}
+bush {
+    position = 8 0 7
+    height = 2.2
+    radius = 0.08
+    seed = 847
+    material_bark = cypress_bark
+    material_leaf = cypress_leaf
+    leaf_min = 20
+}

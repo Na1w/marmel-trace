@@ -231,6 +231,8 @@ typedef struct {
     CameraDesc   camera;            /* optional camera block               */
     SkyParams    sky;               /* sky/atmosphere (all SkyParams fields)*/
     int          has_sky;           /* 1 if a sky block was supplied       */
+    FogParams    fog;               /* atmospheric fog / smoke             */
+    int          has_fog;           /* 1 if a fog block was supplied       */
 
     double       water_level;       /* global water_level (§4.11)          */
     int          water_material;    /* material index, or NO_MATERIAL      */

@@ -612,8 +612,9 @@ int scene_build_from_desc(Scene *s, const SceneDesc *d)
     s->water_material = -1;
     s->emissive_light_count = 0;   /* empty until the collector runs below */
 
-    /* --- Sky --------------------------------------------------------- */
+    /* --- Sky & Fog --------------------------------------------------- */
     s->sky = d->sky;
+    s->fog = d->fog;
 
     /* --- Material table --------------------------------------------- */
     if (d->material_count > 0) {
@@ -714,6 +715,10 @@ void scene_default_desc(SceneDesc *out)
     sky_default_params(&out->sky);
     out->sky.seed = 1337u;
     out->has_sky = 1;
+
+    /* --- Fog (disabled by default) ----------------------------------- */
+    fog_default_params(&out->fog);
+    out->has_fog = 0;
 
     /* --- Globals (§8 items 29-30) ----------------------------------- */
     out->water_level = SCENE_WATER_LEVEL;

@@ -1,0 +1,159 @@
+# scenes/example_fog.scene
+#
+# Atmospheric morning mist and volumetric haze demonstration.
+#
+# Demonstrates:
+#   * Ground height fog (dense over the water/ground, exponentially clearing upwards)
+#   * Forward Mie scattering creating golden morning sun inscattering
+#   * 3D procedural noise turbulence for soft drifting fog banks
+#
+# Render:
+#   ./raytracer --scene scenes/example_fog.scene --out output/fog_morning.png --threads
+
+water_level = 0.03
+water_material = pond
+water_enabled = 1
+
+camera {
+    eye = -12.0 3.2 18.0
+    target = 2.0 2.5 -15.0
+    up = 0 1 0
+    vfov = 38.0
+}
+
+sky {
+    sun_dir = 0.72 0.28 -0.63
+    sun_color = 1.45 1.15 0.75
+    horizon_color = 0.90 0.82 0.75
+    zenith_color = 0.28 0.48 0.85
+    gradient_gamma = 0.75
+    sun_glow_exponent = 220.0
+    sun_glow_strength = 1.2
+    cloud_height = 160.0
+    cloud_scale = 0.0028
+    cloud_coverage = 0.45
+    cloud_softness = 0.20
+    cloud_sharpness = 1.4
+    cloud_octaves = 5
+    seed = 4242
+}
+
+fog {
+    density = 0.055
+    color = 0.80 0.85 0.92
+    height = 0.0
+    height_falloff = 0.30
+    inscatter_strength = 0.95
+    sun_anisotropy = 0.76
+    noise_scale = 0.18
+    noise_amount = 0.40
+}
+
+material ground {
+    pbr = 1
+    albedo = 0.22 0.28 0.16
+    roughness = 0.90
+    metallic = 0.0
+}
+
+material stone {
+    pbr = 1
+    albedo = 0.45 0.45 0.48
+    roughness = 0.75
+    metallic = 0.0
+}
+
+material pond {
+    albedo = 0.05 0.15 0.18
+    specular = 0.95 0.95 0.95
+    shininess = 300
+    reflectivity = 1
+    transparency = 0.85
+    ior = 1.333
+    is_water = 1
+    absorption = 0.25 0.06 0.08
+    deep_color = 0.02 0.10 0.12
+}
+
+material bark {
+    pbr = 1
+    albedo = 0.24 0.16 0.10
+    roughness = 0.88
+    metallic = 0.0
+}
+
+material needle_leaves {
+    pbr = 1
+    albedo = 0.12 0.26 0.12
+    roughness = 0.72
+    metallic = 0.0
+}
+
+plane {
+    point = 0 0 0
+    normal = 0 1 0
+    material = ground
+}
+
+box {
+    center = 0 0 -15
+    half = 35 0.03 35
+    material = pond
+}
+
+sphere {
+    center = -4.5 0.8 2.0
+    radius = 0.8
+    material = stone
+}
+
+sphere {
+    center = 5.2 0.5 4.0
+    radius = 0.5
+    material = stone
+}
+
+tree {
+    position = -8.0 0.0 -4.0
+    height = 3.6
+    radius = 0.12
+    material_bark = bark
+    material_leaf = needle_leaves
+    seed = 101
+}
+
+tree {
+    position = 7.5 0.0 -6.0
+    height = 4.2
+    radius = 0.14
+    material_bark = bark
+    material_leaf = needle_leaves
+    seed = 202
+}
+
+tree {
+    position = -1.0 0.0 -26.0
+    height = 5.0
+    radius = 0.16
+    material_bark = bark
+    material_leaf = needle_leaves
+    seed = 303
+}
+
+bush {
+    position = -6.5 0.0 0.5
+    height = 1.1
+    radius = 0.06
+    material_bark = bark
+    material_leaf = needle_leaves
+    seed = 404
+}
+
+bush {
+    position = 4.0 0.0 1.5
+    height = 1.0
+    radius = 0.05
+    material_bark = bark
+    material_leaf = needle_leaves
+    seed = 505
+}

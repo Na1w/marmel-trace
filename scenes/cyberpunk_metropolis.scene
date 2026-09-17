@@ -1,0 +1,304 @@
+# scenes/cyberpunk_metropolis.scene
+#
+# "Neon Rain in Neo-Kyoto"
+#
+# A futuristic cyberpunk night cityscape reflecting dazzling neon lights in
+# rain-slicked pavement.
+#
+# Key Features:
+#   * Up to 5 vibrant emissive area lights (hot pink, electric cyan, golden sodium,
+#     acid green, violet) casting multi-coloured light pools and soft shadows
+#   * True global illumination colour bleeding on buildings and reflective pavement
+#   * PBR materials: brushed gunmetal, chrome monoliths, slick wet asphalt
+#   * Refractive Beer-Lambert tinted glass orbs lensing the city neon lights
+#   * Atmospheric dark rainy night sky
+#
+# Render:
+#   ./raytracer --scene scenes/cyberpunk_metropolis.scene --pathtrace \
+#               --width 1280 --height 720 --samples 32 --depth 6 \
+#               --out output/cyberpunk_metropolis.bmp
+
+water_enabled = 0
+water_material = none
+camera {
+    eye = 0 2.2 11.5
+    target = 0 3.2 -4
+    up = 0 1 0
+    vfov = 46.0
+    aperture = 0.02
+    focus_distance = 15.5
+}
+sky {
+    sun_dir = 0.1 0.85 -0.5
+    sun_color = 0.02 0.02 0.03
+    horizon_color = 0.04 0.05 0.08
+    zenith_color = 0.01 0.015 0.03
+    gradient_gamma = 0.7
+    sun_glow_exponent = 200.0
+    sun_glow_strength = 0.1
+    cloud_height = 100.0
+    cloud_scale = 0.0035
+    cloud_coverage = 0.92
+    cloud_softness = 0.15
+    cloud_sharpness = 1.2
+    cloud_octaves = 5
+    seed = 2077
+}
+material wet_asphalt {
+    albedo = 0.08 0.08 0.09
+    specular = 0.08 0.08 0.08
+    shininess = 64.0
+    metallic = 0.1
+    roughness = 0.08
+    reflectivity = 0.82
+    pbr = 1
+}
+material cyber_steel {
+    albedo = 0.18 0.2 0.24
+    specular = 0.25 0.25 0.28
+    shininess = 128.0
+    metallic = 0.85
+    roughness = 0.16
+    reflectivity = 0.35
+    pbr = 1
+}
+material cyber_chrome {
+    type = chrome
+    reflectivity = 0.95
+    roughness = 0.03
+}
+material cyber_gold {
+    type = gold
+    reflectivity = 0.9
+    roughness = 0.05
+}
+material neon_magenta {
+    type = emissive
+    albedo = 0.01 0.01 0.01
+    roughness = 0.3
+    emissive = 22 1.8 11
+    pbr = 1
+}
+material neon_cyan {
+    type = emissive
+    albedo = 0.01 0.01 0.01
+    roughness = 0.3
+    emissive = 1.5 14 24
+    pbr = 1
+}
+material neon_amber {
+    type = emissive
+    albedo = 0.01 0.01 0.01
+    roughness = 0.3
+    emissive = 20 9 1.2
+    pbr = 1
+}
+material neon_green {
+    type = emissive
+    albedo = 0.01 0.01 0.01
+    roughness = 0.3
+    emissive = 1.2 20 3.5
+    pbr = 1
+}
+material neon_violet {
+    type = emissive
+    albedo = 0.01 0.01 0.01
+    roughness = 0.3
+    emissive = 14 1.5 22
+    pbr = 1
+}
+material sapphire_glass {
+    type = glass
+    ior = 1.65
+    beer_lambert = 1
+    absorption = 0.6 0.3 0.05
+    deep_color = 0.08 0.35 0.95
+}
+material ruby_glass {
+    type = glass
+    ior = 1.62
+    beer_lambert = 1
+    absorption = 0.05 0.95 0.85
+    deep_color = 0.95 0.06 0.08
+}
+material hazard_stripe {
+    albedo = 1 1 1
+    specular = 0.05 0.05 0.05
+    shininess = 16.0
+    texture = stripes
+    texture_scale = 0.35
+    texture_color_a = 0.95 0.8 0.05
+    texture_color_b = 0.1 0.1 0.12
+}
+plane {
+    point = 0 0 0
+    normal = 0 1 0
+    material = wet_asphalt
+}
+box {
+    center = -6.8 10 -6
+    half = 2.2 10 5
+    material = cyber_steel
+}
+box {
+    center = -4.55 6.5 -4.5
+    half = 0.05 3.2 2.2
+    material = wet_asphalt
+}
+box {
+    center = 6.8 11 -8
+    half = 2.2 11 5.5
+    material = cyber_steel
+}
+box {
+    center = 0 16 -24
+    half = 6.5 16 3.5
+    material = cyber_steel
+}
+cylinder {
+    base = 0 0 -18
+    top = 0 14 -18
+    r_bottom = 1.2
+    r_top = 0.3
+    material = cyber_chrome
+}
+box {
+    center = -4.2 0.25 0
+    half = 0.3 0.25 12
+    material = hazard_stripe
+}
+box {
+    center = 4.2 0.25 0
+    half = 0.3 0.25 12
+    material = hazard_stripe
+}
+box {
+    center = 0 8.5 -5
+    half = 4.8 0.35 0.6
+    material = cyber_steel
+}
+box {
+    center = 0 8.2 -5
+    half = 4.7 0.05 0.5
+    material = cyber_gold
+}
+sphere {
+    center = -3.2 3.6 -2.5
+    radius = 0.75
+    material = neon_magenta
+}
+sphere {
+    center = 3.2 3.8 -3.5
+    radius = 0.75
+    material = neon_cyan
+}
+sphere {
+    center = 0 1.6 -7.5
+    radius = 0.55
+    material = neon_amber
+}
+sphere {
+    center = -2 5.8 -10
+    radius = 0.5
+    material = neon_green
+}
+sphere {
+    center = 2.4 6.2 -12
+    radius = 0.5
+    material = neon_violet
+}
+cylinder {
+    base = -1.8 0 1.5
+    top = -1.8 1.2 1.5
+    r_bottom = 0.45
+    r_top = 0.38
+    material = cyber_steel
+}
+sphere {
+    center = -1.8 1.85 1.5
+    radius = 0.65
+    material = cyber_chrome
+}
+cylinder {
+    base = 1.8 0 0.5
+    top = 1.8 1.2 0.5
+    r_bottom = 0.45
+    r_top = 0.38
+    material = cyber_steel
+}
+sphere {
+    center = 1.8 1.85 0.5
+    radius = 0.65
+    material = cyber_gold
+}
+sphere {
+    center = -1.2 1.1 -4
+    radius = 0.7
+    material = sapphire_glass
+}
+sphere {
+    center = 1.4 1.1 -5.5
+    radius = 0.7
+    material = ruby_glass
+}
+sphere {
+    center = 0 3.6 -5
+    radius = 0.35
+    material = sapphire_glass
+}
+cylinder {
+    base = -3.8 0 3
+    top = -3.8 1.1 3
+    r_bottom = 0.14
+    r_top = 0.12
+    material = cyber_chrome
+}
+cylinder {
+    base = 3.8 0 3
+    top = 3.8 1.1 3
+    r_bottom = 0.14
+    r_top = 0.12
+    material = cyber_chrome
+}
+cylinder {
+    base = -3.8 0 0
+    top = -3.8 1.1 0
+    r_bottom = 0.14
+    r_top = 0.12
+    material = cyber_chrome
+}
+cylinder {
+    base = 3.8 0 0
+    top = 3.8 1.1 0
+    r_bottom = 0.14
+    r_top = 0.12
+    material = cyber_chrome
+}
+cylinder {
+    base = -3.8 0 -3
+    top = -3.8 1.1 -3
+    r_bottom = 0.14
+    r_top = 0.12
+    material = cyber_chrome
+}
+cylinder {
+    base = 3.8 0 -3
+    top = 3.8 1.1 -3
+    r_bottom = 0.14
+    r_top = 0.12
+    material = cyber_chrome
+}
+cylinder {
+    base = -3.8 0 -6
+    top = -3.8 1.1 -6
+    r_bottom = 0.14
+    r_top = 0.12
+    material = cyber_chrome
+}
+cylinder {
+    base = 3.8 0 -6
+    top = 3.8 1.1 -6
+    r_bottom = 0.14
+    r_top = 0.12
+    material = cyber_chrome
+}

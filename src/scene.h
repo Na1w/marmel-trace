@@ -63,6 +63,7 @@ typedef struct {
     Material  *materials;        /* material table (owned)                    */
     int        material_count;
     SkyParams  sky;              /* sun + sky/cloud parameters                */
+    FogParams  fog;              /* atmospheric fog / smoke parameters        */
     double     water_level;      /* world-space y of the water surface        */
     int        water_material;   /* index of the water material, or -1        */
 
