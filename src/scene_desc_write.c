@@ -701,11 +701,8 @@ static void emit_material(Writer *w, const SceneDesc *d, int i)
     w_close(w);
 }
 
-static void emit_prim(Writer *w, const SceneDesc *d, int i)
+static void emit_prim_desc(Writer *w, const ScenePrimDesc *p)
 {
-    const ScenePrimDesc *p = &d->prims[i];
-
-    w_blank(w);
     switch (p->kind) {
     case PRIM_SPHERE:
         w_open(w, "sphere", NULL);
@@ -735,12 +732,30 @@ static void emit_prim(Writer *w, const SceneDesc *d, int i)
         w_key_double(w, "r_bottom", p->radius);
         w_key_double(w, "r_top", p->radius2);
         break;
+    case PRIM_CSG: {
+        const char *kw = "csg_union";
+        if (p->csg_op == CSG_INTERSECTION) kw = "csg_intersection";
+        else if (p->csg_op == CSG_DIFFERENCE) kw = "csg_difference";
+        w_open(w, kw, NULL);
+        if (p->material_name != NULL)
+            w_key_name(w, "material", p->material_name);
+        if (p->left) emit_prim_desc(w, p->left);
+        if (p->right) emit_prim_desc(w, p->right);
+        w_close(w);
+        return;
+    }
     default:
         w_fail(w, "unknown primitive kind cannot be serialised");
         return;
     }
     w_key_name(w, "material", p->material_name);
     w_close(w);
+}
+
+static void emit_prim(Writer *w, const SceneDesc *d, int i)
+{
+    w_blank(w);
+    emit_prim_desc(w, &d->prims[i]);
 }
 
 static void emit_plant(Writer *w, const SceneDesc *d, int i)
@@ -784,6 +799,47 @@ static void emit_plant(Writer *w, const SceneDesc *d, int i)
         w_key_int(w, "leaf_min", p->leaf_min);
     if (p->has_leaf_span)
         w_key_int(w, "leaf_span", p->leaf_span);
+    if (p->has_plant_type) {
+        const char *tname = "deciduous";
+        if (p->plant_type == PLANT_TYPE_CONIFER) tname = "conifer";
+        else if (p->plant_type == PLANT_TYPE_BUSH) tname = "bush";
+        w_key_name(w, "type", tname);
+    }
+    if (p->has_foliage) {
+        const char *fname = "spheres";
+        if (p->foliage == PLANT_FOLIAGE_LEAVES) fname = "leaves";
+        else if (p->foliage == PLANT_FOLIAGE_NEEDLES) fname = "needles";
+        w_key_name(w, "foliage", fname);
+    }
+    w_close(w);
+}
+
+static void emit_boulder(Writer *w, const SceneDesc *d, int index)
+{
+    const SceneBoulderDesc *b = &d->boulders[index];
+    w_open(w, "boulder", NULL);
+    w_key_vec3(w, "position", b->position);
+    w_key_double(w, "radius", b->radius);
+    w_key_double(w, "roughness", b->roughness);
+    w_key_double(w, "flatness", b->flatness);
+    if (b->seed != 0)
+        w_key_uint(w, "seed", b->seed);
+    if (b->material_name != NULL)
+        w_key_name(w, "material", b->material_name);
+    else if (b->material_index >= 0 && b->material_index < d->material_count &&
+             d->materials[b->material_index].name != NULL)
+        w_key_name(w, "material", d->materials[b->material_index].name);
+    w_close(w);
+}
+
+static void emit_light(Writer *w, const SceneDesc *d, int index)
+{
+    const SceneLightDesc *l = &d->lights[index];
+    w_open(w, "light", NULL);
+    w_key_vec3(w, "position", l->position);
+    w_key_vec3(w, "color", l->color);
+    w_key_double(w, "intensity", l->intensity);
+    w_key_double(w, "radius", l->radius);
     w_close(w);
 }
 
@@ -836,6 +892,10 @@ int scene_desc_write(const SceneDesc *d, const char *path,
         emit_prim(&w, d, i);
     for (i = 0; i < d->plant_count; ++i)
         emit_plant(&w, d, i);
+    for (i = 0; i < d->boulder_count; ++i)
+        emit_boulder(&w, d, i);
+    for (i = 0; i < d->light_count; ++i)
+        emit_light(&w, d, i);
 
     if (fflush(fp) != 0)
         w_fail(&w, "flush error");

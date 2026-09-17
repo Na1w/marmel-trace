@@ -1,0 +1,44 @@
+camera {
+    eye = 0.0 2.2 7.0
+    target = 0.0 2.3 0.0
+    up = 0 1 0
+    vfov = 42.0
+}
+
+sky {
+    sun_dir = 0.6 0.5 0.5
+    sun_color = 1.0 0.92 0.82
+    horizon_color = 0.82 0.88 0.95
+    zenith_color = 0.25 0.50 0.85
+}
+
+material ground_moss {
+    albedo = 0.18 0.28 0.12
+    roughness = 0.9
+}
+
+material spruce_bark {
+    albedo = 0.22 0.15 0.10
+    roughness = 0.9
+}
+
+material spruce_needles {
+    albedo = 0.04 0.18 0.05
+    specular = 0.04 0.04 0.04
+    roughness = 0.4
+}
+
+plane {
+    point = 0.0 0.0 0.0
+    normal = 0.0 1.0 0.0
+    material = ground_moss
+}
+
+spruce {
+    position = 0.0 0.0 0.0
+    height = 5.2
+    radius = 0.20
+    seed = 101
+    material_bark = spruce_bark
+    material_leaf = spruce_needles
+}

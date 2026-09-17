@@ -514,6 +514,55 @@ static void test_default_scene_primitive_count(void)
 }
 
 /* ------------------------------------------------------------------ */
+/* Test 6: conifer, spruce, and polygonal foliage parsing/building    */
+/* ------------------------------------------------------------------ */
+
+static void test_conifer_and_foliage(void)
+{
+    const char *text =
+        "material ground {\n"
+        "    albedo = 0.5 0.5 0.5\n"
+        "}\n"
+        "material bark {\n"
+        "    albedo = 0.3 0.2 0.1\n"
+        "}\n"
+        "material leaf {\n"
+        "    albedo = 0.1 0.6 0.1\n"
+        "}\n"
+        "tree {\n"
+        "    position = 0.0 0.0 0.0\n"
+        "    height = 3.0\n"
+        "    radius = 0.1\n"
+        "    foliage = leaves\n"
+        "}\n"
+        "spruce {\n"
+        "    position = 10.0 0.0 0.0\n"
+        "    height = 4.0\n"
+        "    radius = 0.15\n"
+        "}\n";
+
+    char errbuf[256];
+    SceneDesc desc;
+    scene_desc_init(&desc);
+    CHECK(scene_desc_load_string(&desc, text, "<test>", errbuf, sizeof errbuf) == 0, "parse tree with leaves & spruce");
+    CHECK(desc.plant_count == 2, "parsed 2 plants");
+    CHECK(desc.plants[0].has_foliage == 1, "plant 0 has foliage");
+    CHECK(desc.plants[0].foliage == PLANT_FOLIAGE_LEAVES, "plant 0 foliage is leaves");
+    CHECK(desc.plants[1].has_plant_type == 1, "plant 1 has plant_type");
+    CHECK(desc.plants[1].plant_type == PLANT_TYPE_CONIFER, "plant 1 is conifer");
+    CHECK(desc.plants[1].has_foliage == 1, "plant 1 has foliage");
+    CHECK(desc.plants[1].foliage == PLANT_FOLIAGE_NEEDLES, "plant 1 foliage is needles");
+
+    Scene scene;
+    memset(&scene, 0, sizeof scene);
+    CHECK(scene_build_from_desc(&scene, &desc) == 0, "build scene with conifer and leaves");
+    CHECK(scene.geo.count > 100, "scene contains generated geometry primitives");
+
+    scene_free(&scene);
+    scene_desc_free(&desc);
+}
+
+/* ------------------------------------------------------------------ */
 
 int main(void)
 {
@@ -522,6 +571,7 @@ int main(void)
     test_defaults_match_legacy();
     test_params_change_geometry();
     test_default_scene_primitive_count();
+    test_conifer_and_foliage();
 
     fprintf(stderr, "test_tree_params: %d passed, %d failed\n", g_pass, g_fail);
     if (g_fail != 0) {

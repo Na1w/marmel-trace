@@ -17,6 +17,7 @@
 
 #include <math.h>
 #include <stdlib.h>
+#include <string.h>
 
 /* Parallel-ray guard for the plane test (cosine of unit vectors). */
 #define GEO_PARALLEL_EPS 1e-12
@@ -98,11 +99,54 @@ void geometry_init(Geometry *g)
     g->capacity = 0;
 }
 
+void primitive_destroy(Primitive *p)
+{
+    if (!p) return;
+    if (p->kind == PRIM_CSG) {
+        if (p->left) {
+            primitive_destroy(p->left);
+            free(p->left);
+            p->left = NULL;
+        }
+        if (p->right) {
+            primitive_destroy(p->right);
+            free(p->right);
+            p->right = NULL;
+        }
+    }
+}
+
+Primitive primitive_clone(const Primitive *p)
+{
+    if (!p) {
+        Primitive empty;
+        memset(&empty, 0, sizeof(empty));
+        return empty;
+    }
+    Primitive copy = *p;
+    if (p->kind == PRIM_CSG) {
+        if (p->left) {
+            copy.left = (Primitive *)malloc(sizeof(Primitive));
+            if (copy.left) *copy.left = primitive_clone(p->left);
+        }
+        if (p->right) {
+            copy.right = (Primitive *)malloc(sizeof(Primitive));
+            if (copy.right) *copy.right = primitive_clone(p->right);
+        }
+    }
+    return copy;
+}
+
 void geometry_free(Geometry *g)
 {
     if (!g) return;
-    free(g->prims);
-    g->prims = NULL;
+    if (g->prims) {
+        for (int i = 0; i < g->count; ++i) {
+            primitive_destroy(&g->prims[i]);
+        }
+        free(g->prims);
+        g->prims = NULL;
+    }
     g->count = 0;
     g->capacity = 0;
 }
@@ -139,8 +183,14 @@ static Primitive prim_zero(PrimKind kind, int material_index)
     p.a = vec3(0.0, 0.0, 0.0);
     p.b = vec3(0.0, 0.0, 0.0);
     p.c = vec3(0.0, 0.0, 0.0);
+    p.e1 = vec3(0.0, 0.0, 0.0);
+    p.e2 = vec3(0.0, 0.0, 0.0);
+    p.norm = vec3(0.0, 0.0, 0.0);
     p.radius = 0.0;
     p.radius2 = 0.0;
+    p.csg_op = CSG_UNION;
+    p.left = NULL;
+    p.right = NULL;
     return p;
 }
 
@@ -174,6 +224,11 @@ Primitive prim_triangle(Vec3 a, Vec3 b, Vec3 c, int material_index)
     p.a = a;
     p.b = b;
     p.c = c;
+    p.e1 = vec3_sub(b, a);
+    p.e2 = vec3_sub(c, a);
+    Vec3 n = vec3_cross(p.e1, p.e2);
+    double nlen = vec3_length(n);
+    p.norm = (nlen > 1e-15) ? vec3_scale(n, 1.0 / nlen) : vec3(0.0, 1.0, 0.0);
     return p;
 }
 
@@ -186,6 +241,32 @@ Primitive prim_cylinder(Vec3 base, Vec3 top, double r_bottom, double r_top,
     p.radius = r_bottom;
     p.radius2 = r_top;
     return p;
+}
+
+Primitive prim_csg(CsgOp op, Primitive left, Primitive right, int material_index)
+{
+    Primitive p = prim_zero(PRIM_CSG, material_index);
+    p.csg_op = op;
+    p.left = (Primitive *)malloc(sizeof(Primitive));
+    p.right = (Primitive *)malloc(sizeof(Primitive));
+    if (p.left) *p.left = left;
+    if (p.right) *p.right = right;
+    return p;
+}
+
+Primitive prim_csg_difference(Primitive a, Primitive b, int material_index)
+{
+    return prim_csg(CSG_DIFFERENCE, a, b, material_index);
+}
+
+Primitive prim_csg_intersection(Primitive a, Primitive b, int material_index)
+{
+    return prim_csg(CSG_INTERSECTION, a, b, material_index);
+}
+
+Primitive prim_csg_union(Primitive a, Primitive b, int material_index)
+{
+    return prim_csg(CSG_UNION, a, b, material_index);
 }
 
 /* ------------------------------------------------------------------ */
@@ -301,8 +382,8 @@ static int intersect_box(const Primitive *p, Ray r, double tmin, double tmax,
 static int intersect_triangle(const Primitive *p, Ray r, double tmin, double tmax,
                               Hit *out)
 {
-    Vec3 e1 = vec3_sub(p->b, p->a);
-    Vec3 e2 = vec3_sub(p->c, p->a);
+    Vec3 e1 = p->e1;
+    Vec3 e2 = p->e2;
 
     Vec3 pvec = vec3_cross(r.dir, e2);
     double det = vec3_dot(e1, pvec);
@@ -320,13 +401,8 @@ static int intersect_triangle(const Primitive *p, Ray r, double tmin, double tma
     double t = vec3_dot(e2, qvec) * inv_det;
     if (t < tmin || t > tmax) return 0;
 
-    Vec3 n = vec3_cross(e1, e2);
-    double nlen = vec3_length(n);
-    if (nlen < 1e-15) return 0; /* degenerate triangle */
-    n = vec3_scale(n, 1.0 / nlen);
-
     Vec3 point = vec3_at(r, t);
-    geo_store_hit(out, t, point, n, r, p->material_index);
+    geo_store_hit(out, t, point, p->norm, r, p->material_index);
     return 1;
 }
 
@@ -460,6 +536,475 @@ static int intersect_cylinder(const Primitive *p, Ray r, double tmin, double tma
 }
 
 /* ------------------------------------------------------------------ */
+/* CSG (Constructive Solid Geometry) ray-solid interval evaluation     */
+/* ------------------------------------------------------------------ */
+
+#define CSG_MAX_INTERVALS 32
+#define CSG_MAX_BOUNDS 64
+
+typedef struct {
+    double t;
+    Vec3 normal;     /* outward unit normal from solid */
+    int material_index;
+    int is_enter;    /* 1 = enter, 0 = exit */
+} CsgBoundary;
+
+typedef struct {
+    double t_in;
+    double t_out;
+    Vec3 n_in;
+    Vec3 n_out;
+    int mat_in;
+    int mat_out;
+} CsgInterval;
+
+static int sphere_get_intervals(const Primitive *p, Ray r, CsgInterval *out)
+{
+    if (p->radius <= 0.0) return 0;
+    Vec3 oc = vec3_sub(r.origin, p->center);
+    double half_b = vec3_dot(r.dir, oc);
+    double c = vec3_length_sq(oc) - p->radius * p->radius;
+    double disc = half_b * half_b - c;
+    if (disc < 1e-12) return 0;
+
+    double sq = sqrt(disc);
+    double t0 = -half_b - sq;
+    double t1 = -half_b + sq;
+    if (t0 > t1) { double tmp = t0; t0 = t1; t1 = tmp; }
+
+    Vec3 p0 = vec3_at(r, t0);
+    Vec3 p1 = vec3_at(r, t1);
+
+    out[0].t_in = t0;
+    out[0].n_in = vec3_scale(vec3_sub(p0, p->center), 1.0 / p->radius);
+    out[0].mat_in = p->material_index;
+
+    out[0].t_out = t1;
+    out[0].n_out = vec3_scale(vec3_sub(p1, p->center), 1.0 / p->radius);
+    out[0].mat_out = p->material_index;
+
+    return 1;
+}
+
+static int box_get_intervals(const Primitive *p, Ray r, CsgInterval *out)
+{
+    Vec3 mn = vec3_sub(p->center, p->half);
+    Vec3 mx = vec3_add(p->center, p->half);
+
+    double t_enter = -1e30;
+    double t_exit = 1e30;
+    Vec3 n_enter = vec3(0, 0, 0);
+    Vec3 n_exit = vec3(0, 0, 0);
+
+    /* X slab */
+    if (fabs(r.dir.x) > 1e-12) {
+        double t1 = (mn.x - r.origin.x) / r.dir.x;
+        double t2 = (mx.x - r.origin.x) / r.dir.x;
+        Vec3 n1 = vec3(-1.0, 0.0, 0.0);
+        Vec3 n2 = vec3(1.0, 0.0, 0.0);
+        if (t1 > t2) {
+            double tmp = t1; t1 = t2; t2 = tmp;
+            n1 = vec3(1.0, 0.0, 0.0);
+            n2 = vec3(-1.0, 0.0, 0.0);
+        }
+        if (t1 > t_enter) { t_enter = t1; n_enter = n1; }
+        if (t2 < t_exit)  { t_exit = t2;  n_exit = n2; }
+    } else {
+        if (r.origin.x < mn.x || r.origin.x > mx.x) return 0;
+    }
+
+    /* Y slab */
+    if (fabs(r.dir.y) > 1e-12) {
+        double t1 = (mn.y - r.origin.y) / r.dir.y;
+        double t2 = (mx.y - r.origin.y) / r.dir.y;
+        Vec3 n1 = vec3(0.0, -1.0, 0.0);
+        Vec3 n2 = vec3(0.0, 1.0, 0.0);
+        if (t1 > t2) {
+            double tmp = t1; t1 = t2; t2 = tmp;
+            n1 = vec3(0.0, 1.0, 0.0);
+            n2 = vec3(0.0, -1.0, 0.0);
+        }
+        if (t1 > t_enter) { t_enter = t1; n_enter = n1; }
+        if (t2 < t_exit)  { t_exit = t2;  n_exit = n2; }
+    } else {
+        if (r.origin.y < mn.y || r.origin.y > mx.y) return 0;
+    }
+
+    /* Z slab */
+    if (fabs(r.dir.z) > 1e-12) {
+        double t1 = (mn.z - r.origin.z) / r.dir.z;
+        double t2 = (mx.z - r.origin.z) / r.dir.z;
+        Vec3 n1 = vec3(0.0, 0.0, -1.0);
+        Vec3 n2 = vec3(0.0, 0.0, 1.0);
+        if (t1 > t2) {
+            double tmp = t1; t1 = t2; t2 = tmp;
+            n1 = vec3(0.0, 0.0, 1.0);
+            n2 = vec3(0.0, 0.0, -1.0);
+        }
+        if (t1 > t_enter) { t_enter = t1; n_enter = n1; }
+        if (t2 < t_exit)  { t_exit = t2;  n_exit = n2; }
+    } else {
+        if (r.origin.z < mn.z || r.origin.z > mx.z) return 0;
+    }
+
+    if (t_enter >= t_exit - 1e-9) return 0;
+
+    out[0].t_in = t_enter;
+    out[0].n_in = n_enter;
+    out[0].mat_in = p->material_index;
+
+    out[0].t_out = t_exit;
+    out[0].n_out = n_exit;
+    out[0].mat_out = p->material_index;
+
+    return 1;
+}
+
+static int cylinder_get_intervals(const Primitive *p, Ray r, CsgInterval *out)
+{
+    Vec3 axis = vec3_sub(p->b, p->a);
+    double h = vec3_length(axis);
+    if (h < GEO_AXIS_EPS) return 0;
+    axis = vec3_scale(axis, 1.0 / h);
+
+    double r0 = p->radius;
+    double r1 = p->radius2;
+    double k = (r1 - r0) / h;
+
+    Vec3 d0 = vec3_sub(r.origin, p->a);
+    double Od = vec3_dot(r.dir, axis);
+    double d0d = vec3_dot(d0, axis);
+
+    Vec3 D_perp = vec3_sub(r.dir, vec3_scale(axis, Od));
+    Vec3 d0_perp = vec3_sub(d0, vec3_scale(axis, d0d));
+
+    double ra = k * Od;
+    double rb = r0 + k * d0d;
+
+    double qa = vec3_length_sq(D_perp) - ra * ra;
+    double qb = vec3_dot(D_perp, d0_perp) - rb * ra;
+    double qc = vec3_length_sq(d0_perp) - rb * rb;
+
+    double cand_t[6];
+    Vec3 cand_n[6];
+    int n_cands = 0;
+
+    /* Lateral cone/cylinder */
+    if (fabs(qa) > 1e-15) {
+        double disc = qb * qb - qa * qc;
+        if (disc >= 0.0) {
+            double sq = sqrt(disc);
+            double roots[2] = { (-qb - sq) / qa, (-qb + sq) / qa };
+            for (int i = 0; i < 2; ++i) {
+                double t = roots[i];
+                double s = (d0d + t * Od) / h;
+                if (s >= -1e-7 && s <= 1.0 + 1e-7) {
+                    Vec3 point = vec3_at(r, t);
+                    Vec3 axis_pt = vec3_add(p->a, vec3_scale(axis, s * h));
+                    Vec3 radial = vec3_sub(point, axis_pt);
+                    double rlen = vec3_length(radial);
+                    Vec3 radial_dir = (rlen > 1e-15) ? vec3_scale(radial, 1.0 / rlen) : vec3(0, 0, 0);
+                    Vec3 n = vec3_sub(vec3_scale(radial_dir, h), vec3_scale(axis, r1 - r0));
+                    n = vec3_normalize(n);
+                    if (vec3_length_sq(n) < 0.5) n = radial_dir;
+                    cand_t[n_cands] = t;
+                    cand_n[n_cands] = n;
+                    n_cands++;
+                }
+            }
+        }
+    } else if (fabs(qb) > 1e-15) {
+        double t = -qc / (2.0 * qb);
+        double s = (d0d + t * Od) / h;
+        if (s >= -1e-7 && s <= 1.0 + 1e-7) {
+            Vec3 point = vec3_at(r, t);
+            Vec3 axis_pt = vec3_add(p->a, vec3_scale(axis, s * h));
+            Vec3 radial = vec3_sub(point, axis_pt);
+            Vec3 radial_dir = vec3_normalize(radial);
+            Vec3 n = vec3_sub(vec3_scale(radial_dir, h), vec3_scale(axis, r1 - r0));
+            n = vec3_normalize(n);
+            if (vec3_length_sq(n) < 0.5) n = radial_dir;
+            cand_t[n_cands] = t;
+            cand_n[n_cands] = n;
+            n_cands++;
+        }
+    }
+
+    /* Caps */
+    if (fabs(Od) > 1e-15) {
+        for (int cap = 0; cap < 2; ++cap) {
+            double s_cap = (cap == 0) ? 0.0 : 1.0;
+            double r_cap = (cap == 0) ? r0 : r1;
+            if (r_cap <= 0.0) continue;
+            Vec3 cap_center = (cap == 0) ? p->a : p->b;
+            double t = ((s_cap * h) - d0d) / Od;
+            Vec3 point = vec3_at(r, t);
+            Vec3 radial = vec3_sub(point, cap_center);
+            if (vec3_length_sq(radial) <= r_cap * r_cap * (1.0 + 1e-5)) {
+                Vec3 n = (cap == 0) ? vec3_neg(axis) : axis;
+                cand_t[n_cands] = t;
+                cand_n[n_cands] = n;
+                n_cands++;
+            }
+        }
+    }
+
+    if (n_cands < 2) return 0;
+
+    /* Sort candidates by t */
+    for (int i = 0; i < n_cands - 1; ++i) {
+        for (int j = i + 1; j < n_cands; ++j) {
+            if (cand_t[i] > cand_t[j]) {
+                double tt = cand_t[i]; cand_t[i] = cand_t[j]; cand_t[j] = tt;
+                Vec3 tn = cand_n[i]; cand_n[i] = cand_n[j]; cand_n[j] = tn;
+            }
+        }
+    }
+
+    /* Unique candidates */
+    int unique_cands = 0;
+    double ut[6];
+    Vec3 un[6];
+    for (int i = 0; i < n_cands; ++i) {
+        if (unique_cands == 0 || fabs(cand_t[i] - ut[unique_cands - 1]) > 1e-6) {
+            ut[unique_cands] = cand_t[i];
+            un[unique_cands] = cand_n[i];
+            unique_cands++;
+        }
+    }
+
+    if (unique_cands < 2) return 0;
+
+    out[0].t_in = ut[0];
+    out[0].n_in = un[0];
+    out[0].mat_in = p->material_index;
+    out[0].t_out = ut[unique_cands - 1];
+    out[0].n_out = un[unique_cands - 1];
+    out[0].mat_out = p->material_index;
+    return 1;
+}
+
+typedef struct {
+    double t;
+    Vec3 normal;
+    int material_index;
+    int from_b; /* 0 if from A, 1 if from B */
+} CsgEndpoint;
+
+static int is_in_solid(double t, const CsgInterval *invs, int count)
+{
+    for (int i = 0; i < count; ++i) {
+        if (t >= invs[i].t_in && t <= invs[i].t_out) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+static int csg_eval_bool(CsgOp op, int in_a, int in_b)
+{
+    switch (op) {
+    case CSG_UNION:        return in_a || in_b;
+    case CSG_INTERSECTION: return in_a && in_b;
+    case CSG_DIFFERENCE:   return in_a && !in_b;
+    }
+    return 0;
+}
+
+static int csg_combine(CsgOp op,
+                       const CsgInterval *a_invs, int a_count,
+                       const CsgInterval *b_invs, int b_count,
+                       CsgInterval *out, int max_out)
+{
+    CsgEndpoint pts[CSG_MAX_BOUNDS];
+    int npts = 0;
+
+    for (int i = 0; i < a_count && npts + 2 <= CSG_MAX_BOUNDS; ++i) {
+        pts[npts++] = (CsgEndpoint){ a_invs[i].t_in, a_invs[i].n_in, a_invs[i].mat_in, 0 };
+        pts[npts++] = (CsgEndpoint){ a_invs[i].t_out, a_invs[i].n_out, a_invs[i].mat_out, 0 };
+    }
+    for (int i = 0; i < b_count && npts + 2 <= CSG_MAX_BOUNDS; ++i) {
+        pts[npts++] = (CsgEndpoint){ b_invs[i].t_in, b_invs[i].n_in, b_invs[i].mat_in, 1 };
+        pts[npts++] = (CsgEndpoint){ b_invs[i].t_out, b_invs[i].n_out, b_invs[i].mat_out, 1 };
+    }
+
+    if (npts < 2) return 0;
+
+    /* Sort endpoints by t ascending */
+    for (int i = 1; i < npts; ++i) {
+        CsgEndpoint key = pts[i];
+        int j = i - 1;
+        while (j >= 0 && pts[j].t > key.t) {
+            pts[j + 1] = pts[j];
+            j--;
+        }
+        pts[j + 1] = key;
+    }
+
+    /* Deduplicate endpoints within 1e-6 */
+    CsgEndpoint u_pts[CSG_MAX_BOUNDS];
+    int nu = 0;
+    for (int i = 0; i < npts; ++i) {
+        if (nu > 0 && fabs(pts[i].t - u_pts[nu - 1].t) < 1e-6) {
+            if (op == CSG_DIFFERENCE && pts[i].from_b) {
+                u_pts[nu - 1] = pts[i];
+            }
+            continue;
+        }
+        u_pts[nu++] = pts[i];
+    }
+
+    if (nu < 2) return 0;
+
+    int n_out = 0;
+    int in_interval = 0;
+    double cur_tin = 0.0;
+    Vec3 cur_nin = vec3(0.0, 0.0, 0.0);
+    int cur_matin = -1;
+
+    for (int i = 0; i < nu - 1; ++i) {
+        double t_start = u_pts[i].t;
+        double t_end = u_pts[i + 1].t;
+        if (t_end - t_start < 1e-6) continue;
+
+        double t_mid = 0.5 * (t_start + t_end);
+        int in_a = is_in_solid(t_mid, a_invs, a_count);
+        int in_b = is_in_solid(t_mid, b_invs, b_count);
+        int active = csg_eval_bool(op, in_a, in_b);
+
+        if (active) {
+            if (!in_interval) {
+                /* Transition OUT -> IN at t_start */
+                in_interval = 1;
+                cur_tin = t_start;
+                Vec3 norm = u_pts[i].normal;
+                if (op == CSG_DIFFERENCE && u_pts[i].from_b) {
+                    norm = vec3_neg(norm);
+                }
+                cur_nin = norm;
+                cur_matin = u_pts[i].material_index;
+            }
+        } else {
+            if (in_interval) {
+                /* Transition IN -> OUT at t_start */
+                in_interval = 0;
+                if (n_out < max_out) {
+                    out[n_out].t_in = cur_tin;
+                    out[n_out].n_in = cur_nin;
+                    out[n_out].mat_in = cur_matin;
+
+                    out[n_out].t_out = t_start;
+                    Vec3 norm = u_pts[i].normal;
+                    if (op == CSG_DIFFERENCE && u_pts[i].from_b) {
+                        norm = vec3_neg(norm);
+                    }
+                    out[n_out].n_out = norm;
+                    out[n_out].mat_out = u_pts[i].material_index;
+                    n_out++;
+                }
+            }
+        }
+    }
+
+    /* If still in_interval after last segment, close it at u_pts[nu - 1].t */
+    if (in_interval && n_out < max_out) {
+        out[n_out].t_in = cur_tin;
+        out[n_out].n_in = cur_nin;
+        out[n_out].mat_in = cur_matin;
+
+        out[n_out].t_out = u_pts[nu - 1].t;
+        Vec3 norm = u_pts[nu - 1].normal;
+        if (op == CSG_DIFFERENCE && u_pts[nu - 1].from_b) {
+            norm = vec3_neg(norm);
+        }
+        out[n_out].n_out = norm;
+        out[n_out].mat_out = u_pts[nu - 1].material_index;
+        n_out++;
+    }
+
+    return n_out;
+}
+
+static int primitive_get_intervals(const Primitive *p, Ray r, CsgInterval *out, int max_out)
+{
+    if (!p || max_out <= 0) return 0;
+    switch (p->kind) {
+    case PRIM_SPHERE:
+        return sphere_get_intervals(p, r, out);
+    case PRIM_BOX:
+        return box_get_intervals(p, r, out);
+    case PRIM_CYLINDER:
+        return cylinder_get_intervals(p, r, out);
+    case PRIM_CSG: {
+        CsgInterval inv_a[CSG_MAX_INTERVALS];
+        CsgInterval inv_b[CSG_MAX_INTERVALS];
+        int na = primitive_get_intervals(p->left, r, inv_a, CSG_MAX_INTERVALS);
+        int nb = primitive_get_intervals(p->right, r, inv_b, CSG_MAX_INTERVALS);
+        return csg_combine(p->csg_op, inv_a, na, inv_b, nb, out, max_out);
+    }
+    default:
+        return 0;
+    }
+}
+
+static int intersect_csg(const Primitive *p, Ray r, double tmin, double tmax, Hit *out)
+{
+    CsgInterval intervals[CSG_MAX_INTERVALS];
+    int n = primitive_get_intervals(p, r, intervals, CSG_MAX_INTERVALS);
+    if (n <= 0) return 0;
+
+    int found = 0;
+    double best_t = tmax;
+    Hit best_hit;
+
+    for (int i = 0; i < n; ++i) {
+        if (intervals[i].t_in >= tmin && intervals[i].t_in <= best_t) {
+            best_t = intervals[i].t_in;
+            best_hit.t = best_t;
+            best_hit.point = vec3_at(r, best_t);
+            int front = vec3_dot(r.dir, intervals[i].n_in) < 0.0;
+            best_hit.normal = front ? intervals[i].n_in : vec3_neg(intervals[i].n_in);
+            best_hit.front_face = front ? 1 : 0;
+            best_hit.material_index = intervals[i].mat_in >= 0 ? intervals[i].mat_in : p->material_index;
+            found = 1;
+        }
+        if (intervals[i].t_in < tmin && intervals[i].t_out >= tmin && intervals[i].t_out <= best_t) {
+            best_t = intervals[i].t_out;
+            best_hit.t = best_t;
+            best_hit.point = vec3_at(r, best_t);
+            int front = vec3_dot(r.dir, intervals[i].n_out) < 0.0;
+            best_hit.normal = front ? intervals[i].n_out : vec3_neg(intervals[i].n_out);
+            best_hit.front_face = front ? 1 : 0;
+            best_hit.material_index = intervals[i].mat_out >= 0 ? intervals[i].mat_out : p->material_index;
+            found = 1;
+        }
+    }
+
+    if (found) {
+        best_hit.prim_index = out->prim_index;
+        *out = best_hit;
+        return 1;
+    }
+    return 0;
+}
+
+static int occluded_csg(const Primitive *p, Ray r, double tmin, double tmax)
+{
+    CsgInterval intervals[CSG_MAX_INTERVALS];
+    int n = primitive_get_intervals(p, r, intervals, CSG_MAX_INTERVALS);
+    if (n <= 0) return 0;
+
+    for (int i = 0; i < n; ++i) {
+        double enter = fmax(intervals[i].t_in, tmin);
+        double exit  = fmin(intervals[i].t_out, tmax);
+        if (enter <= exit) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+/* ------------------------------------------------------------------ */
 /* Public intersection dispatch                                        */
 /* ------------------------------------------------------------------ */
 
@@ -479,8 +1024,103 @@ int primitive_intersect(const Primitive *p, Ray r, double tmin, double tmax, Hit
     case PRIM_BOX:      return intersect_box(p, r, tmin, tmax, out);
     case PRIM_TRIANGLE: return intersect_triangle(p, r, tmin, tmax, out);
     case PRIM_CYLINDER: return intersect_cylinder(p, r, tmin, tmax, out);
+    case PRIM_CSG:      return intersect_csg(p, r, tmin, tmax, out);
     default:            return 0;
     }
+}
+
+static int occluded_sphere(const Primitive *p, Ray r, double tmin, double tmax)
+{
+    if (p->radius <= 0.0) return 0;
+    Vec3 l = vec3_sub(r.origin, p->center);
+    double half_b = vec3_dot(l, r.dir);
+    double c = vec3_length_sq(l) - p->radius * p->radius;
+    double t;
+    return geo_quad_nearest(1.0, half_b, c, tmin, tmax, &t);
+}
+
+static int occluded_plane(const Primitive *p, Ray r, double tmin, double tmax)
+{
+    Vec3 n = vec3_normalize(p->axis);
+    double denom = vec3_dot(r.dir, n);
+    if (fabs(denom) < GEO_PARALLEL_EPS) return 0;
+    double t = vec3_dot(vec3_sub(p->center, r.origin), n) / denom;
+    return (t >= tmin && t <= tmax);
+}
+
+static int occluded_box(const Primitive *p, Ray r, double tmin, double tmax)
+{
+    Vec3 bmin = vec3_sub(p->center, p->half);
+    Vec3 bmax = vec3_add(p->center, p->half);
+    double o[3] = { r.origin.x, r.origin.y, r.origin.z };
+    double d[3] = { r.dir.x, r.dir.y, r.dir.z };
+    double lo[3] = { bmin.x, bmin.y, bmin.z };
+    double hi[3] = { bmax.x, bmax.y, bmax.z };
+    double tn = -INFINITY;
+    double tf = INFINITY;
+    for (int i = 0; i < 3; ++i) {
+        double inv = 1.0 / d[i];
+        double t1 = (lo[i] - o[i]) * inv;
+        double t2 = (hi[i] - o[i]) * inv;
+        if (t1 > t2) { double tmp = t1; t1 = t2; t2 = tmp; }
+        if (t1 > tn) tn = t1;
+        if (t2 < tf) tf = t2;
+        if (tn > tf) return 0;
+    }
+    return ((tn >= tmin && tn <= tmax) || (tf >= tmin && tf <= tmax));
+}
+
+static int occluded_triangle(const Primitive *p, Ray r, double tmin, double tmax)
+{
+    Vec3 e1 = p->e1;
+    Vec3 e2 = p->e2;
+    Vec3 pvec = vec3_cross(r.dir, e2);
+    double det = vec3_dot(e1, pvec);
+    if (fabs(det) < GEO_TRI_EPS) return 0;
+
+    double inv_det = 1.0 / det;
+    Vec3 tvec = vec3_sub(r.origin, p->a);
+    double u = vec3_dot(tvec, pvec) * inv_det;
+    if (u < -GEO_BARY_EPS || u > 1.0 + GEO_BARY_EPS) return 0;
+
+    Vec3 qvec = vec3_cross(tvec, e1);
+    double v = vec3_dot(r.dir, qvec) * inv_det;
+    if (v < -GEO_BARY_EPS || u + v > 1.0 + GEO_BARY_EPS) return 0;
+
+    double t = vec3_dot(e2, qvec) * inv_det;
+    return (t >= tmin && t <= tmax);
+}
+
+int primitive_occluded(const Primitive *p, Ray r, double tmin, double tmax)
+{
+    if (!p) return 0;
+    double len_sq = vec3_length_sq(r.dir);
+    if (len_sq > 0.0 && fabs(len_sq - 1.0) > 1e-12) {
+        r.dir = vec3_normalize(r.dir);
+    }
+    switch (p->kind) {
+    case PRIM_SPHERE:   return occluded_sphere(p, r, tmin, tmax);
+    case PRIM_PLANE:    return occluded_plane(p, r, tmin, tmax);
+    case PRIM_BOX:      return occluded_box(p, r, tmin, tmax);
+    case PRIM_TRIANGLE: return occluded_triangle(p, r, tmin, tmax);
+    case PRIM_CYLINDER: {
+        Hit dummy;
+        return intersect_cylinder(p, r, tmin, tmax, &dummy);
+    }
+    case PRIM_CSG:      return occluded_csg(p, r, tmin, tmax);
+    default:            return 0;
+    }
+}
+
+int geometry_occluded(const Geometry *g, Ray r, double tmin, double tmax)
+{
+    if (!g || g->count <= 0 || !g->prims) return 0;
+    for (int i = 0; i < g->count; ++i) {
+        if (primitive_occluded(&g->prims[i], r, tmin, tmax)) {
+            return 1;
+        }
+    }
+    return 0;
 }
 
 int geometry_intersect(const Geometry *g, Ray r, double tmin, double tmax, Hit *out)
@@ -549,6 +1189,33 @@ static void bounds_cylinder(const Primitive *p, Vec3 *out_min, Vec3 *out_max)
     *out_max = vec3_add(vec3_max(p->a, p->b), ext);
 }
 
+static void bounds_csg(const Primitive *p, Vec3 *out_min, Vec3 *out_max)
+{
+    if (!p->left || !p->right) {
+        *out_min = vec3(0.0, 0.0, 0.0);
+        *out_max = vec3(0.0, 0.0, 0.0);
+        return;
+    }
+    Vec3 amin, amax, bmin, bmax;
+    primitive_bounds(p->left, &amin, &amax);
+    primitive_bounds(p->right, &bmin, &bmax);
+    switch (p->csg_op) {
+    case CSG_UNION:
+        *out_min = vec3_min(amin, bmin);
+        *out_max = vec3_max(amax, bmax);
+        break;
+    case CSG_INTERSECTION:
+        *out_min = vec3_max(amin, bmin);
+        *out_max = vec3_min(amax, bmax);
+        *out_max = vec3_max(*out_min, *out_max);
+        break;
+    case CSG_DIFFERENCE:
+        *out_min = amin;
+        *out_max = amax;
+        break;
+    }
+}
+
 void primitive_bounds(const Primitive *p, Vec3 *out_min, Vec3 *out_max)
 {
     if (!p || !out_min || !out_max) return;
@@ -559,6 +1226,7 @@ void primitive_bounds(const Primitive *p, Vec3 *out_min, Vec3 *out_max)
     case PRIM_BOX:      bounds_box(p, out_min, out_max);      break;
     case PRIM_TRIANGLE: bounds_triangle(p, out_min, out_max); break;
     case PRIM_CYLINDER: bounds_cylinder(p, out_min, out_max); break;
+    case PRIM_CSG:      bounds_csg(p, out_min, out_max);      break;
     default:
         *out_min = vec3(0.0, 0.0, 0.0);
         *out_max = vec3(0.0, 0.0, 0.0);

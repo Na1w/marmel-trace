@@ -599,10 +599,12 @@ int main(int argc, char **argv)
         if (opt.no_progress)
             (void)setenv("RAYTRACER_NO_PROGRESS", "1", 1);
 
-        rc = opt.pathtrace
-                 ? pathtrace_render(&scene, &cam, opt.width, opt.height,
-                                    opt.samples, opt.depth, rgb)
-                 : render_image_ex(&scene, &cam, opt.width, opt.height, &rp, rgb);
+        if (opt.pathtrace) {
+            rc = pathtrace_render(&scene, &cam, opt.width, opt.height,
+                                  opt.samples, opt.depth, rgb);
+        } else {
+            rc = render_image_ex(&scene, &cam, opt.width, opt.height, &rp, rgb);
+        }
     }
     if (rc != 0) {
         fprintf(stderr, "error: rendering failed (code %d)\n", rc);
@@ -644,7 +646,7 @@ int main(int argc, char **argv)
         printf("Mode: path tracer (global illumination, depth %d)\n", opt.depth);
     else
         printf("Mode: Whitted (legacy, depth %d)\n", opt.depth);
-    if (opt.adaptive) {
+    if (opt.adaptive && !opt.pathtrace) {
         int n0 = opt.samples;
         int nmax = (opt.adaptive_max > 0) ? opt.adaptive_max : 4 * n0;
         double tau = (opt.adaptive_tau > 0.0) ? opt.adaptive_tau : 0.02;

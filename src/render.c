@@ -541,18 +541,19 @@ static Vec3 emissive_direct(const Scene *scene, const Material *mm,
             double u1 = render_rand01(k, (unsigned)si, EMISSIVE_LIGHT_CHANNEL_A);
             double u2 = render_rand01(k, (unsigned)si, EMISSIVE_LIGHT_CHANNEL_B);
             Vec3 w_i = light_sphere_sample_dir(w, cos_mx, u1, u2);
-            Hit sh;
             int visible;
 
             if (vec3_dot(N, w_i) <= 0.0) {
                 continue; /* sample lands below the shading hemisphere */
             }
 
-            /* Accept when the nearest hit IS the emitter (robust; also
-             * handles occluders behind the lamp correctly). */
-            visible = !scene_intersect(scene, (Ray){shadow_o, w_i}, 1e-3, 1e30,
-                                       &sh)
-                   || sh.prim_index == lt->prim_index;
+            /* Accept when nothing occludes between shadow_o and the emitter */
+            Hit lh;
+            if (primitive_intersect(&scene->geo.prims[lt->prim_index], (Ray){shadow_o, w_i}, 1e-3, 1e30, &lh)) {
+                visible = !scene_occluded(scene, (Ray){shadow_o, w_i}, 1e-3, lh.t - 1e-3);
+            } else {
+                visible = 0;
+            }
             if (!visible) {
                 continue;
             }
@@ -639,8 +640,7 @@ static Vec3 trace_hit(const Scene *scene, Ray r, int depth, int max_depth,
             double r1 = render_rand01(k, (unsigned)i, 0x5a17u);
             double r2 = render_rand01(k, (unsigned)i, 0x7c3du);
             Vec3 Ld = sky_sun_disk_dir(L, sun_radius, r1, r2);
-            Hit sh;
-            if (!scene_intersect(scene, (Ray){shadow_o, Ld}, 1e-3, 1e30, &sh)) {
+            if (!scene_occluded(scene, (Ray){shadow_o, Ld}, 1e-3, 1e30)) {
                 lit += 1.0;
             }
         }
@@ -660,8 +660,7 @@ static Vec3 trace_hit(const Scene *scene, Ray r, int depth, int max_depth,
             }
         }
     } else {
-        Hit sh;
-        if (!scene_intersect(scene, (Ray){shadow_o, L}, 1e-3, 1e30, &sh)) {
+        if (!scene_occluded(scene, (Ray){shadow_o, L}, 1e-3, 1e30)) {
             if (mm->pbr) {
                 color = vec3_add(color,
                                  material_shade_pbr(mm, N, L, V, scene->sky.sun_color));

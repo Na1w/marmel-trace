@@ -27,7 +27,7 @@ THREAD_CFLAGS  := -DUSE_PTHREADS -pthread
 THREAD_LDFLAGS := -pthread
 endif
 
-CFLAGS    ?= -std=c11 -O2 -Wall -Wextra
+CFLAGS    ?= -std=c11 -O3 -Wall -Wextra
 CFLAGS    += $(THREAD_CFLAGS)
 CPPFLAGS  += -Isrc
 LDFLAGS   ?=

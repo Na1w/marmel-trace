@@ -69,6 +69,7 @@ struct Bvh {
     int node_capacity;
     int *order;      /* permutation of primitive indices (tree prims only) */
     int order_count;
+    Primitive *prims;/* contiguous cache-friendly primitive array in leaf order */
     int depth;
     int *planes;     /* indices of PRIM_PLANE prims, excluded from the tree */
     int plane_count;
@@ -409,6 +410,12 @@ Bvh *bvh_build(const Geometry *g)
             bvh_free(b);
             return NULL;
         }
+        b->prims = (Primitive *)malloc((size_t)tree_count * sizeof(Primitive));
+        if (b->prims) {
+            for (int i = 0; i < tree_count; ++i) {
+                b->prims[i] = g->prims[b->order[i]];
+            }
+        }
     }
 
     return b;
@@ -417,6 +424,7 @@ Bvh *bvh_build(const Geometry *g)
 void bvh_free(Bvh *b)
 {
     if (!b) return;
+    free(b->prims);
     free(b->nodes);
     free(b->order);
     free(b->planes);
@@ -458,6 +466,77 @@ static int bvh_slab(Vec3 mn, Vec3 mx, Vec3 origin, Vec3 inv,
     *t_enter = enter;
     return 1;
 }
+
+#if defined(__GNUC__) || defined(__clang__)
+typedef double v2d __attribute__((vector_size(16)));
+
+static inline v2d v2d_min(v2d a, v2d b) {
+    return (v2d){ fmin(a[0], b[0]), fmin(a[1], b[1]) };
+}
+static inline v2d v2d_max(v2d a, v2d b) {
+    return (v2d){ fmax(a[0], b[0]), fmax(a[1], b[1]) };
+}
+
+static inline void bvh_slab_2way(Vec3 l_min, Vec3 l_max,
+                                 Vec3 r_min, Vec3 r_max,
+                                 Vec3 origin, Vec3 inv,
+                                 double tmin, double tmax,
+                                 double *tl_out, double *tr_out,
+                                 int *hl_out, int *hr_out)
+{
+    v2d ox = { origin.x, origin.x };
+    v2d oy = { origin.y, origin.y };
+    v2d oz = { origin.z, origin.z };
+
+    v2d ix = { inv.x, inv.x };
+    v2d iy = { inv.y, inv.y };
+    v2d iz = { inv.z, inv.z };
+
+    v2d mnx = { l_min.x, r_min.x };
+    v2d mxx = { l_max.x, r_max.x };
+    v2d mny = { l_min.y, r_min.y };
+    v2d mxy = { l_max.y, r_max.y };
+    v2d mnz = { l_min.z, r_min.z };
+    v2d mxz = { l_max.z, r_max.z };
+
+    v2d t1x = (mnx - ox) * ix;
+    v2d t2x = (mxx - ox) * ix;
+    v2d txmin = v2d_min(t1x, t2x);
+    v2d txmax = v2d_max(t1x, t2x);
+
+    v2d t1y = (mny - oy) * iy;
+    v2d t2y = (mxy - oy) * iy;
+    v2d tymin = v2d_min(t1y, t2y);
+    v2d tymax = v2d_max(t1y, t2y);
+
+    v2d t1z = (mnz - oz) * iz;
+    v2d t2z = (mxz - oz) * iz;
+    v2d tzmin = v2d_min(t1z, t2z);
+    v2d tzmax = v2d_max(t1z, t2z);
+
+    v2d enter = v2d_max(v2d_max(txmin, tymin), tzmin);
+    v2d exit  = v2d_min(v2d_min(txmax, tymax), tzmax);
+
+    int hl = (exit[0] >= tmin && enter[0] <= tmax);
+    int hr = (exit[1] >= tmin && enter[1] <= tmax);
+
+    *hl_out = hl;
+    *hr_out = hr;
+    *tl_out = (enter[0] < tmin) ? tmin : enter[0];
+    *tr_out = (enter[1] < tmin) ? tmin : enter[1];
+}
+#else
+static inline void bvh_slab_2way(Vec3 l_min, Vec3 l_max,
+                                 Vec3 r_min, Vec3 r_max,
+                                 Vec3 origin, Vec3 inv,
+                                 double tmin, double tmax,
+                                 double *tl_out, double *tr_out,
+                                 int *hl_out, int *hr_out)
+{
+    *hl_out = bvh_slab(l_min, l_max, origin, inv, tmin, tmax, tl_out);
+    *hr_out = bvh_slab(r_min, r_max, origin, inv, tmin, tmax, tr_out);
+}
+#endif
 
 int bvh_intersect(const Bvh *b, const Geometry *g, Ray r, double tmin, double tmax, Hit *out)
 {
@@ -526,11 +605,13 @@ int bvh_intersect(const Bvh *b, const Geometry *g, Ray r, double tmin, double tm
             const BvhNode *node = &b->nodes[e.idx];
 
             if (node->count > 0) {
+                const Primitive *prims = b->prims ? &b->prims[node->first] : NULL;
                 for (int i = 0; i < node->count; ++i) {
                     int pi = b->order[node->first + i];
+                    const Primitive *p = prims ? &prims[i] : &g->prims[pi];
                     Hit h;
                     h.prim_index = pi;
-                    if (primitive_intersect(&g->prims[pi], r, tmin, closest, &h)) {
+                    if (primitive_intersect(p, r, tmin, closest, &h)) {
                         /* Tie-break on equal t by LOWEST prim_index so that the
                          * result is identical to geometry_intersect(), which
                          * scans in index order with a strict `h.t < best.t`
@@ -554,12 +635,13 @@ int bvh_intersect(const Bvh *b, const Geometry *g, Ray r, double tmin, double tm
                  * `closest` early and lets the far child be culled at pop. A
                  * child whose AABB is missed is simply not pushed. */
                 double tl = 0.0, tr = 0.0;
-                int hl = bvh_slab(b->nodes[node->left].bounds_min,
-                                  b->nodes[node->left].bounds_max,
-                                  r.origin, inv, tmin, closest, &tl);
-                int hr = bvh_slab(b->nodes[node->right].bounds_min,
-                                  b->nodes[node->right].bounds_max,
-                                  r.origin, inv, tmin, closest, &tr);
+                int hl = 0, hr = 0;
+                bvh_slab_2way(b->nodes[node->left].bounds_min,
+                              b->nodes[node->left].bounds_max,
+                              b->nodes[node->right].bounds_min,
+                              b->nodes[node->right].bounds_max,
+                              r.origin, inv, tmin, closest,
+                              &tl, &tr, &hl, &hr);
 
                 if (hl || hr) {
                     /* Ensure room for up to two pushes (never overflow the
@@ -611,6 +693,106 @@ int bvh_intersect(const Bvh *b, const Geometry *g, Ray r, double tmin, double tm
     if (!found) return 0;
     *out = best;
     return 1;
+}
+
+int bvh_occluded(const Bvh *b, const Geometry *g, Ray r, double tmin, double tmax, int *last_occluder)
+{
+    if (!b || !g) return 0;
+
+    double len_sq = vec3_length_sq(r.dir);
+    if (len_sq > 0.0 && fabs(len_sq - 1.0) > 1e-12) {
+        r.dir = vec3_normalize(r.dir);
+    }
+
+    /* 1. Shadow cache: test last occluder primitive first */
+    if (last_occluder && *last_occluder >= 0 && *last_occluder < g->count) {
+        if (primitive_occluded(&g->prims[*last_occluder], r, tmin, tmax)) {
+            return 1;
+        }
+    }
+
+    /* 2. Planes */
+    for (int i = 0; i < b->plane_count; ++i) {
+        int pi = b->planes[i];
+        if (primitive_occluded(&g->prims[pi], r, tmin, tmax)) {
+            if (last_occluder) *last_occluder = pi;
+            return 1;
+        }
+    }
+
+    /* 3. BVH Tree traversal */
+    if (b->node_count > 0) {
+        int fixed[BVH_STACK_FIXED];
+        int *stack = fixed;
+        int cap = BVH_STACK_FIXED;
+        int sp = 0;
+
+        Vec3 inv = vec3(1.0 / r.dir.x, 1.0 / r.dir.y, 1.0 / r.dir.z);
+        double t_root;
+        if (bvh_slab(b->nodes[0].bounds_min, b->nodes[0].bounds_max, r.origin,
+                     inv, tmin, tmax, &t_root)) {
+            stack[sp++] = 0;
+        }
+
+        while (sp > 0) {
+            int n_idx = stack[--sp];
+            const BvhNode *node = &b->nodes[n_idx];
+
+            if (node->count > 0) {
+                const Primitive *prims = b->prims ? &b->prims[node->first] : NULL;
+                for (int i = 0; i < node->count; ++i) {
+                    int pi = b->order[node->first + i];
+                    const Primitive *p = prims ? &prims[i] : &g->prims[pi];
+                    if (primitive_occluded(p, r, tmin, tmax)) {
+                        if (last_occluder) *last_occluder = pi;
+                        if (stack != fixed) free(stack);
+                        return 1;
+                    }
+                }
+            } else {
+                double tl = 0.0, tr = 0.0;
+                int hl = 0, hr = 0;
+                bvh_slab_2way(b->nodes[node->left].bounds_min,
+                              b->nodes[node->left].bounds_max,
+                              b->nodes[node->right].bounds_min,
+                              b->nodes[node->right].bounds_max,
+                              r.origin, inv, tmin, tmax,
+                              &tl, &tr, &hl, &hr);
+
+                if (hl || hr) {
+                    if (sp + 2 > cap) {
+                        cap *= 2;
+                        int *ns = (stack == fixed) ? malloc(cap * sizeof(int))
+                                                   : realloc(stack, cap * sizeof(int));
+                        if (!ns) {
+                            if (stack != fixed) free(stack);
+                            return 0;
+                        }
+                        if (stack == fixed) memcpy(ns, fixed, sp * sizeof(int));
+                        stack = ns;
+                    }
+
+                    if (hl && hr) {
+                        if (tl <= tr) {
+                            stack[sp++] = node->right;
+                            stack[sp++] = node->left;
+                        } else {
+                            stack[sp++] = node->left;
+                            stack[sp++] = node->right;
+                        }
+                    } else if (hl) {
+                        stack[sp++] = node->left;
+                    } else {
+                        stack[sp++] = node->right;
+                    }
+                }
+            }
+        }
+
+        if (stack != fixed) free(stack);
+    }
+
+    return 0;
 }
 
 int bvh_node_count(const Bvh *b)

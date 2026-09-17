@@ -125,7 +125,7 @@ typedef struct {
  * holds the resolved table index, filled in by scene_desc_load()'s resolution
  * pass, or SCENE_DESC_NO_MATERIAL when no material is referenced.
  */
-typedef struct {
+typedef struct ScenePrimDesc {
     PrimKind kind;            /* which shape (reused PrimKind)             */
     Vec3     center;          /* sphere center / box center                */
     Vec3     point;           /* plane point                               */
@@ -137,6 +137,9 @@ typedef struct {
     double   radius2;         /* cylinder r_top                            */
     char    *material_name;   /* owned referenced name, may be NULL        */
     int      material_index;  /* resolved index, or SCENE_DESC_NO_MATERIAL */
+    CsgOp    csg_op;          /* CSG boolean operation                     */
+    struct ScenePrimDesc *left;  /* owned left sub-primitive               */
+    struct ScenePrimDesc *right; /* owned right sub-primitive              */
 } ScenePrimDesc;
 
 /* ------------------------------------------------------------------ */
@@ -147,6 +150,18 @@ typedef enum {
     SD_PLANT_TREE,
     SD_PLANT_BUSH
 } ScenePlantKind;
+
+typedef enum {
+    PLANT_FOLIAGE_SPHERES = 0, /* default: legacy sphere clusters (byte-identical) */
+    PLANT_FOLIAGE_LEAVES,      /* 3D polygonal diamond leaves (triangles) */
+    PLANT_FOLIAGE_NEEDLES      /* conifer needle fronds (triangles) */
+} PlantFoliageKind;
+
+typedef enum {
+    PLANT_TYPE_DECIDUOUS = 0, /* branching crown (lövträd) */
+    PLANT_TYPE_CONIFER,       /* tiered whorls of branches (gran/tall/barrträd) */
+    PLANT_TYPE_BUSH           /* shrub */
+} PlantType;
 
 /*
  * One `tree { }` or `bush { }` directive. `position.y` is forced to 0
@@ -160,18 +175,22 @@ typedef enum {
  * corresponding name is absent.
  */
 typedef struct {
-    ScenePlantKind kind;               /* tree or bush                       */
-    Vec3           position;           /* world position (y forced to 0)     */
-    double         height;             /* trunk length                       */
-    double         radius;             /* trunk radius (selects depth)       */
-    int            has_seed;           /* 1 if `seed` key present            */
-    unsigned       seed;               /* explicit seed, else derived        */
-    char          *material_bark;      /* owned name, or NULL for default    */
-    char          *material_leaf;      /* owned name, or NULL for auto       */
-    int            has_leaf_variant;   /* 1 if `leaf_variant` key present    */
-    int            leaf_variant;       /* [0, 3] when present                */
-    int            material_bark_index;/* resolved index, or NO_MATERIAL     */
-    int            material_leaf_index;/* resolved index, or NO_MATERIAL     */
+    ScenePlantKind   kind;               /* tree or bush                       */
+    Vec3             position;           /* world position (y forced to 0)     */
+    double           height;             /* trunk length                       */
+    double           radius;             /* trunk radius (selects depth)       */
+    int              has_seed;           /* 1 if `seed` key present            */
+    unsigned         seed;               /* explicit seed, else derived        */
+    char            *material_bark;      /* owned name, or NULL for default    */
+    char            *material_leaf;      /* owned name, or NULL for auto       */
+    int              has_leaf_variant;   /* 1 if `leaf_variant` key present    */
+    int              leaf_variant;       /* [0, 3] when present                */
+    int              material_bark_index;/* resolved index, or NO_MATERIAL     */
+    int              material_leaf_index;/* resolved index, or NO_MATERIAL     */
+    int              has_foliage;        /* 1 if `foliage` key present         */
+    PlantFoliageKind foliage;            /* spheres, leaves, needles           */
+    int              has_plant_type;     /* 1 if `type` key present            */
+    PlantType        plant_type;         /* deciduous, conifer, bush           */
 
     /*
      * Optional generator parameters (docs/scene_format.md §4.9/§4.10).
@@ -217,13 +236,38 @@ typedef struct {
 } ScenePlantDesc;
 
 /* ------------------------------------------------------------------ */
+/* Procedural boulder / rock directive                                */
+/* ------------------------------------------------------------------ */
+
+typedef struct {
+    Vec3     position;          /* center position */
+    double   radius;            /* nominal radius */
+    double   roughness;         /* noise amplitude [0, 1], default 0.35 */
+    double   flatness;          /* vertical squash [0.1, 1], default 0.75 */
+    unsigned seed;              /* procedural noise seed */
+    char    *material_name;     /* owned referenced name, may be NULL */
+    int      material_index;    /* resolved index, or SCENE_DESC_NO_MATERIAL */
+} SceneBoulderDesc;
+
+/* ------------------------------------------------------------------ */
+/* Point / Area Light directive                                       */
+/* ------------------------------------------------------------------ */
+
+typedef struct {
+    Vec3   position;            /* light position */
+    Vec3   color;               /* light emission RGB color */
+    double intensity;           /* brightness multiplier */
+    double radius;              /* light source radius (for soft shadows) */
+} SceneLightDesc;
+
+/* ------------------------------------------------------------------ */
 /* Top-level scene description                                         */
 /* ------------------------------------------------------------------ */
 
 /*
  * Complete, lossless in-memory form of one scene file.
  *
- * All three collections use the count + capacity + pointer idiom and are
+ * All collections use the count + capacity + pointer idiom and are
  * grown by the scene_desc_add_* helpers. They are owned and freed by
  * scene_desc_free().
  */
@@ -249,6 +293,14 @@ typedef struct {
     ScenePlantDesc  *plants;        /* owned dynamic array                 */
     int              plant_count;
     int              plant_capacity;
+
+    SceneBoulderDesc *boulders;     /* owned dynamic array                 */
+    int               boulder_count;
+    int               boulder_capacity;
+
+    SceneLightDesc  *lights;        /* owned dynamic array                 */
+    int              light_count;
+    int              light_capacity;
 } SceneDesc;
 
 /* ------------------------------------------------------------------ */
@@ -315,6 +367,8 @@ int scene_desc_write(const SceneDesc *d, const char *path, char *errbuf, size_t 
 int scene_desc_add_material(SceneDesc *d, const char *name, const Material *mat);
 int scene_desc_add_prim(SceneDesc *d, const ScenePrimDesc *prim);
 int scene_desc_add_plant(SceneDesc *d, const ScenePlantDesc *plant);
+int scene_desc_add_boulder(SceneDesc *d, const SceneBoulderDesc *boulder);
+int scene_desc_add_light(SceneDesc *d, const SceneLightDesc *light);
 
 #ifdef __cplusplus
 }

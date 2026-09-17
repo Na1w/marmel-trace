@@ -31,6 +31,8 @@
 #include "vec3.h"
 
 #include <math.h>
+#include <stdlib.h>
+#include <string.h>
 
 /*
  * Threading support (t-104c2). The pthread/atomic headers are pulled in ONLY
@@ -54,8 +56,10 @@
 #define PT_RAY_EPS 1e-4
 #define PT_RAY_MAX 1e30
 
-/* First bounce at which Russian Roulette may kill the path (unbiased). */
-#define PT_RR_START_BOUNCE 3
+/* First bounce at which Russian Roulette may kill the path (unbiased).
+ * Bounces 0 (camera) and 1 (first indirect bounce) are always preserved;
+ * starting RR at bounce 2 terminates weak, heavily-attenuated multi-bounce rays early. */
+#define PT_RR_START_BOUNCE 2
 
 /* Representative propagation distance used when a ray escapes a medium without
  * a further hit (mirrors the Whitted renderer's deep-water fallback). */
@@ -498,9 +502,8 @@ static Vec3 pt_nee_sun(const Scene *scene, const Material *mm, Vec3 P, Vec3 N, V
     double r2 = pt_rand01(seed_key, (unsigned)bounce, PT_CH_NEE_SUN_B);
     Vec3 L = sky_sun_disk_dir(sun, scene->sky.sun_radius, r1, r2);
     if (!pt_is_finite(L) || vec3_dot(N, L) <= 0.0) return vec3(0.0, 0.0, 0.0);
-    Hit sh;
     Ray sr; sr.origin = vec3_add(P, vec3_scale(N, 1e-3)); sr.dir = L;
-    if (scene_intersect(scene, sr, 1e-3, 1e30, &sh)) return vec3(0.0, 0.0, 0.0);
+    if (scene_occluded(scene, sr, 1e-3, 1e30)) return vec3(0.0, 0.0, 0.0);
     double rad = scene->sky.sun_radius * 3.14159265358979323846 / 180.0;
     double Omega = (scene->sky.sun_radius > 0.0)
                        ? 2.0 * 3.14159265358979323846 * (1.0 - cos(rad))
@@ -547,8 +550,10 @@ static Vec3 pt_nee_emissive(const Scene *scene, const Material *mm, Vec3 P, Vec3
         double u2 = pt_rand01(seed_key ^ (unsigned)li, (unsigned)bounce, PT_CH_NEE_EMIT_B);
         Vec3 wi = light_sphere_sample_dir(w, cos_mx, u1, u2);
         if (!pt_is_finite(wi) || vec3_dot(N, wi) <= 0.0) continue;
-        Hit sh; Ray sr; sr.origin = vec3_add(P, vec3_scale(N, 1e-3)); sr.dir = wi;
-        if (scene_intersect(scene, sr, 1e-3, 1e30, &sh) && sh.prim_index != lt->prim_index) continue;
+        Ray sr; sr.origin = vec3_add(P, vec3_scale(N, 1e-3)); sr.dir = wi;
+        Hit lh;
+        if (!primitive_intersect(&scene->geo.prims[lt->prim_index], sr, 1e-3, 1e30, &lh)) continue;
+        if (scene_occluded(scene, sr, 1e-3, lh.t - 1e-3)) continue;
         Vec3 lit = mm->pbr ? material_shade_pbr(mm, N, wi, V, lt->emissive)
                            : material_shade_local(mm, N, wi, V, lt->emissive);
         sum = vec3_add(sum, vec3_mul(throughput, vec3_scale(lit, Omega)));  /* 1/pdf = Omega */
@@ -792,6 +797,7 @@ static void pt_render_pixel(const Scene *scene, const Camera *cam,
                             unsigned char *rgb_out, int x, int y)
 {
     Vec3 acc = vec3(0.0, 0.0, 0.0);
+
     for (int s = 0; s < spp; ++s) {
         /*
          * Deterministic sub-pixel jitter and thin-lens DOF sample. The pixel

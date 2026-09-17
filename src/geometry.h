@@ -23,27 +23,40 @@
 #include "vec3.h"
 
 typedef enum {
+    CSG_UNION = 0,
+    CSG_INTERSECTION,
+    CSG_DIFFERENCE
+} CsgOp;
+
+typedef enum {
     PRIM_SPHERE,
     PRIM_PLANE,     /* infinite plane: point + normal */
     PRIM_BOX,       /* axis-aligned box */
     PRIM_TRIANGLE,
-    PRIM_CYLINDER   /* finite, capped, with independent bottom/top radii (tapered frustum) */
+    PRIM_CYLINDER,  /* finite, capped, with independent bottom/top radii (tapered frustum) */
+    PRIM_CSG        /* constructive solid geometry boolean combination */
 } PrimKind;
 
-typedef struct {
+typedef struct Primitive {
     PrimKind kind;
     int material_index;   /* index into the scene material table */
     /* SPHERE:    center, radius
        PLANE:     center = a point on plane, radius unused; axis = unit normal
        BOX:       center = box center, half = half extents
        TRIANGLE:  a, b, c
-       CYLINDER:  a = base center, b = top center, radius = bottom radius, radius2 = top radius */
+       CYLINDER:  a = base center, b = top center, radius = bottom radius, radius2 = top radius
+       CSG:       csg_op, left, right (sub-primitives) */
     Vec3 center;
     Vec3 axis;
     Vec3 half;
     Vec3 a, b, c;
+    Vec3 e1, e2;          /* precomputed edges for TRIANGLE */
+    Vec3 norm;            /* precomputed unit normal for TRIANGLE */
     double radius;
     double radius2;
+    CsgOp csg_op;
+    struct Primitive *left;
+    struct Primitive *right;
 } Primitive;
 
 typedef struct {
@@ -78,6 +91,14 @@ Primitive prim_plane(Vec3 point, Vec3 normal, int material_index);
 Primitive prim_box(Vec3 center, Vec3 half, int material_index);
 Primitive prim_triangle(Vec3 a, Vec3 b, Vec3 c, int material_index);
 Primitive prim_cylinder(Vec3 base, Vec3 top, double r_bottom, double r_top, int material_index);
+Primitive prim_csg(CsgOp op, Primitive left, Primitive right, int material_index);
+Primitive prim_csg_difference(Primitive a, Primitive b, int material_index);
+Primitive prim_csg_intersection(Primitive a, Primitive b, int material_index);
+Primitive prim_csg_union(Primitive a, Primitive b, int material_index);
+
+/* Deep copy and destruction of primitives (for CSG subtrees) */
+Primitive primitive_clone(const Primitive *p);
+void      primitive_destroy(Primitive *p);
 
 /* ------------------------------------------------------------------ */
 /* Intersection                                                        */
@@ -88,6 +109,13 @@ Primitive prim_cylinder(Vec3 base, Vec3 top, double r_bottom, double r_top, int 
  * returned, the NEAREST intersection within [tmin, tmax] is written to *out.
  * `r.dir` is normalized internally if it is not already unit length. */
 int primitive_intersect(const Primitive *p, Ray r, double tmin, double tmax, Hit *out);
+
+/* Any-hit occlusion query for shadow rays. Returns 1 if ray `r` hits `p` within
+ * [tmin, tmax], without computing surface normal or hit point. */
+int primitive_occluded(const Primitive *p, Ray r, double tmin, double tmax);
+
+/* Linear scan over all primitives, returning 1 on the first hit within [tmin, tmax]. */
+int geometry_occluded(const Geometry *g, Ray r, double tmin, double tmax);
 
 /* Linear scan over all primitives, keeping the nearest hit. */
 int geometry_intersect(const Geometry *g, Ray r, double tmin, double tmax, Hit *out);

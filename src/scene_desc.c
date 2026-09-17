@@ -159,6 +159,15 @@ typedef struct {
     int          *plant_lines;          /* 2 lines (bark, leaf) per plant      */
     int           plant_line_count;     /* number of recorded ints             */
     int           plant_line_cap;       /* capacity of `plant_lines`           */
+    /* state for boulder / rock block currently open */
+    SceneBoulderDesc boulder;
+    char          boulder_mat_name[SD_TOK_TEXT];
+    int           boulder_mat_line;
+    int          *boulder_lines;
+    int           boulder_line_count;
+    int           boulder_line_cap;
+    /* state for light / point_light block currently open */
+    SceneLightDesc light;
 } Parser;
 
 /* FILE:LINE: error: MSG (near 'TOKEN')  — the one true error form (§6). */
@@ -382,7 +391,10 @@ typedef enum {
     BLK_FOG,
     BLK_MATERIAL,
     BLK_PRIM,
-    BLK_PLANT
+    BLK_PLANT,
+    BLK_BOULDER,
+    BLK_LIGHT,
+    BLK_CSG
 } BlockKind;
 
 typedef struct {
@@ -390,6 +402,11 @@ typedef struct {
     int       line;      /* line of the opening header (for diagnostics) */
     unsigned  seen;      /* bitmask of keys already seen in this block   */
     char      kw[32];    /* opening keyword                              */
+    CsgOp     csg_op;
+    char      csg_mat_name[64];
+    int       csg_mat_line;
+    ScenePrimDesc csg_children[2];
+    int       csg_child_count;
 } Block;
 
 enum {
@@ -986,7 +1003,9 @@ enum {
     PLANT_UP_BIAS           = 1u << 11,
     PLANT_THIRD_CHILD_CHANCE= 1u << 12,
     PLANT_LEAF_MIN          = 1u << 13,
-    PLANT_LEAF_SPAN         = 1u << 14
+    PLANT_LEAF_SPAN         = 1u << 14,
+    PLANT_FOLIAGE           = 1u << 15,
+    PLANT_TYPE              = 1u << 16
 };
 
 /*
@@ -1428,6 +1447,134 @@ static int sd_push_ref_line(Parser *p, int line)
     return 0;
 }
 
+static void scene_prim_desc_destroy(ScenePrimDesc *p)
+{
+    if (p == NULL)
+        return;
+    free(p->material_name);
+    p->material_name = NULL;
+    if (p->left != NULL) {
+        scene_prim_desc_destroy(p->left);
+        free(p->left);
+        p->left = NULL;
+    }
+    if (p->right != NULL) {
+        scene_prim_desc_destroy(p->right);
+        free(p->right);
+        p->right = NULL;
+    }
+}
+
+static ScenePrimDesc *scene_prim_desc_clone(const ScenePrimDesc *p)
+{
+    ScenePrimDesc *c;
+    if (p == NULL)
+        return NULL;
+    c = (ScenePrimDesc *)malloc(sizeof(ScenePrimDesc));
+    if (c == NULL)
+        return NULL;
+    *c = *p;
+    c->material_name = sd_strdup(p->material_name);
+    c->left = scene_prim_desc_clone(p->left);
+    c->right = scene_prim_desc_clone(p->right);
+    return c;
+}
+
+static void sd_close_prim_csg_child(Parser *p, const Block *b, Block *parent)
+{
+    const PrimSpec *sp = sd_prim_spec(b->kw);
+    const char     *missing;
+
+    if (sp == NULL) {
+        sd_err(p, "internal error: unknown primitive keyword", b->kw);
+        return;
+    }
+    missing = sd_first_missing(sp, b->seen);
+    if (missing != NULL) {
+        sd_err_at(p, b->line, "missing required key", missing);
+        return;
+    }
+    if (!(b->seen & SD_MAT_REF_BIT) && parent->csg_mat_name[0] == '\0') {
+        sd_err_at(p, b->line, "missing required key", "material");
+        return;
+    }
+    if (parent->csg_child_count >= 2) {
+        sd_err_at(p, b->line, "CSG operation accepts exactly 2 children", b->kw);
+        return;
+    }
+
+    ScenePrimDesc *slot = &parent->csg_children[parent->csg_child_count++];
+    memset(slot, 0, sizeof(*slot));
+    *slot = p->prim;
+    slot->kind = sp->kind;
+    if (b->seen & SD_MAT_REF_BIT) {
+        slot->material_name = sd_strdup(p->prim_mat_name);
+    } else if (parent->csg_mat_name[0] != '\0') {
+        slot->material_name = sd_strdup(parent->csg_mat_name);
+    }
+    slot->material_index = SCENE_DESC_NO_MATERIAL;
+    slot->left = NULL;
+    slot->right = NULL;
+}
+
+static void sd_close_csg(Parser *p, SceneDesc *d, Block *b, Block *parent)
+{
+    if (b->csg_child_count != 2) {
+        sd_err_at(p, b->line, "CSG operation requires exactly 2 children", b->kw);
+        return;
+    }
+    ScenePrimDesc prim;
+    memset(&prim, 0, sizeof(prim));
+    prim.kind = PRIM_CSG;
+    prim.csg_op = b->csg_op;
+    prim.material_name = (b->csg_mat_name[0] != '\0') ? sd_strdup(b->csg_mat_name) : NULL;
+    prim.material_index = SCENE_DESC_NO_MATERIAL;
+    prim.left = scene_prim_desc_clone(&b->csg_children[0]);
+    prim.right = scene_prim_desc_clone(&b->csg_children[1]);
+
+    scene_prim_desc_destroy(&b->csg_children[0]);
+    scene_prim_desc_destroy(&b->csg_children[1]);
+    b->csg_child_count = 0;
+
+    if (parent != NULL && parent->kind == BLK_CSG) {
+        if (parent->csg_child_count < 2) {
+            parent->csg_children[parent->csg_child_count++] = prim;
+        } else {
+            sd_err_at(p, b->line, "CSG operation accepts exactly 2 children", b->kw);
+            scene_prim_desc_destroy(&prim);
+        }
+    } else {
+        int idx = scene_desc_add_prim(d, &prim);
+        if (idx < 0) {
+            sd_err(p, "out of memory", b->kw);
+            scene_prim_desc_destroy(&prim);
+            return;
+        }
+        if (sd_push_ref_line(p, b->csg_mat_line > 0 ? b->csg_mat_line : b->line) != 0)
+            sd_err(p, "out of memory", b->kw);
+        scene_prim_desc_destroy(&prim);
+    }
+}
+
+static void sd_apply_csg_key(Parser *p, Block *b, const Token *t, int n)
+{
+    const char *key = t[0].text;
+    if (strcmp(key, "material") == 0) {
+        const char *name = NULL;
+        if (sd_val_name(p, t, n, 2, &name) < 0)
+            return;
+        if (n != 3) {
+            sd_err(p, "unexpected token after value", t[3].text);
+            return;
+        }
+        snprintf(b->csg_mat_name, sizeof b->csg_mat_name, "%s", name);
+        b->csg_mat_line = p->line;
+        b->seen |= SD_MAT_REF_BIT;
+        return;
+    }
+    sd_err(p, "unknown CSG block key", key);
+}
+
 /* Close a primitive block: validate required keys, then append in file order. */
 static void sd_close_prim(Parser *p, SceneDesc *d, const Block *b)
 {
@@ -1520,6 +1667,60 @@ static void sd_apply_plant_key(Parser *p, Block *b, const Token *t, int n)
         p->plant_leaf_line = p->line;
         return;
     }
+    if (strcmp(key, "type") == 0) {
+        const char *name = NULL;
+        if (b->seen & PLANT_TYPE) {
+            sd_err(p, "duplicate key", key);
+            return;
+        }
+        b->seen |= PLANT_TYPE;
+        if (sd_val_name(p, t, n, 2, &name) < 0)
+            return;
+        if (n != 3) {
+            sd_err(p, "unexpected token after value", t[3].text);
+            return;
+        }
+        p->plant.has_plant_type = 1;
+        if (strcmp(name, "conifer") == 0 || strcmp(name, "spruce") == 0 || strcmp(name, "pine") == 0) {
+            p->plant.plant_type = PLANT_TYPE_CONIFER;
+            if (!(b->seen & PLANT_FOLIAGE)) {
+                p->plant.has_foliage = 1;
+                p->plant.foliage = PLANT_FOLIAGE_NEEDLES;
+            }
+        } else if (strcmp(name, "deciduous") == 0) {
+            p->plant.plant_type = PLANT_TYPE_DECIDUOUS;
+        } else if (strcmp(name, "bush") == 0) {
+            p->plant.plant_type = PLANT_TYPE_BUSH;
+        } else {
+            sd_err(p, "unknown plant type", name);
+        }
+        return;
+    }
+    if (strcmp(key, "foliage") == 0) {
+        const char *name = NULL;
+        if (b->seen & PLANT_FOLIAGE) {
+            sd_err(p, "duplicate key", key);
+            return;
+        }
+        b->seen |= PLANT_FOLIAGE;
+        if (sd_val_name(p, t, n, 2, &name) < 0)
+            return;
+        if (n != 3) {
+            sd_err(p, "unexpected token after value", t[3].text);
+            return;
+        }
+        p->plant.has_foliage = 1;
+        if (strcmp(name, "spheres") == 0) {
+            p->plant.foliage = PLANT_FOLIAGE_SPHERES;
+        } else if (strcmp(name, "leaves") == 0 || strcmp(name, "leaf") == 0 || strcmp(name, "polygons") == 0) {
+            p->plant.foliage = PLANT_FOLIAGE_LEAVES;
+        } else if (strcmp(name, "needles") == 0 || strcmp(name, "needle") == 0 || strcmp(name, "barr") == 0) {
+            p->plant.foliage = PLANT_FOLIAGE_NEEDLES;
+        } else {
+            sd_err(p, "unknown foliage type", name);
+        }
+        return;
+    }
     for (s = 0; s < SD_ARRAY_LEN(PLANT_KEYS); s++) {
         if (strcmp(key, PLANT_KEYS[s].key) != 0)
             continue;
@@ -1552,6 +1753,14 @@ static void sd_close_plant(Parser *p, SceneDesc *d, const Block *b)
     }
     p->plant.kind = (strcmp(b->kw, "bush") == 0) ? SD_PLANT_BUSH
                                                  : SD_PLANT_TREE;
+    if (strcmp(b->kw, "conifer") == 0 || strcmp(b->kw, "spruce") == 0 || strcmp(b->kw, "pine") == 0) {
+        p->plant.has_plant_type = 1;
+        p->plant.plant_type = PLANT_TYPE_CONIFER;
+        if (!(b->seen & PLANT_FOLIAGE)) {
+            p->plant.has_foliage = 1;
+            p->plant.foliage = PLANT_FOLIAGE_NEEDLES;
+        }
+    }
     /* §4.9/§4.10: `position.y` is ignored and the trunk starts at ground. */
     p->plant.position.y = 0.0;
     p->plant.has_seed = (b->seen & PLANT_SEED) ? 1 : 0;
@@ -1585,6 +1794,166 @@ static void sd_close_plant(Parser *p, SceneDesc *d, const Block *b)
         sd_err(p, "out of memory", b->kw);
 }
 
+/* ------------------------------------------------------------------ */
+/* Parser: boulder and light blocks                                   */
+/* ------------------------------------------------------------------ */
+
+enum {
+    BOULDER_POSITION  = 1u << 0,
+    BOULDER_RADIUS    = 1u << 1,
+    BOULDER_ROUGHNESS = 1u << 2,
+    BOULDER_FLATNESS  = 1u << 3,
+    BOULDER_SEED      = 1u << 4,
+    BOULDER_MATERIAL  = 1u << 5
+};
+
+enum {
+    LIGHT_POSITION  = 1u << 0,
+    LIGHT_COLOR     = 1u << 1,
+    LIGHT_INTENSITY = 1u << 2,
+    LIGHT_RADIUS    = 1u << 3
+};
+
+static void sd_boulder_begin(Parser *p)
+{
+    memset(&p->boulder, 0, sizeof p->boulder);
+    p->boulder.radius = 1.0;
+    p->boulder.roughness = 0.35;
+    p->boulder.flatness = 0.75;
+    p->boulder_mat_name[0] = '\0';
+    p->boulder_mat_line = p->line;
+}
+
+static int sd_push_boulder_line(Parser *p, int line)
+{
+    int *grown;
+    int  ncap;
+
+    if (p->boulder_line_count >= p->boulder_line_cap) {
+        ncap = (p->boulder_line_cap > 0) ? p->boulder_line_cap * 2 : 16;
+        grown = (int *)realloc(p->boulder_lines, (size_t)ncap * sizeof(int));
+        if (grown == NULL)
+            return -1;
+        p->boulder_lines = grown;
+        p->boulder_line_cap = ncap;
+    }
+    p->boulder_lines[p->boulder_line_count++] = line;
+    return 0;
+}
+
+static void sd_apply_boulder_key(Parser *p, Block *b, const Token *t, int n)
+{
+    const char *key = t[0].text;
+    if (strcmp(key, "position") == 0 || strcmp(key, "center") == 0) {
+        if (b->seen & BOULDER_POSITION) { sd_err(p, "duplicate key", key); return; }
+        b->seen |= BOULDER_POSITION;
+        (void)sd_val_vec3(p, t, n, 2, &p->boulder.position);
+        return;
+    }
+    if (strcmp(key, "radius") == 0) {
+        if (b->seen & BOULDER_RADIUS) { sd_err(p, "duplicate key", key); return; }
+        b->seen |= BOULDER_RADIUS;
+        (void)sd_val_double(p, t, n, 2, &p->boulder.radius);
+        return;
+    }
+    if (strcmp(key, "roughness") == 0) {
+        if (b->seen & BOULDER_ROUGHNESS) { sd_err(p, "duplicate key", key); return; }
+        b->seen |= BOULDER_ROUGHNESS;
+        (void)sd_val_double(p, t, n, 2, &p->boulder.roughness);
+        return;
+    }
+    if (strcmp(key, "flatness") == 0) {
+        if (b->seen & BOULDER_FLATNESS) { sd_err(p, "duplicate key", key); return; }
+        b->seen |= BOULDER_FLATNESS;
+        (void)sd_val_double(p, t, n, 2, &p->boulder.flatness);
+        return;
+    }
+    if (strcmp(key, "seed") == 0) {
+        if (b->seen & BOULDER_SEED) { sd_err(p, "duplicate key", key); return; }
+        b->seen |= BOULDER_SEED;
+        (void)sd_val_uint(p, t, n, 2, &p->boulder.seed);
+        return;
+    }
+    if (strcmp(key, "material") == 0) {
+        const char *name = NULL;
+        if (b->seen & BOULDER_MATERIAL) { sd_err(p, "duplicate key", key); return; }
+        b->seen |= BOULDER_MATERIAL;
+        if (sd_val_name(p, t, n, 2, &name) < 0) return;
+        if (n != 3) { sd_err(p, "unexpected token after value", t[3].text); return; }
+        snprintf(p->boulder_mat_name, sizeof p->boulder_mat_name, "%s", name);
+        p->boulder_mat_line = p->line;
+        return;
+    }
+    sd_warn_unknown_key(p, key);
+}
+
+static void sd_close_boulder(Parser *p, SceneDesc *d, const Block *b)
+{
+    if (!(b->seen & BOULDER_POSITION)) {
+        sd_err_at(p, b->line, "missing required key", "position");
+        return;
+    }
+    p->boulder.material_name = (b->seen & BOULDER_MATERIAL) ? p->boulder_mat_name : NULL;
+    if (scene_desc_add_boulder(d, &p->boulder) < 0) {
+        sd_err(p, "out of memory", b->kw);
+        return;
+    }
+    if (sd_push_boulder_line(p, p->boulder_mat_line) != 0) {
+        sd_err(p, "out of memory", b->kw);
+        return;
+    }
+}
+
+static void sd_light_begin(Parser *p)
+{
+    memset(&p->light, 0, sizeof p->light);
+    p->light.color = vec3(1.0, 1.0, 1.0);
+    p->light.intensity = 20.0;
+    p->light.radius = 0.10;
+}
+
+static void sd_apply_light_key(Parser *p, Block *b, const Token *t, int n)
+{
+    const char *key = t[0].text;
+    if (strcmp(key, "position") == 0 || strcmp(key, "center") == 0) {
+        if (b->seen & LIGHT_POSITION) { sd_err(p, "duplicate key", key); return; }
+        b->seen |= LIGHT_POSITION;
+        (void)sd_val_vec3(p, t, n, 2, &p->light.position);
+        return;
+    }
+    if (strcmp(key, "color") == 0 || strcmp(key, "radiance") == 0 || strcmp(key, "emissive") == 0) {
+        if (b->seen & LIGHT_COLOR) { sd_err(p, "duplicate key", key); return; }
+        b->seen |= LIGHT_COLOR;
+        (void)sd_val_vec3(p, t, n, 2, &p->light.color);
+        return;
+    }
+    if (strcmp(key, "intensity") == 0) {
+        if (b->seen & LIGHT_INTENSITY) { sd_err(p, "duplicate key", key); return; }
+        b->seen |= LIGHT_INTENSITY;
+        (void)sd_val_double(p, t, n, 2, &p->light.intensity);
+        return;
+    }
+    if (strcmp(key, "radius") == 0) {
+        if (b->seen & LIGHT_RADIUS) { sd_err(p, "duplicate key", key); return; }
+        b->seen |= LIGHT_RADIUS;
+        (void)sd_val_double(p, t, n, 2, &p->light.radius);
+        return;
+    }
+    sd_warn_unknown_key(p, key);
+}
+
+static void sd_close_light(Parser *p, SceneDesc *d, const Block *b)
+{
+    if (!(b->seen & LIGHT_POSITION)) {
+        sd_err_at(p, b->line, "missing required key", "position");
+        return;
+    }
+    if (scene_desc_add_light(d, &p->light) < 0) {
+        sd_err(p, "out of memory", b->kw);
+        return;
+    }
+}
+
 /* Dispatch the close of one block to its type-specific finisher. */
 static void sd_close_block(Parser *p, SceneDesc *d, const Block *b)
 {
@@ -1592,6 +1961,8 @@ static void sd_close_block(Parser *p, SceneDesc *d, const Block *b)
     case BLK_MATERIAL: sd_close_material(p, d, b); break;
     case BLK_PRIM:     sd_close_prim(p, d, b);     break;
     case BLK_PLANT:    sd_close_plant(p, d, b);    break;
+    case BLK_BOULDER:  sd_close_boulder(p, d, b);  break;
+    case BLK_LIGHT:    sd_close_light(p, d, b);    break;
     default:           break; /* camera / sky need no close action */
     }
 }
@@ -1620,6 +1991,23 @@ static int sd_is_prim_keyword(const char *k)
     return strcmp(k, "sphere") == 0 || strcmp(k, "plane") == 0 ||
            strcmp(k, "box") == 0 || strcmp(k, "triangle") == 0 ||
            strcmp(k, "cylinder") == 0;
+}
+
+static int sd_is_csg_keyword(const char *k, CsgOp *out_op)
+{
+    if (strcmp(k, "csg_union") == 0) {
+        if (out_op) *out_op = CSG_UNION;
+        return 1;
+    }
+    if (strcmp(k, "csg_intersection") == 0) {
+        if (out_op) *out_op = CSG_INTERSECTION;
+        return 1;
+    }
+    if (strcmp(k, "csg_difference") == 0) {
+        if (out_op) *out_op = CSG_DIFFERENCE;
+        return 1;
+    }
+    return 0;
 }
 
 /* Top-level `water_* = value` statement (§4.11). */
@@ -1690,7 +2078,8 @@ static void sd_open_block(Parser *p, SceneDesc *d, const Token *t, int n, Block 
         sd_begin_block(b, BLK_MATERIAL, p->line, kw);
         return;
     }
-    if (strcmp(kw, "tree") == 0 || strcmp(kw, "bush") == 0) {
+    if (strcmp(kw, "tree") == 0 || strcmp(kw, "bush") == 0 ||
+        strcmp(kw, "conifer") == 0 || strcmp(kw, "spruce") == 0 || strcmp(kw, "pine") == 0) {
         if (n != 2 || t[1].kind != TOK_LBRACE) {
             sd_err(p, "malformed block header, expected `keyword {`", kw);
             return;
@@ -1718,6 +2107,37 @@ static void sd_open_block(Parser *p, SceneDesc *d, const Token *t, int n, Block 
             sd_prim_begin(p);
             sd_begin_block(b, BLK_PRIM, p->line, kw);
         }
+        return;
+    }
+    if (strcmp(kw, "boulder") == 0 || strcmp(kw, "rock") == 0) {
+        if (n != 2 || t[1].kind != TOK_LBRACE) {
+            sd_err(p, "malformed block header, expected `keyword {`", kw);
+            return;
+        }
+        sd_boulder_begin(p);
+        sd_begin_block(b, BLK_BOULDER, p->line, kw);
+        return;
+    }
+    if (strcmp(kw, "light") == 0 || strcmp(kw, "point_light") == 0) {
+        if (n != 2 || t[1].kind != TOK_LBRACE) {
+            sd_err(p, "malformed block header, expected `keyword {`", kw);
+            return;
+        }
+        sd_light_begin(p);
+        sd_begin_block(b, BLK_LIGHT, p->line, kw);
+        return;
+    }
+    CsgOp csg_op;
+    if (sd_is_csg_keyword(kw, &csg_op)) {
+        if (n != 2 || t[1].kind != TOK_LBRACE) {
+            sd_err(p, "malformed block header, expected `keyword {`", kw);
+            return;
+        }
+        sd_begin_block(b, BLK_CSG, p->line, kw);
+        b->csg_op = csg_op;
+        b->csg_mat_name[0] = '\0';
+        b->csg_mat_line = 0;
+        b->csg_child_count = 0;
         return;
     }
     sd_err(p, "unknown block keyword", kw);
@@ -1779,31 +2199,117 @@ static void sd_handle_body(Parser *p, SceneDesc *d, const Token *t, int n, Block
     case BLK_PLANT:
         sd_apply_plant_key(p, b, t, n);
         break;
+    case BLK_BOULDER:
+        sd_apply_boulder_key(p, b, t, n);
+        break;
+    case BLK_LIGHT:
+        sd_apply_light_key(p, b, t, n);
+        break;
+    case BLK_CSG:
+        sd_apply_csg_key(p, b, t, n);
+        break;
     default:
         sd_err(p, "key outside a block", t[0].text);
         break;
     }
 }
 
-static void sd_handle_line(Parser *p, SceneDesc *d, const Token *t, int n, Block *b)
+#define SD_MAX_BLOCK_DEPTH 16
+
+static void sd_open_csg_child(Parser *p, const Token *t, int n, Block *stack, int *depth)
+{
+    const char *kw = t[0].text;
+    CsgOp child_op;
+
+    if (n != 2 || t[1].kind != TOK_LBRACE) {
+        sd_err(p, "malformed block header, expected `keyword {`", kw);
+        return;
+    }
+
+    if (sd_is_csg_keyword(kw, &child_op)) {
+        Block *child_b = &stack[*depth];
+        sd_begin_block(child_b, BLK_CSG, p->line, kw);
+        child_b->csg_op = child_op;
+        child_b->csg_mat_name[0] = '\0';
+        child_b->csg_mat_line = 0;
+        child_b->csg_child_count = 0;
+        (*depth)++;
+    } else if (sd_is_prim_keyword(kw)) {
+        sd_prim_begin(p);
+        Block *child_b = &stack[*depth];
+        sd_begin_block(child_b, BLK_PRIM, p->line, kw);
+        (*depth)++;
+    } else {
+        sd_err(p, "expected primitive or CSG block inside CSG", kw);
+    }
+}
+
+static void sd_handle_top_stack(Parser *p, SceneDesc *d, const Token *t, int n,
+                                Block *stack, int *depth)
+{
+    if (t[0].kind != TOK_IDENT) {
+        sd_err(p, "unexpected token", t[0].text);
+        return;
+    }
+    if (sd_is_global_key(t[0].text)) {
+        sd_handle_global(p, d, t, n);
+        return;
+    }
+    if (n >= 2 && t[1].kind == TOK_EQUAL) {
+        sd_err(p, "key outside a block", t[0].text);
+        return;
+    }
+    Block *b = &stack[*depth];
+    sd_open_block(p, d, t, n, b);
+    if (b->kind != BLK_NONE) {
+        (*depth)++;
+    }
+}
+
+static void sd_handle_line_stack(Parser *p, SceneDesc *d, const Token *t, int n,
+                                 Block *stack, int *depth)
 {
     if (t[0].kind == TOK_RBRACE) {
         if (n > 1) {
             sd_err(p, "unexpected token after '}'", t[1].text);
             return;
         }
-        if (b->kind == BLK_NONE) {
+        if (*depth <= 0) {
             sd_err(p, "unexpected '}'", "}");
             return;
         }
-        sd_close_block(p, d, b);
-        b->kind = BLK_NONE;
+        Block *top = &stack[*depth - 1];
+        Block *parent = (*depth > 1) ? &stack[*depth - 2] : NULL;
+
+        if (top->kind == BLK_CSG) {
+            sd_close_csg(p, d, top, parent);
+        } else if (top->kind == BLK_PRIM && parent != NULL && parent->kind == BLK_CSG) {
+            sd_close_prim_csg_child(p, top, parent);
+        } else {
+            sd_close_block(p, d, top);
+        }
+        top->kind = BLK_NONE;
+        (*depth)--;
         return;
     }
-    if (b->kind == BLK_NONE)
-        sd_handle_top(p, d, t, n, b);
-    else
-        sd_handle_body(p, d, t, n, b);
+
+    if (*depth == 0) {
+        sd_handle_top_stack(p, d, t, n, stack, depth);
+    } else {
+        Block *curr = &stack[*depth - 1];
+        if (curr->kind == BLK_CSG) {
+            CsgOp child_op;
+            if (sd_is_prim_keyword(t[0].text) || sd_is_csg_keyword(t[0].text, &child_op)) {
+                if (*depth >= SD_MAX_BLOCK_DEPTH) {
+                    sd_err(p, "block nesting too deep", t[0].text);
+                    return;
+                }
+                sd_open_csg_child(p, t, n, stack, depth);
+                return;
+            }
+        }
+        sd_handle_body(p, d, t, n, curr);
+    }
 }
 
 /* ------------------------------------------------------------------ */
@@ -1816,20 +2322,29 @@ static void sd_handle_line(Parser *p, SceneDesc *d, const Token *t, int n, Block
  * primitive naming a material declared further down the file) work. An
  * unknown name is a hard error reported at the line of the reference (§5.3).
  */
+static void sd_resolve_one_prim(Parser *p, SceneDesc *d, ScenePrimDesc *prim, int ref_line)
+{
+    if (prim->material_name != NULL) {
+        int idx = sd_find_material(d, prim->material_name);
+        if (idx < 0) {
+            sd_err_at(p, ref_line,
+                      "unknown material reference", prim->material_name);
+            return;
+        }
+        prim->material_index = idx;
+    }
+    if (prim->left != NULL)
+        sd_resolve_one_prim(p, d, prim->left, ref_line);
+    if (prim->right != NULL)
+        sd_resolve_one_prim(p, d, prim->right, ref_line);
+}
+
 static void sd_resolve_prims(Parser *p, SceneDesc *d)
 {
     int i;
 
     for (i = 0; i < d->prim_count && !p->failed; i++) {
-        const char *name = d->prims[i].material_name;
-        int         idx = sd_find_material(d, name);
-
-        if (idx < 0) {
-            sd_err_at(p, p->ref_lines[i],
-                      "unknown material reference", name);
-            return;
-        }
-        d->prims[i].material_index = idx;
+        sd_resolve_one_prim(p, d, &d->prims[i], p->ref_lines[i]);
     }
 }
 
@@ -1865,6 +2380,26 @@ static void sd_resolve_plants(Parser *p, SceneDesc *d)
                 return;
             }
             pl->material_leaf_index = idx;
+        }
+    }
+}
+
+static void sd_resolve_boulders(Parser *p, SceneDesc *d)
+{
+    int i;
+
+    for (i = 0; i < d->boulder_count && !p->failed; i++) {
+        SceneBoulderDesc *bd = &d->boulders[i];
+        if (bd->material_name != NULL) {
+            int idx = sd_find_material(d, bd->material_name);
+            if (idx < 0) {
+                sd_err_at(p, p->boulder_lines[i], "unknown material reference",
+                          bd->material_name);
+                return;
+            }
+            bd->material_index = idx;
+        } else {
+            bd->material_index = SCENE_DESC_NO_MATERIAL;
         }
     }
 }
@@ -1932,14 +2467,19 @@ static void sd_apply_defaults(SceneDesc *d)
 
 /* Walk the NUL-terminated buffer one physical line at a time. */
 static void sd_parse_lines(Parser *p, SceneDesc *d, char *buf)
-{    Block  b;
-    Token  toks[SD_MAX_TOKENS];
-    char  *line = buf;
+{
+    Block stack[SD_MAX_BLOCK_DEPTH];
+    int   depth = 0;
+    Token toks[SD_MAX_TOKENS];
+    char *line = buf;
 
-    b.kind = BLK_NONE;
-    b.line = 0;
-    b.seen = 0;
-    b.kw[0] = '\0';
+    for (int i = 0; i < SD_MAX_BLOCK_DEPTH; ++i) {
+        stack[i].kind = BLK_NONE;
+        stack[i].line = 0;
+        stack[i].seen = 0;
+        stack[i].kw[0] = '\0';
+        stack[i].csg_child_count = 0;
+    }
 
     while (line != NULL && !p->failed) {
         char  *nl = strchr(line, '\n');
@@ -1966,13 +2506,13 @@ static void sd_parse_lines(Parser *p, SceneDesc *d, char *buf)
         if (nt < 0)
             return;
         if (nt > 0)
-            sd_handle_line(p, d, toks, nt, &b);
+            sd_handle_line_stack(p, d, toks, nt, stack, &depth);
 
         line = next;
     }
 
-    if (!p->failed && b.kind != BLK_NONE)
-        sd_err_at(p, b.line, "unterminated block", b.kw);
+    if (!p->failed && depth > 0)
+        sd_err_at(p, stack[depth - 1].line, "unterminated block", stack[depth - 1].kw);
 }
 
 /* Read the whole file into a dynamically grown, NUL-terminated buffer. */
@@ -2076,7 +2616,7 @@ void scene_desc_free(SceneDesc *d)
 
     if (d->prims != NULL) {
         for (i = 0; i < d->prim_count; i++)
-            free(d->prims[i].material_name);
+            scene_prim_desc_destroy(&d->prims[i]);
         free(d->prims);
     }
 
@@ -2086,6 +2626,16 @@ void scene_desc_free(SceneDesc *d)
             free(d->plants[i].material_leaf);
         }
         free(d->plants);
+    }
+
+    if (d->boulders != NULL) {
+        for (i = 0; i < d->boulder_count; i++)
+            free(d->boulders[i].material_name);
+        free(d->boulders);
+    }
+
+    if (d->lights != NULL) {
+        free(d->lights);
     }
 
     scene_desc_init(d);
@@ -2122,8 +2672,13 @@ static int sd_run_parser(SceneDesc *d, char *buf, size_t len,
     p.plant_lines = NULL;
     p.plant_line_count = 0;
     p.plant_line_cap = 0;
+    p.boulder_lines = NULL;
+    p.boulder_line_count = 0;
+    p.boulder_line_cap = 0;
     sd_prim_begin(&p);
     sd_plant_begin(&p);
+    sd_boulder_begin(&p);
+    sd_light_begin(&p);
 
     if (len > 0) {
         char *start = buf;
@@ -2140,10 +2695,13 @@ static int sd_run_parser(SceneDesc *d, char *buf, size_t len,
     if (!p.failed)
         sd_resolve_plants(&p, d);
     if (!p.failed)
+        sd_resolve_boulders(&p, d);
+    if (!p.failed)
         sd_resolve_water(&p, d);
 
     free(p.ref_lines);
     free(p.plant_lines);
+    free(p.boulder_lines);
 
     if (p.failed) {
         scene_desc_free(d); /* *d stays safe (and idempotently freeable) */
@@ -2271,6 +2829,8 @@ int scene_desc_add_prim(SceneDesc *d, const ScenePrimDesc *prim)
     *slot = *prim;
     slot->material_name = name;
     slot->material_index = SCENE_DESC_NO_MATERIAL;
+    slot->left = scene_prim_desc_clone(prim->left);
+    slot->right = scene_prim_desc_clone(prim->right);
 
     return d->prim_count++;
 }
@@ -2304,4 +2864,43 @@ int scene_desc_add_plant(SceneDesc *d, const ScenePlantDesc *plant)
     slot->material_leaf_index = SCENE_DESC_NO_MATERIAL;
 
     return d->plant_count++;
+}
+
+int scene_desc_add_boulder(SceneDesc *d, const SceneBoulderDesc *boulder)
+{
+    SceneBoulderDesc *slot;
+    char             *mat;
+
+    if (d == NULL || boulder == NULL)
+        return -1;
+    if (sd_grow((void **)&d->boulders, &d->boulder_capacity,
+                d->boulder_count, sizeof(*d->boulders)) != 0)
+        return -1;
+
+    mat = sd_strdup(boulder->material_name);
+    if (boulder->material_name != NULL && mat == NULL)
+        return -1;
+
+    slot = &d->boulders[d->boulder_count];
+    *slot = *boulder;
+    slot->material_name = mat;
+    slot->material_index = SCENE_DESC_NO_MATERIAL;
+
+    return d->boulder_count++;
+}
+
+int scene_desc_add_light(SceneDesc *d, const SceneLightDesc *light)
+{
+    SceneLightDesc *slot;
+
+    if (d == NULL || light == NULL)
+        return -1;
+    if (sd_grow((void **)&d->lights, &d->light_capacity,
+                d->light_count, sizeof(*d->lights)) != 0)
+        return -1;
+
+    slot = &d->lights[d->light_count];
+    *slot = *light;
+
+    return d->light_count++;
 }

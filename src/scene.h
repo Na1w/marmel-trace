@@ -132,6 +132,16 @@ void scene_free(Scene *s);
  */
 int scene_intersect(const Scene *s, Ray r, double tmin, double tmax, Hit *out);
 
+/*
+ * Any-hit occlusion query for shadow rays. Returns 1 if any primitive blocks
+ * the ray within [tmin, tmax], 0 otherwise. Uses an internal thread-local
+ * shadow cache for instant early termination on coherent shadow rays.
+ */
+int scene_occluded(const Scene *s, Ray r, double tmin, double tmax);
+
+/* Any-hit occlusion query with caller-supplied shadow cache pointer. */
+int scene_occluded_cached(const Scene *s, Ray r, double tmin, double tmax, int *cache_prim);
+
 /* Material lookup by index; returns NULL if out of range (or s is NULL). */
 const Material *scene_material(const Scene *s, int index);
 

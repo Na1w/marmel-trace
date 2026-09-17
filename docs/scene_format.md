@@ -517,6 +517,8 @@ Grows a full tree using the same recursive routine as `grow_tree()` in
 | `third_child_chance` | f64 | probability | `[0, 1]` | `0.25` (`SCENE_THIRD_CHILD_CHANCE`) | O |
 | `leaf_min` | int | spheres/tip | `>= 1` | `15` (`SCENE_LEAF_MIN`) | O |
 | `leaf_span` | int | spheres/tip | `>= 0` | `5` (`SCENE_LEAF_SPAN`) | O |
+| `foliage` | ident | — | `spheres`, `leaves`, `needles` | `spheres` (legacy) | O |
+| `type` | ident | — | `deciduous`, `conifer` (`spruce`), `bush` | `deciduous` | O |
 
 **`radius` also selects recursion depth**, exactly as documented in `scene.c`:
 the recursion stops when a branch tip radius drops below `min_branch_radius`
@@ -528,8 +530,12 @@ tree.
 the procedural constants of `grow_tree()` / `add_leaf_cluster()` in
 `src/scene.c`. Each is a per-plant override:
 
+* `type` — `deciduous` (branching crown), `conifer` / `spruce` (tiered whorls of
+  horizontal drooping branches and central tapered trunk), or `bush`.
+* `foliage` — `spheres` (legacy sphere clusters), `leaves` (3D folded diamond
+  triangles with crease), or `needles` (dense conifer needle fronds).
 * `max_depth` — maximum branch recursion depth (levels); a terminal tip at the
-  limit gets a leaf cluster.
+  limit gets foliage.
 * `min_branch_radius` — a branch whose tip radius falls below this also becomes
   terminal (secondary depth control, combined with `radius`/`taper`).
 * `taper` — child-segment top radius = `taper * bottom radius`.
@@ -539,12 +545,15 @@ the procedural constants of `grow_tree()` / `add_leaf_cluster()` in
 * `up_bias` — upward pull added to each child direction (anti-droop).
 * `third_child_chance` — probability a node forks three ways (else two).
 * `leaf_min` / `leaf_span` — a terminal tip gets
-  `leaf_min .. leaf_min + leaf_span - 1` leaf spheres.
+  `leaf_min .. leaf_min + leaf_span - 1` leaf elements.
+
+**`spruce` / `conifer` block headers.** Blocks can also be introduced directly
+with `spruce { ... }` or `conifer { ... }`, which default `type = conifer` and
+`foliage = needles`.
 
 When a key is omitted the legacy `SCENE_*` constant is used, so a scene with
 none of these keys generates byte-identical geometry to the pre-parameterised
-generator. The hard cap `SCENE_MAX_SEGMENTS` (4096) is a safety limit and stays
-in source (not file-controllable).
+generator.
 
 ### 4.10 `bush` — repeatable procedural block
 
