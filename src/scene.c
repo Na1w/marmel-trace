@@ -439,8 +439,56 @@ static const char *const scene_mat_names[MAT_COUNT] = {
  * Translate one explicit ScenePrimDesc into a Primitive via the existing
  * geometry constructors, preserving the exact field layout.
  */
-static Primitive scene_prim_from_desc(const ScenePrimDesc *pd, int mat)
+static void populate_sdf_displaces(SdfData *sdf, const SceneDesc *d, const ScenePrimDesc *pd)
 {
+    sdf->displace_count = 0;
+    for (int k = 0; k < pd->displace_count; k++) {
+        int di = pd->displace_indices[k];
+        if (di >= 0 && di < d->displace_count && sdf->displace_count < SDF_MAX_DISPLACEMENTS) {
+            sdf->displaces[sdf->displace_count++] = d->displaces[di].displace;
+        }
+    }
+    if (sdf->displace_count > 0) {
+        sdf->displace = sdf->displaces[0];
+    } else if (pd->displace_index >= 0 && pd->displace_index < d->displace_count) {
+        sdf->displaces[0] = d->displaces[pd->displace_index].displace;
+        sdf->displace_count = 1;
+        sdf->displace = sdf->displaces[0];
+    }
+}
+
+static Primitive scene_prim_from_desc(const SceneDesc *d, const ScenePrimDesc *pd, int mat)
+{
+    if (pd->kind == PRIM_SDF_SHAPE) {
+        SdfData sdf = pd->sdf;
+        populate_sdf_displaces(&sdf, d, pd);
+        return prim_sdf(sdf, mat);
+    }
+    if (pd->displace_count > 0 || (pd->displace_index >= 0 && pd->displace_index < d->displace_count)) {
+        /* Primitive has displacement modifier(s) applied: convert to PRIM_SDF_SHAPE */
+        SdfData sdf;
+        memset(&sdf, 0, sizeof(sdf));
+        sdf.op = SDF_OP_NONE;
+        populate_sdf_displaces(&sdf, d, pd);
+        if (pd->kind == PRIM_BOX) {
+            sdf.shape_a = SDF_SHAPE_BOX;
+            sdf.center_a = pd->center;
+            sdf.param1_a = pd->half;
+            return prim_sdf(sdf, mat);
+        } else if (pd->kind == PRIM_SPHERE) {
+            sdf.shape_a = SDF_SHAPE_SPHERE;
+            sdf.center_a = pd->center;
+            sdf.param2_a = pd->radius;
+            return prim_sdf(sdf, mat);
+        } else if (pd->kind == PRIM_CYLINDER) {
+            sdf.shape_a = SDF_SHAPE_CYLINDER;
+            sdf.center_a = vec3_scale(vec3_add(pd->base, pd->top), 0.5);
+            double h = vec3_length(vec3_sub(pd->top, pd->base));
+            sdf.param1_a = vec3(0.0, h * 0.5, 0.0);
+            sdf.param2_a = pd->radius;
+            return prim_sdf(sdf, mat);
+        }
+    }
     switch (pd->kind) {
     case PRIM_SPHERE:
         return prim_sphere(pd->center, pd->radius, mat);
@@ -452,6 +500,8 @@ static Primitive scene_prim_from_desc(const ScenePrimDesc *pd, int mat)
         return prim_triangle(pd->a, pd->b, pd->c, mat);
     case PRIM_CYLINDER:
         return prim_cylinder(pd->base, pd->top, pd->radius, pd->radius2, mat);
+    case PRIM_SDF_SHAPE:
+        return prim_sdf(pd->sdf, mat);
     }
     /* Unreachable for a well-formed PrimKind; default to a degenerate
      * plane so the caller never sees an uninitialised Primitive. */
@@ -647,7 +697,7 @@ int scene_build_from_desc(Scene *s, const SceneDesc *d)
     for (i = 0; i < d->prim_count; ++i) {
         const ScenePrimDesc *pd = &d->prims[i];
         int mat = (pd->material_index >= 0) ? pd->material_index : MAT_GROUND;
-        if (geometry_add(&s->geo, scene_prim_from_desc(pd, mat)) < 0) {
+        if (geometry_add(&s->geo, scene_prim_from_desc(d, pd, mat)) < 0) {
             goto fail;
         }
     }

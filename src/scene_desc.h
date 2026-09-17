@@ -135,9 +135,23 @@ typedef struct {
     Vec3     base, top;       /* cylinder base / top centers               */
     double   radius;          /* sphere radius / cylinder r_bottom         */
     double   radius2;         /* cylinder r_top                            */
+#define SCENE_MAX_PRIM_DISPLACES 8
+
     char    *material_name;   /* owned referenced name, may be NULL        */
     int      material_index;  /* resolved index, or SCENE_DESC_NO_MATERIAL */
+    char    *displace_name;   /* owned referenced displacement, or NULL    */
+    int      displace_index;  /* resolved displace index, or -1            */
+    char    *displace_names[SCENE_MAX_PRIM_DISPLACES];
+    int      displace_indices[SCENE_MAX_PRIM_DISPLACES];
+    int      displace_count;
+    SdfData  sdf;             /* populated for PRIM_SDF_SHAPE              */
 } ScenePrimDesc;
+
+/* Named displacement modifier (docs/scene_format.md) */
+typedef struct {
+    char            *name;          /* owned */
+    DisplaceModifier displace;      /* reused DisplaceModifier from sdf.h */
+} SceneDisplaceDesc;
 
 /* ------------------------------------------------------------------ */
 /* Procedural plant directive (docs/scene_format.md §4.9 - §4.10)      */
@@ -240,6 +254,10 @@ typedef struct {
     int              material_count;
     int              material_capacity;
 
+    SceneDisplaceDesc *displaces;   /* owned dynamic array                 */
+    int                displace_count;
+    int                displace_capacity;
+
     ScenePrimDesc   *prims;         /* owned dynamic array                 */
     int              prim_count;
     int              prim_capacity;
@@ -311,6 +329,7 @@ int scene_desc_write(const SceneDesc *d, const char *path, char *errbuf, size_t 
  * SCENE_DESC_NO_MATERIAL; scene_desc_load()'s resolution pass fills them in.
  */
 int scene_desc_add_material(SceneDesc *d, const char *name, const Material *mat);
+int scene_desc_add_displace(SceneDesc *d, const SceneDisplaceDesc *disp);
 int scene_desc_add_prim(SceneDesc *d, const ScenePrimDesc *prim);
 int scene_desc_add_plant(SceneDesc *d, const ScenePlantDesc *plant);
 

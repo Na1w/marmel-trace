@@ -153,6 +153,13 @@ Primitive prim_cylinder(Vec3 base, Vec3 top, double r_bottom, double r_top,
     return p;
 }
 
+Primitive prim_sdf(SdfData sdf, int material_index)
+{
+    Primitive p = prim_zero(PRIM_SDF_SHAPE, material_index);
+    p.sdf = sdf;
+    return p;
+}
+
 /* ------------------------------------------------------------------ */
 /* Individual intersection routines                                    */
 /* ------------------------------------------------------------------ */
@@ -605,12 +612,21 @@ int primitive_intersect_norm(const Primitive *p, Ray r, double tmin, double tmax
     if (!p || !out) return 0;
 
     switch (p->kind) {
-    case PRIM_SPHERE:   return intersect_sphere(p, r, tmin, tmax, out);
-    case PRIM_PLANE:    return intersect_plane(p, r, tmin, tmax, out);
-    case PRIM_BOX:      return intersect_box(p, r, tmin, tmax, out);
-    case PRIM_TRIANGLE: return intersect_triangle(p, r, tmin, tmax, out);
-    case PRIM_CYLINDER: return intersect_cylinder(p, r, tmin, tmax, out);
-    default:            return 0;
+    case PRIM_SPHERE:    return intersect_sphere(p, r, tmin, tmax, out);
+    case PRIM_PLANE:     return intersect_plane(p, r, tmin, tmax, out);
+    case PRIM_BOX:       return intersect_box(p, r, tmin, tmax, out);
+    case PRIM_TRIANGLE:  return intersect_triangle(p, r, tmin, tmax, out);
+    case PRIM_CYLINDER:  return intersect_cylinder(p, r, tmin, tmax, out);
+    case PRIM_SDF_SHAPE: {
+        double hit_t;
+        Vec3 hit_pt, hit_norm;
+        if (sdf_intersect(&p->sdf, r, tmin, tmax, &hit_t, &hit_pt, &hit_norm)) {
+            geo_store_hit(out, hit_t, hit_pt, hit_norm, r, p->material_index);
+            return 1;
+        }
+        return 0;
+    }
+    default:             return 0;
     }
 }
 
@@ -619,12 +635,13 @@ int primitive_occluded_norm(const Primitive *p, Ray r, double tmin, double tmax)
     if (!p) return 0;
 
     switch (p->kind) {
-    case PRIM_SPHERE:   return occlude_sphere(p, r, tmin, tmax);
-    case PRIM_PLANE:    return occlude_plane(p, r, tmin, tmax);
-    case PRIM_BOX:      return occlude_box(p, r, tmin, tmax);
-    case PRIM_TRIANGLE: return occlude_triangle(p, r, tmin, tmax);
-    case PRIM_CYLINDER: return occlude_cylinder(p, r, tmin, tmax);
-    default:            return 0;
+    case PRIM_SPHERE:    return occlude_sphere(p, r, tmin, tmax);
+    case PRIM_PLANE:     return occlude_plane(p, r, tmin, tmax);
+    case PRIM_BOX:       return occlude_box(p, r, tmin, tmax);
+    case PRIM_TRIANGLE:  return occlude_triangle(p, r, tmin, tmax);
+    case PRIM_CYLINDER:  return occlude_cylinder(p, r, tmin, tmax);
+    case PRIM_SDF_SHAPE: return sdf_occluded(&p->sdf, r, tmin, tmax);
+    default:             return 0;
     }
 }
 
@@ -721,7 +738,8 @@ void primitive_bounds(const Primitive *p, Vec3 *out_min, Vec3 *out_max)
     case PRIM_PLANE:    bounds_plane(p, out_min, out_max);    break;
     case PRIM_BOX:      bounds_box(p, out_min, out_max);      break;
     case PRIM_TRIANGLE: bounds_triangle(p, out_min, out_max); break;
-    case PRIM_CYLINDER: bounds_cylinder(p, out_min, out_max); break;
+    case PRIM_CYLINDER:  bounds_cylinder(p, out_min, out_max); break;
+    case PRIM_SDF_SHAPE: sdf_bounds(&p->sdf, out_min, out_max);     break;
     default:
         *out_min = vec3(0.0, 0.0, 0.0);
         *out_max = vec3(0.0, 0.0, 0.0);

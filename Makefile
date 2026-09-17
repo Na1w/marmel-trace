@@ -34,7 +34,7 @@ LDFLAGS   ?= -flto
 LDFLAGS   += $(THREAD_LDFLAGS)
 LDLIBS    += -lm            # MUST come AFTER objects on the link line
 
-SRCS = src/vec3.c src/camera.c src/bmp.c src/noise.c src/geometry.c src/bvh.c src/material.c src/texture.c src/sampling.c src/pathtrace.c src/scene.c src/scene_desc.c src/scene_desc_write.c src/render.c
+SRCS = src/vec3.c src/camera.c src/bmp.c src/noise.c src/sdf.c src/geometry.c src/bvh.c src/material.c src/texture.c src/sampling.c src/pathtrace.c src/curve.c src/scene.c src/scene_desc.c src/scene_desc_write.c src/render.c
 OBJS = $(SRCS:.c=.o) src/main.o
 BIN  = raytracer
 

@@ -159,6 +159,17 @@ typedef struct {
     int          *plant_lines;          /* 2 lines (bark, leaf) per plant      */
     int           plant_line_count;     /* number of recorded ints             */
     int           plant_line_cap;       /* capacity of `plant_lines`           */
+    /* state for displace and csg blocks */
+    char          prim_displace_names[SCENE_MAX_PRIM_DISPLACES][SD_TOK_TEXT];
+    int           prim_displace_count;
+    char          displace_name[SD_TOK_TEXT];
+    SceneDisplaceDesc cur_displace;
+    ScenePrimDesc cur_csg;
+    char          csg_mat_name[SD_TOK_TEXT];
+    char          csg_displace_names[SCENE_MAX_PRIM_DISPLACES][SD_TOK_TEXT];
+    int           csg_displace_count;
+    double        csg_height_a;
+    double        csg_height_b;
 } Parser;
 
 /* FILE:LINE: error: MSG (near 'TOKEN')  — the one true error form (§6). */
@@ -381,7 +392,9 @@ typedef enum {
     BLK_SKY,
     BLK_MATERIAL,
     BLK_PRIM,
-    BLK_PLANT
+    BLK_PLANT,
+    BLK_DISPLACE,
+    BLK_CSG
 } BlockKind;
 
 typedef struct {
@@ -859,6 +872,7 @@ static void sd_prim_begin(Parser *p)
     memset(&p->prim, 0, sizeof p->prim);
     p->prim_mat_name[0] = '\0';
     p->prim_mat_line = p->line;
+    p->prim_displace_count = 0;
 }
 
 /* ------------------------------------------------------------------ */
@@ -1345,6 +1359,21 @@ static void sd_apply_prim_key(Parser *p, const PrimSpec *sp, Block *b,
         p->prim_mat_line = p->line;
         return;
     }
+    if (strcmp(key, "displace") == 0) {
+        for (int arg = 2; arg < n; arg++) {
+            const char *name = NULL;
+            if (sd_val_name(p, t, n, arg, &name) < 0)
+                return;
+            if (p->prim_displace_count < SCENE_MAX_PRIM_DISPLACES) {
+                snprintf(p->prim_displace_names[p->prim_displace_count++],
+                         sizeof(p->prim_displace_names[0]), "%s", name);
+            } else {
+                sd_err(p, "too many displacement modifiers on primitive", name);
+                return;
+            }
+        }
+        return;
+    }
     for (s = 0; s < sp->nkeys; s++) {
         if (strcmp(key, sp->keys[s].key) != 0)
             continue;
@@ -1399,6 +1428,11 @@ static void sd_close_prim(Parser *p, SceneDesc *d, const Block *b)
     }
     p->prim.kind = sp->kind;
     p->prim.material_name = p->prim_mat_name; /* add_prim copies the name */
+    p->prim.displace_count = p->prim_displace_count;
+    for (int k = 0; k < p->prim_displace_count; k++) {
+        p->prim.displace_names[k] = p->prim_displace_names[k];
+    }
+    p->prim.displace_name = (p->prim_displace_count > 0) ? p->prim_displace_names[0] : NULL;
     idx = scene_desc_add_prim(d, &p->prim);
     if (idx < 0) {
         sd_err(p, "out of memory", b->kw);
@@ -1534,6 +1568,193 @@ static void sd_close_plant(Parser *p, SceneDesc *d, const Block *b)
         sd_err(p, "out of memory", b->kw);
 }
 
+/* --- Displace block helpers --- */
+static void sd_displace_begin(Parser *p, const char *name)
+{
+    memset(&p->cur_displace, 0, sizeof(p->cur_displace));
+    snprintf(p->displace_name, sizeof(p->displace_name), "%s", name);
+    p->cur_displace.name = p->displace_name;
+    p->cur_displace.displace.kind = DISPLACE_SINE;
+    p->cur_displace.displace.direction = vec3(1.0, 0.0, 0.0);
+    p->cur_displace.displace.axis = vec3(0.0, 1.0, 0.0);
+    p->cur_displace.displace.center = vec3(0.0, 0.0, 0.0);
+    p->cur_displace.displace.amplitude = 0.3;
+    p->cur_displace.displace.frequency = 1.0;
+    p->cur_displace.displace.phase = 0.0;
+    p->cur_displace.displace.radius = 1.0;
+    p->cur_displace.displace.strength = 0.5;
+    p->cur_displace.displace.seed = 1337;
+}
+
+static void sd_apply_displace_key(Parser *p, Block *b, const Token *t, int n)
+{
+    (void)b;
+    const char *key = t[0].text;
+
+    if (strcmp(key, "type") == 0) {
+        const char *name = NULL;
+        if (sd_val_name(p, t, n, 2, &name) < 0) return;
+        if (strcmp(name, "sine") == 0 || strcmp(name, "wave") == 0) {
+            p->cur_displace.displace.kind = DISPLACE_SINE;
+        } else if (strcmp(name, "noise") == 0) {
+            p->cur_displace.displace.kind = DISPLACE_NOISE;
+        } else if (strcmp(name, "twist") == 0) {
+            p->cur_displace.displace.kind = DISPLACE_TWIST;
+        } else if (strcmp(name, "repel") == 0) {
+            p->cur_displace.displace.kind = DISPLACE_REPEL;
+        } else {
+            sd_err(p, "unknown displacement type (expected sine, noise, twist, repel)", name);
+        }
+    } else if (strcmp(key, "direction") == 0) {
+        (void)sd_val_vec3(p, t, n, 2, &p->cur_displace.displace.direction);
+    } else if (strcmp(key, "axis") == 0) {
+        (void)sd_val_vec3(p, t, n, 2, &p->cur_displace.displace.axis);
+    } else if (strcmp(key, "center") == 0) {
+        (void)sd_val_vec3(p, t, n, 2, &p->cur_displace.displace.center);
+    } else if (strcmp(key, "amplitude") == 0) {
+        (void)sd_val_double(p, t, n, 2, &p->cur_displace.displace.amplitude);
+    } else if (strcmp(key, "frequency") == 0) {
+        (void)sd_val_double(p, t, n, 2, &p->cur_displace.displace.frequency);
+    } else if (strcmp(key, "phase") == 0) {
+        (void)sd_val_double(p, t, n, 2, &p->cur_displace.displace.phase);
+    } else if (strcmp(key, "radius") == 0) {
+        (void)sd_val_double(p, t, n, 2, &p->cur_displace.displace.radius);
+    } else if (strcmp(key, "strength") == 0) {
+        (void)sd_val_double(p, t, n, 2, &p->cur_displace.displace.strength);
+    } else if (strcmp(key, "seed") == 0) {
+        (void)sd_val_uint(p, t, n, 2, &p->cur_displace.displace.seed);
+    } else {
+        sd_warn_unknown_key(p, key);
+    }
+}
+
+static void sd_close_displace(Parser *p, SceneDesc *d, const Block *b)
+{
+    (void)b;
+    p->cur_displace.name = p->displace_name;
+    if (scene_desc_add_displace(d, &p->cur_displace) < 0) {
+        sd_err(p, "out of memory", "displace");
+    }
+}
+
+/* --- CSG block helpers --- */
+static void sd_csg_begin(Parser *p)
+{
+    memset(&p->cur_csg, 0, sizeof(p->cur_csg));
+    p->cur_csg.kind = PRIM_SDF_SHAPE;
+    p->cur_csg.sdf.op = SDF_OP_DIFFERENCE;
+    p->cur_csg.sdf.shape_a = SDF_SHAPE_BOX;
+    p->cur_csg.sdf.center_a = vec3(0.0, 0.0, 0.0);
+    p->cur_csg.sdf.param1_a = vec3(1.0, 1.0, 1.0);
+    p->cur_csg.sdf.shape_b = SDF_SHAPE_CYLINDER;
+    p->cur_csg.sdf.center_b = vec3(0.0, 0.0, 0.0);
+    p->cur_csg.sdf.param1_b = vec3(0.0, 1.5, 0.0);
+    p->cur_csg.sdf.param2_b = 0.5;
+    p->csg_mat_name[0] = '\0';
+    p->csg_displace_count = 0;
+    p->csg_height_a = 2.0;
+    p->csg_height_b = 3.0;
+}
+
+static void sd_apply_csg_key(Parser *p, Block *b, const Token *t, int n)
+{
+    (void)b;
+    const char *key = t[0].text;
+
+    if (strcmp(key, "operation") == 0) {
+        const char *name = NULL;
+        if (sd_val_name(p, t, n, 2, &name) < 0) return;
+        if (strcmp(name, "difference") == 0 || strcmp(name, "subtract") == 0) {
+            p->cur_csg.sdf.op = SDF_OP_DIFFERENCE;
+        } else if (strcmp(name, "union") == 0) {
+            p->cur_csg.sdf.op = SDF_OP_UNION;
+        } else if (strcmp(name, "intersection") == 0) {
+            p->cur_csg.sdf.op = SDF_OP_INTERSECTION;
+        } else {
+            sd_err(p, "unknown csg operation (expected difference, union, intersection)", name);
+        }
+    } else if (strcmp(key, "material") == 0) {
+        const char *name = NULL;
+        if (sd_val_name(p, t, n, 2, &name) < 0) return;
+        snprintf(p->csg_mat_name, sizeof p->csg_mat_name, "%s", name);
+    } else if (strcmp(key, "displace") == 0) {
+        for (int arg = 2; arg < n; arg++) {
+            const char *name = NULL;
+            if (sd_val_name(p, t, n, arg, &name) < 0) return;
+            if (p->csg_displace_count < SCENE_MAX_PRIM_DISPLACES) {
+                snprintf(p->csg_displace_names[p->csg_displace_count++],
+                         sizeof(p->csg_displace_names[0]), "%s", name);
+            } else {
+                sd_err(p, "too many displacement modifiers on CSG", name);
+                return;
+            }
+        }
+        return;
+    } else if (strcmp(key, "shape_a") == 0) {
+        const char *name = NULL;
+        if (sd_val_name(p, t, n, 2, &name) < 0) return;
+        if (strcmp(name, "box") == 0) p->cur_csg.sdf.shape_a = SDF_SHAPE_BOX;
+        else if (strcmp(name, "sphere") == 0) p->cur_csg.sdf.shape_a = SDF_SHAPE_SPHERE;
+        else if (strcmp(name, "cylinder") == 0) p->cur_csg.sdf.shape_a = SDF_SHAPE_CYLINDER;
+        else sd_err(p, "unknown shape_a kind", name);
+    } else if (strcmp(key, "center_a") == 0) {
+        (void)sd_val_vec3(p, t, n, 2, &p->cur_csg.sdf.center_a);
+    } else if (strcmp(key, "half_a") == 0) {
+        (void)sd_val_vec3(p, t, n, 2, &p->cur_csg.sdf.param1_a);
+    } else if (strcmp(key, "radius_a") == 0) {
+        (void)sd_val_double(p, t, n, 2, &p->cur_csg.sdf.param2_a);
+    } else if (strcmp(key, "height_a") == 0) {
+        (void)sd_val_double(p, t, n, 2, &p->csg_height_a);
+    } else if (strcmp(key, "shape_b") == 0) {
+        const char *name = NULL;
+        if (sd_val_name(p, t, n, 2, &name) < 0) return;
+        if (strcmp(name, "box") == 0) p->cur_csg.sdf.shape_b = SDF_SHAPE_BOX;
+        else if (strcmp(name, "sphere") == 0) p->cur_csg.sdf.shape_b = SDF_SHAPE_SPHERE;
+        else if (strcmp(name, "cylinder") == 0) p->cur_csg.sdf.shape_b = SDF_SHAPE_CYLINDER;
+        else sd_err(p, "unknown shape_b kind", name);
+    } else if (strcmp(key, "center_b") == 0) {
+        (void)sd_val_vec3(p, t, n, 2, &p->cur_csg.sdf.center_b);
+    } else if (strcmp(key, "half_b") == 0) {
+        (void)sd_val_vec3(p, t, n, 2, &p->cur_csg.sdf.param1_b);
+    } else if (strcmp(key, "radius_b") == 0) {
+        (void)sd_val_double(p, t, n, 2, &p->cur_csg.sdf.param2_b);
+    } else if (strcmp(key, "height_b") == 0) {
+        (void)sd_val_double(p, t, n, 2, &p->csg_height_b);
+    } else {
+        sd_warn_unknown_key(p, key);
+    }
+}
+
+static void sd_close_csg(Parser *p, SceneDesc *d, const Block *b)
+{
+    if (p->csg_mat_name[0] == '\0') {
+        sd_err_at(p, b->line, "missing required key", "material");
+        return;
+    }
+    p->cur_csg.material_name = p->csg_mat_name;
+    p->cur_csg.displace_count = p->csg_displace_count;
+    for (int k = 0; k < p->csg_displace_count; k++) {
+        p->cur_csg.displace_names[k] = p->csg_displace_names[k];
+    }
+    p->cur_csg.displace_name = (p->csg_displace_count > 0) ? p->csg_displace_names[0] : NULL;
+
+    if (p->cur_csg.sdf.shape_a == SDF_SHAPE_CYLINDER) {
+        p->cur_csg.sdf.param1_a = vec3(0.0, p->csg_height_a * 0.5, 0.0);
+    }
+    if (p->cur_csg.sdf.shape_b == SDF_SHAPE_CYLINDER) {
+        p->cur_csg.sdf.param1_b = vec3(0.0, p->csg_height_b * 0.5, 0.0);
+    }
+
+    int idx = scene_desc_add_prim(d, &p->cur_csg);
+    if (idx < 0) {
+        sd_err(p, "out of memory", "csg");
+        return;
+    }
+    if (sd_push_ref_line(p, b->line) != 0) {
+        sd_err(p, "out of memory", "csg");
+    }
+}
+
 /* Dispatch the close of one block to its type-specific finisher. */
 static void sd_close_block(Parser *p, SceneDesc *d, const Block *b)
 {
@@ -1541,6 +1762,8 @@ static void sd_close_block(Parser *p, SceneDesc *d, const Block *b)
     case BLK_MATERIAL: sd_close_material(p, d, b); break;
     case BLK_PRIM:     sd_close_prim(p, d, b);     break;
     case BLK_PLANT:    sd_close_plant(p, d, b);    break;
+    case BLK_DISPLACE: sd_close_displace(p, d, b); break;
+    case BLK_CSG:      sd_close_csg(p, d, b);      break;
     default:           break; /* camera / sky need no close action */
     }
 }
@@ -1639,6 +1862,29 @@ static void sd_open_block(Parser *p, SceneDesc *d, const Token *t, int n, Block 
         sd_begin_block(b, BLK_MATERIAL, p->line, kw);
         return;
     }
+    if (strcmp(kw, "displace") == 0) {
+        if (n < 3 || (t[1].kind != TOK_IDENT && t[1].kind != TOK_STRING) ||
+            t[2].kind != TOK_LBRACE) {
+            sd_err(p, "malformed block header, expected `displace <name> {`", kw);
+            return;
+        }
+        if (n != 3) {
+            sd_err(p, "unexpected token after '{'", t[3].text);
+            return;
+        }
+        sd_displace_begin(p, t[1].text);
+        sd_begin_block(b, BLK_DISPLACE, p->line, kw);
+        return;
+    }
+    if (strcmp(kw, "csg") == 0) {
+        if (n != 2 || t[1].kind != TOK_LBRACE) {
+            sd_err(p, "malformed block header, expected `csg {`", kw);
+            return;
+        }
+        sd_csg_begin(p);
+        sd_begin_block(b, BLK_CSG, p->line, kw);
+        return;
+    }
     if (strcmp(kw, "tree") == 0 || strcmp(kw, "bush") == 0) {
         if (n != 2 || t[1].kind != TOK_LBRACE) {
             sd_err(p, "malformed block header, expected `keyword {`", kw);
@@ -1721,6 +1967,12 @@ static void sd_handle_body(Parser *p, SceneDesc *d, const Token *t, int n, Block
         break;
     case BLK_PLANT:
         sd_apply_plant_key(p, b, t, n);
+        break;
+    case BLK_DISPLACE:
+        sd_apply_displace_key(p, b, t, n);
+        break;
+    case BLK_CSG:
+        sd_apply_csg_key(p, b, t, n);
         break;
     default:
         sd_err(p, "key outside a block", t[0].text);
@@ -1838,6 +2090,38 @@ static void sd_resolve_water(Parser *p, SceneDesc *d)
     d->water_material = index;
     if (!p->water_enabled_set)
         d->water_enabled = (index >= 0) ? 1 : 0;
+}
+
+static int sd_find_displace(const SceneDesc *d, const char *name)
+{
+    if (d == NULL || name == NULL) return -1;
+    for (int i = 0; i < d->displace_count; i++) {
+        if (d->displaces[i].name != NULL && strcmp(d->displaces[i].name, name) == 0)
+            return i;
+    }
+    return -1;
+}
+
+static void sd_resolve_displacements(Parser *p, SceneDesc *d)
+{
+    for (int i = 0; i < d->prim_count && !p->failed; i++) {
+        for (int k = 0; k < d->prims[i].displace_count; k++) {
+            const char *dname = d->prims[i].displace_names[k];
+            if (dname != NULL) {
+                int idx = sd_find_displace(d, dname);
+                if (idx < 0) {
+                    sd_err_at(p, p->ref_lines[i],
+                              "unknown displacement modifier", dname);
+                    return;
+                }
+                d->prims[i].displace_indices[k] = idx;
+            }
+        }
+        if (d->prims[i].displace_count > 0) {
+            d->prims[i].displace_index = d->prims[i].displace_indices[0];
+            d->prims[i].displace_name = d->prims[i].displace_names[0];
+        }
+    }
 }
 
 /* ------------------------------------------------------------------ */
@@ -2013,9 +2297,19 @@ void scene_desc_free(SceneDesc *d)
         free(d->materials);
     }
 
+    if (d->displaces != NULL) {
+        for (i = 0; i < d->displace_count; i++)
+            free(d->displaces[i].name);
+        free(d->displaces);
+    }
+
     if (d->prims != NULL) {
-        for (i = 0; i < d->prim_count; i++)
+        for (i = 0; i < d->prim_count; i++) {
             free(d->prims[i].material_name);
+            for (int k = 0; k < d->prims[i].displace_count; k++) {
+                free(d->prims[i].displace_names[k]);
+            }
+        }
         free(d->prims);
     }
 
@@ -2073,9 +2367,11 @@ static int sd_run_parser(SceneDesc *d, char *buf, size_t len,
         sd_parse_lines(&p, d, start);
     }
 
-    /* Second pass: the material table is complete, so names can be resolved. */
+    /* Second pass: the material and displacement tables are complete, so names can be resolved. */
     if (!p.failed)
         sd_resolve_prims(&p, d);
+    if (!p.failed)
+        sd_resolve_displacements(&p, d);
     if (!p.failed)
         sd_resolve_plants(&p, d);
     if (!p.failed)
@@ -2191,10 +2487,33 @@ int scene_desc_add_material(SceneDesc *d, const char *name, const Material *mat)
     return d->material_count++;
 }
 
+int scene_desc_add_displace(SceneDesc *d, const SceneDisplaceDesc *disp)
+{
+    SceneDisplaceDesc *slot;
+    char              *name;
+
+    if (d == NULL || disp == NULL)
+        return -1;
+    if (sd_grow((void **)&d->displaces, &d->displace_capacity,
+                d->displace_count, sizeof(*d->displaces)) != 0)
+        return -1;
+
+    name = sd_strdup(disp->name);
+    if (disp->name != NULL && name == NULL)
+        return -1;
+
+    slot = &d->displaces[d->displace_count];
+    *slot = *disp;
+    slot->name = name;
+
+    return d->displace_count++;
+}
+
 int scene_desc_add_prim(SceneDesc *d, const ScenePrimDesc *prim)
 {
     ScenePrimDesc *slot;
     char          *name;
+    char          *disp;
 
     if (d == NULL || prim == NULL)
         return -1;
@@ -2206,10 +2525,35 @@ int scene_desc_add_prim(SceneDesc *d, const ScenePrimDesc *prim)
     if (prim->material_name != NULL && name == NULL)
         return -1;
 
+    disp = sd_strdup(prim->displace_name);
+    if (prim->displace_name != NULL && disp == NULL) {
+        free(name);
+        return -1;
+    }
+
     slot = &d->prims[d->prim_count];
     *slot = *prim;
     slot->material_name = name;
     slot->material_index = SCENE_DESC_NO_MATERIAL;
+    slot->displace_count = 0;
+    for (int k = 0; k < prim->displace_count; k++) {
+        char *s = sd_strdup(prim->displace_names[k]);
+        if (prim->displace_names[k] != NULL && s == NULL) {
+            for (int j = 0; j < k; j++) free(slot->displace_names[j]);
+            free(disp);
+            free(name);
+            return -1;
+        }
+        slot->displace_names[k] = s;
+        slot->displace_indices[k] = -1;
+        slot->displace_count++;
+    }
+    if (slot->displace_count > 0) {
+        slot->displace_name = slot->displace_names[0];
+    } else {
+        slot->displace_name = disp;
+    }
+    slot->displace_index = -1;
 
     return d->prim_count++;
 }

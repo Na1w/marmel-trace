@@ -21,13 +21,15 @@
  */
 
 #include "vec3.h"
+#include "sdf.h"
 
 typedef enum {
     PRIM_SPHERE,
     PRIM_PLANE,     /* infinite plane: point + normal */
     PRIM_BOX,       /* axis-aligned box */
     PRIM_TRIANGLE,
-    PRIM_CYLINDER   /* finite, capped, with independent bottom/top radii (tapered frustum) */
+    PRIM_CYLINDER,  /* finite, capped, with independent bottom/top radii (tapered frustum) */
+    PRIM_SDF_SHAPE  /* ray-marched SDF shape with optional CSG and domain warping/displacement */
 } PrimKind;
 
 typedef struct {
@@ -37,13 +39,15 @@ typedef struct {
        PLANE:     center = a point on plane, radius unused; axis = unit normal
        BOX:       center = box center, half = half extents
        TRIANGLE:  a, b, c
-       CYLINDER:  a = base center, b = top center, radius = bottom radius, radius2 = top radius */
+       CYLINDER:  a = base center, b = top center, radius = bottom radius, radius2 = top radius
+       SDF_SHAPE: sdf payload */
     Vec3 center;
     Vec3 axis;
     Vec3 half;
     Vec3 a, b, c;
     double radius;
     double radius2;
+    SdfData sdf;
 } Primitive;
 
 typedef struct {
@@ -78,6 +82,7 @@ Primitive prim_plane(Vec3 point, Vec3 normal, int material_index);
 Primitive prim_box(Vec3 center, Vec3 half, int material_index);
 Primitive prim_triangle(Vec3 a, Vec3 b, Vec3 c, int material_index);
 Primitive prim_cylinder(Vec3 base, Vec3 top, double r_bottom, double r_top, int material_index);
+Primitive prim_sdf(SdfData sdf, int material_index);
 
 /* ------------------------------------------------------------------ */
 /* Intersection                                                        */
