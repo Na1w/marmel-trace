@@ -186,6 +186,7 @@ void sky_default_params(SkyParams *p);
 #define FOG_DEFAULT_SUN_ANISOTROPY     0.70
 #define FOG_DEFAULT_NOISE_SCALE        0.0
 #define FOG_DEFAULT_NOISE_AMOUNT       0.0
+#define FOG_DEFAULT_SHADOW_STEPS       0
 
 typedef struct {
     double density;            /* fog extinction coefficient >= 0 (0 => disabled) */
@@ -196,6 +197,7 @@ typedef struct {
     double sun_anisotropy;     /* phase function forward scattering g in (-1, 1)  */
     double noise_scale;        /* 3D noise frequency for turbulence (0 => smooth) */
     double noise_amount;       /* noise modulation strength in [0, 1]             */
+    int    shadow_steps;       /* volumetric shadow march steps (0 => analytic)   */
 } FogParams;
 
 /* Fill `p` with default fog parameters (disabled, density = 0). */

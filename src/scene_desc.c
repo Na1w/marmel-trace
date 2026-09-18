@@ -533,7 +533,8 @@ enum {
     FOG_INSCATTER_STR  = 1u << 4,
     FOG_SUN_ANISOTROPY = 1u << 5,
     FOG_NOISE_SCALE    = 1u << 6,
-    FOG_NOISE_AMOUNT   = 1u << 7
+    FOG_NOISE_AMOUNT   = 1u << 7,
+    FOG_SHADOW_STEPS   = 1u << 8
 };
 
 static const KeySpec FOG_KEYS[] = {
@@ -544,7 +545,8 @@ static const KeySpec FOG_KEYS[] = {
     { "inscatter_strength", KT_DOUBLE, FOG_INSCATTER_STR,  offsetof(FogParams, inscatter_strength) },
     { "sun_anisotropy",     KT_DOUBLE, FOG_SUN_ANISOTROPY, offsetof(FogParams, sun_anisotropy) },
     { "noise_scale",        KT_DOUBLE, FOG_NOISE_SCALE,    offsetof(FogParams, noise_scale) },
-    { "noise_amount",       KT_DOUBLE, FOG_NOISE_AMOUNT,   offsetof(FogParams, noise_amount) }
+    { "noise_amount",       KT_DOUBLE, FOG_NOISE_AMOUNT,   offsetof(FogParams, noise_amount) },
+    { "shadow_steps",       KT_INT,    FOG_SHADOW_STEPS,   offsetof(FogParams, shadow_steps) }
 };
 
 /* ------------------------------------------------------------------ */

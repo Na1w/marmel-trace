@@ -104,6 +104,7 @@ void fog_default_params(FogParams *p)
     p->sun_anisotropy     = FOG_DEFAULT_SUN_ANISOTROPY;
     p->noise_scale        = FOG_DEFAULT_NOISE_SCALE;
     p->noise_amount       = FOG_DEFAULT_NOISE_AMOUNT;
+    p->shadow_steps       = FOG_DEFAULT_SHADOW_STEPS;
 }
 
 /* ------------------------------------------------------------------ */

@@ -31,6 +31,7 @@
 
 #include "geometry.h"
 #include "material.h"
+#include "noise.h"
 #include "render.h"
 #include "sampling.h"
 #include "texture.h"
@@ -567,6 +568,105 @@ static Vec3 pt_nee_emissive(const Scene *scene, const Material *mm, Vec3 P, Vec3
     return sum;
 }
 
+/*
+ * Evaluates fog transmittance and inscatter along a ray segment.
+ * If fog->shadow_steps > 0, performs volumetric shadow marching through the
+ * medium, casting shadow rays towards the sun to form sharp crepuscular god rays.
+ * Otherwise falls back to analytic closed-form fog_segment (O(1)).
+ */
+static void pt_fog_segment(const Scene *scene, Ray r, double dist,
+                           unsigned seed_key, int bounce,
+                           double *transmittance, Vec3 *inscatter)
+{
+    const FogParams *fog = &scene->fog;
+    if (fog->shadow_steps <= 0) {
+        fog_segment(fog, &scene->sky, r, dist, transmittance, inscatter);
+        return;
+    }
+
+    int steps = fog->shadow_steps;
+    if (steps < 4) steps = 4;
+    if (steps > 128) steps = 128;
+
+    double max_t = (dist > 50.0) ? 50.0 : dist;
+    double dt = max_t / (double)steps;
+    double lambda = fog->height_falloff;
+
+    /* Phase function towards the sun */
+    double g = fog->sun_anisotropy;
+    if (g < -0.95) g = -0.95;
+    if (g >  0.95) g =  0.95;
+    double cos_theta = vec3_dot(r.dir, scene->sky.sun_dir);
+    double denom = 1.0 + g * g - 2.0 * g * cos_theta;
+    if (denom < 1e-4) denom = 1e-4;
+    double phase_hg = (1.0 - g * g) / (denom * sqrt(denom));
+    /* Blend forward Mie lobe with isotropic atmospheric scattering so light shafts
+     * cutting across the glade remain clearly visible from oblique angles */
+    double phase = 0.65 * phase_hg + 0.35;
+    Vec3 sun_glow_unit = vec3_scale(scene->sky.sun_color, phase * fog->inscatter_strength);
+
+    double T_acc = 1.0;
+    Vec3 inscatter_acc = vec3(0.0, 0.0, 0.0);
+    double jitter = pt_rand01(seed_key, (unsigned)bounce, 0xFE01u);
+
+    for (int i = 0; i < steps; ++i) {
+        double t = ((double)i + jitter) * dt;
+        Vec3 pos = vec3_add(r.origin, vec3_scale(r.dir, t));
+        double rho = fog->density;
+        if (lambda > 1e-6) {
+            double h_diff = pos.y - fog->height;
+            rho *= exp(-lambda * h_diff);
+        }
+        if (fog->noise_amount > 1e-4 && fog->noise_scale > 1e-4) {
+            double n = noise_fbm3(pos.x * fog->noise_scale,
+                                  pos.y * fog->noise_scale,
+                                  pos.z * fog->noise_scale,
+                                  3, 2.0, 0.5, 1337u);
+            double turb = 0.5 * (n + 1.0);
+            if (turb < 0.0) turb = 0.0;
+            if (turb > 1.0) turb = 1.0;
+            double mod = (1.0 - fog->noise_amount) + fog->noise_amount * turb * 2.0;
+            rho *= mod;
+        }
+        if (rho < 0.0) rho = 0.0;
+
+        double step_tau = rho * dt;
+        double step_T = exp(-step_tau);
+
+        /* Shadow test towards the sun: creates sharp volumetric beams through canopy gaps */
+        Hit sh;
+        Ray sray;
+        sray.origin = pos;
+        sray.dir = scene->sky.sun_dir;
+        int in_shadow = scene_intersect(scene, sray, 0.05, 100.0, &sh);
+
+        Vec3 step_inscatter_col = fog->color;
+        if (!in_shadow) {
+            step_inscatter_col = vec3_add(step_inscatter_col, sun_glow_unit);
+        }
+
+        Vec3 step_inscatter = vec3_scale(step_inscatter_col, 1.0 - step_T);
+        inscatter_acc = vec3_add(inscatter_acc, vec3_scale(step_inscatter, T_acc));
+        T_acc *= step_T;
+        if (T_acc < 1e-4) break;
+    }
+
+    if (dist > max_t) {
+        double rem_dist = dist - max_t;
+        Ray rem_ray;
+        rem_ray.origin = vec3_add(r.origin, vec3_scale(r.dir, max_t));
+        rem_ray.dir = r.dir;
+        double rem_T = 1.0;
+        Vec3 rem_inscatter = vec3(0.0, 0.0, 0.0);
+        fog_segment(fog, &scene->sky, rem_ray, rem_dist, &rem_T, &rem_inscatter);
+        inscatter_acc = vec3_add(inscatter_acc, vec3_scale(rem_inscatter, T_acc));
+        T_acc *= rem_T;
+    }
+
+    *transmittance = T_acc;
+    *inscatter = inscatter_acc;
+}
+
 /* ------------------------------------------------------------------ */
 /* Public kernel                                                       */
 /* ------------------------------------------------------------------ */
@@ -610,7 +710,14 @@ Vec3 pathtrace_radiance(const Scene *scene, Ray primary, int max_depth,
             /* Escaped to the environment: add the sky once, weighted by beta. */
             Vec3 sky_col = sky_sample(r.dir, &scene->sky);
             if (scene->fog.density > 0.0) {
-                sky_col = fog_apply(&scene->fog, &scene->sky, r, 1e30, sky_col);
+                double T = 1.0;
+                Vec3 inscatter = vec3(0.0, 0.0, 0.0);
+                if (b == 0) {
+                    pt_fog_segment(scene, r, 1e30, seed_key, b, &T, &inscatter);
+                } else {
+                    fog_segment(&scene->fog, &scene->sky, r, 1e30, &T, &inscatter);
+                }
+                sky_col = vec3_add(vec3_scale(sky_col, T), inscatter);
             }
             radiance = vec3_add(radiance, vec3_mul(throughput, sky_col));
             break;
@@ -622,7 +729,11 @@ Vec3 pathtrace_radiance(const Scene *scene, Ray primary, int max_depth,
         } else if (scene->fog.density > 0.0) {
             double T = 1.0;
             Vec3 inscatter = vec3(0.0, 0.0, 0.0);
-            fog_segment(&scene->fog, &scene->sky, r, h.t, &T, &inscatter);
+            if (b == 0) {
+                pt_fog_segment(scene, r, h.t, seed_key, b, &T, &inscatter);
+            } else {
+                fog_segment(&scene->fog, &scene->sky, r, h.t, &T, &inscatter);
+            }
             radiance = vec3_add(radiance, vec3_mul(throughput, inscatter));
             throughput = vec3_scale(throughput, T);
         }

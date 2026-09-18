@@ -11,20 +11,20 @@
 
 camera {
     eye = 0.0 1.9 9.5
-    target = 0.1 2.1 0.0
+    target = 0.2 2.1 0.0
     up = 0 1 0
     vfov = 43.0
 }
 
 sky {
-    sun_dir = -0.32 0.22 -0.92
-    sun_color = 1.75 1.38 0.95
+    sun_dir = -0.34 0.28 -0.90
+    sun_color = 2.60 1.95 1.15
     horizon_color = 0.45 0.24 0.44
     zenith_color = 0.12 0.07 0.22
     gradient_gamma = 0.80
-    sun_glow_exponent = 260.0
-    sun_glow_strength = 1.6
-    sun_radius = 2.6
+    sun_glow_exponent = 200.0
+    sun_glow_strength = 1.8
+    sun_radius = 2.8
     cloud_height = 140.0
     cloud_scale = 0.0028
     cloud_coverage = 0.18
@@ -34,14 +34,15 @@ sky {
 }
 
 fog {
-    density = 0.012
+    density = 0.018
     color = 0.36 0.15 0.40
     height = 5.2
-    height_falloff = 0.20
-    inscatter_strength = 0.16
-    sun_anisotropy = 0.80
+    height_falloff = 0.18
+    inscatter_strength = 0.75
+    sun_anisotropy = 0.82
     noise_scale = 0.16
     noise_amount = 0.25
+    shadow_steps = 24
 }
 
 # --- Materials -------------------------------------------------------------
@@ -122,7 +123,7 @@ plane {
 
 # Rolling mossy central mound where the ancient tree sits
 sphere {
-    center = 0.2 -8.9 0.5
+    center = 0.6 -8.9 0.5
     radius = 9.8
     material = moss_turf
 }
@@ -136,14 +137,14 @@ sphere {
 
 # Right rising glade mound
 sphere {
-    center = 4.5 -8.7 2.5
+    center = 4.8 -8.7 2.5
     radius = 9.6
     material = moss_turf
 }
 
 # Foreground right prominent mossy boulder
 boulder {
-    position = 2.1 0.30 6.6
+    position = 2.4 0.30 6.6
     radius = 1.35
     roughness = 0.32
     flatness = 0.74
@@ -172,7 +173,7 @@ boulder {
 }
 
 boulder {
-    position = 1.0 0.04 7.8
+    position = 1.2 0.04 7.8
     radius = 0.75
     roughness = 0.32
     flatness = 0.76
@@ -182,7 +183,7 @@ boulder {
 
 # Midground boulders hugging the central mound base
 boulder {
-    position = -1.3 0.65 1.2
+    position = -0.8 0.65 1.2
     radius = 1.15
     roughness = 0.32
     flatness = 0.74
@@ -191,7 +192,7 @@ boulder {
 }
 
 boulder {
-    position = 1.5 0.60 0.6
+    position = 1.8 0.60 0.6
     radius = 1.15
     roughness = 0.30
     flatness = 0.76
@@ -200,7 +201,7 @@ boulder {
 }
 
 boulder {
-    position = -0.2 0.80 1.5
+    position = 0.2 0.80 1.5
     radius = 0.80
     roughness = 0.30
     flatness = 0.78
@@ -210,27 +211,27 @@ boulder {
 
 # Small reddish-magenta flower dots nestled on the central moss mound
 sphere {
-    center = -0.8 1.05 0.8
+    center = -0.4 1.05 0.8
     radius = 0.12
     material = red_shrub
 }
 sphere {
-    center = -0.6 1.02 1.0
+    center = -0.2 1.02 1.0
     radius = 0.10
     material = red_shrub
 }
 sphere {
-    center = -1.0 0.95 1.2
+    center = -0.6 0.95 1.2
     radius = 0.13
     material = red_shrub
 }
 sphere {
-    center = 0.7 0.92 0.4
+    center = 1.1 0.92 0.4
     radius = 0.11
     material = red_shrub
 }
 sphere {
-    center = 0.9 0.85 0.6
+    center = 1.3 0.85 0.6
     radius = 0.10
     material = red_shrub
 }
@@ -242,52 +243,52 @@ sphere {
 
 # --- Central Ancient Tree & Canopy -----------------------------------------
 
-# Massive ancient trunk rising high into the mist
+# Massive ancient trunk rising high into the mist (positioned to the right of the opening)
 cylinder {
-    base = 0.3 0.0 -2.5
-    top = 0.3 12.0 -2.5
-    r_bottom = 2.00
-    r_top = 1.45
+    base = 0.8 0.0 -3.0
+    top = 0.8 12.0 -3.0
+    r_bottom = 1.60
+    r_top = 1.20
     material = ancient_bark
 }
 
 # Buttress root 1 (left flare)
 cylinder {
-    base = -1.3 0.4 -1.6
-    top = 0.1 3.2 -2.3
-    r_bottom = 0.70
-    r_top = 0.26
+    base = -0.4 0.4 -2.0
+    top = 0.6 3.2 -2.8
+    r_bottom = 0.55
+    r_top = 0.22
     material = ancient_bark
 }
 
 # Buttress root 2 (right flare)
 cylinder {
-    base = 1.7 0.4 -1.8
-    top = 0.5 3.0 -2.4
-    r_bottom = 0.65
-    r_top = 0.24
+    base = 2.0 0.4 -2.2
+    top = 1.0 3.0 -2.9
+    r_bottom = 0.55
+    r_top = 0.22
     material = ancient_bark
 }
 
 # Buttress root 3 (forward center flare)
 cylinder {
-    base = 0.3 0.6 -0.9
-    top = 0.3 2.6 -2.1
-    r_bottom = 0.60
-    r_top = 0.20
+    base = 0.8 0.6 -1.6
+    top = 0.8 2.6 -2.7
+    r_bottom = 0.50
+    r_top = 0.18
     material = ancient_bark
 }
 
 # Foreground leafy tree in front of the giant trunk:
 # Raised base on mound, full rounded crown
 tree {
-    position = 0.3 0.0 -0.8
-    height = 2.3
+    position = 0.8 0.0 -1.2
+    height = 2.4
     radius = 0.26
     seed = 101
     foliage = spheres
     max_depth = 4
-    spread_deg = 42.0
+    spread_deg = 35.0
     len_decay = 0.74
     leaf_min = 28
     leaf_span = 14
@@ -298,13 +299,13 @@ tree {
 
 # Secondary higher canopy behind giant trunk
 tree {
-    position = 0.6 0.0 -3.6
+    position = 1.1 0.0 -4.0
     height = 2.6
     radius = 0.30
     seed = 303
     foliage = spheres
     max_depth = 4
-    spread_deg = 38.0
+    spread_deg = 35.0
     leaf_min = 26
     leaf_span = 12
     material_bark = ancient_bark
@@ -348,6 +349,34 @@ cylinder {
     material = dark_bark
 }
 
+# Upper branch slicing the sun disk to create god ray 1
+cylinder {
+    base = -1.8 4.3 4.0
+    top = -1.0 4.5 3.0
+    r_bottom = 0.12
+    r_top = 0.05
+    material = dark_bark
+}
+sphere {
+    center = -1.0 4.5 3.0
+    radius = 0.25
+    material = dark_leaf
+}
+
+# Mid branch slicing the sun disk to create god ray 2
+cylinder {
+    base = -1.7 3.5 4.2
+    top = -1.2 3.4 3.4
+    r_bottom = 0.10
+    r_top = 0.04
+    material = dark_bark
+}
+sphere {
+    center = -1.2 3.4 3.4
+    radius = 0.20
+    material = dark_leaf
+}
+
 # Hanging vine / secondary droop branch
 cylinder {
     base = -1.3 4.5 3.5
@@ -369,12 +398,12 @@ sphere {
     material = dark_leaf
 }
 sphere {
-    center = -1.1 5.3 3.0
+    center = -1.1 5.5 3.0
     radius = 0.90
     material = dark_leaf
 }
 sphere {
-    center = -0.5 5.6 2.6
+    center = -0.5 5.8 2.6
     radius = 0.80
     material = dark_leaf
 }
@@ -383,7 +412,7 @@ sphere {
 
 # Medium purple canopy tree hovering over the elven ruins
 tree {
-    position = 3.6 0.0 -0.6
+    position = 3.8 0.0 -0.6
     height = 2.2
     radius = 0.24
     seed = 444
@@ -398,7 +427,7 @@ tree {
 
 # Background purple tree deeper in the mist
 tree {
-    position = 5.2 0.0 -3.8
+    position = 5.4 0.0 -3.8
     height = 2.8
     radius = 0.30
     seed = 555
@@ -413,8 +442,8 @@ tree {
 
 # Distant colossal tree trunk in the purple haze
 cylinder {
-    base = 4.8 0.0 -7.5
-    top = 4.8 13.0 -7.5
+    base = 5.0 0.0 -7.5
+    top = 5.0 13.0 -7.5
     r_bottom = 1.50
     r_top = 1.20
     material = dark_bark
@@ -424,85 +453,85 @@ cylinder {
 
 # Column 1 (front left ruin pillar)
 box {
-    center = 2.4 0.22 3.2
+    center = 2.6 0.22 3.2
     half = 0.22 0.09 0.22
     material = elven_marble
 }
 cylinder {
-    base = 2.4 0.31 3.2
-    top = 2.4 2.25 3.2
+    base = 2.6 0.31 3.2
+    top = 2.6 2.25 3.2
     r_bottom = 0.17
     r_top = 0.15
     material = elven_marble
 }
 box {
-    center = 2.4 2.31 3.2
+    center = 2.6 2.31 3.2
     half = 0.22 0.06 0.22
     material = elven_marble
 }
 
 # Column 2 (front right ruin pillar)
 box {
-    center = 3.3 0.22 2.6
+    center = 3.5 0.22 2.6
     half = 0.22 0.09 0.22
     material = elven_marble
 }
 cylinder {
-    base = 3.3 0.31 2.6
-    top = 3.3 2.35 2.6
+    base = 3.5 0.31 2.6
+    top = 3.5 2.35 2.6
     r_bottom = 0.17
     r_top = 0.15
     material = elven_marble
 }
 box {
-    center = 3.3 2.41 2.6
+    center = 3.5 2.41 2.6
     half = 0.22 0.06 0.22
     material = elven_marble
 }
 
 # Architrave / Lintel connecting Column 1 and 2
 box {
-    center = 2.85 2.51 2.9
+    center = 3.05 2.51 2.9
     half = 0.65 0.09 0.18
     material = elven_marble
 }
 
 # Column 3 (broken column stump next to it)
 box {
-    center = 4.0 0.15 2.0
+    center = 4.2 0.15 2.0
     half = 0.22 0.09 0.22
     material = elven_marble
 }
 cylinder {
-    base = 4.0 0.24 2.0
-    top = 4.0 1.45 2.0
+    base = 4.2 0.24 2.0
+    top = 4.2 1.45 2.0
     r_bottom = 0.17
     r_top = 0.16
     material = elven_marble
 }
 box {
-    center = 4.0 1.50 2.0
+    center = 4.2 1.50 2.0
     half = 0.20 0.05 0.20
     material = elven_marble
 }
 
 # Fallen ruined stone slab on the grass
 box {
-    center = 2.9 0.12 3.8
+    center = 3.1 0.12 3.8
     half = 0.32 0.07 0.16
     material = elven_marble
 }
 
 # Column 4 (in the purple mist further back)
 cylinder {
-    base = 4.2 0.0 -1.5
-    top = 4.2 2.6 -1.5
+    base = 4.4 0.0 -1.5
+    top = 4.4 2.6 -1.5
     r_bottom = 0.20
     r_top = 0.18
     material = elven_marble
 }
 box {
-    center = 4.2 2.66 -1.5
+    center = 4.4 2.66 -1.5
     half = 0.24 0.06 0.24
     material = elven_marble
 }

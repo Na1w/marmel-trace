@@ -45,6 +45,7 @@ static void test_defaults(void)
     CHECK(f.sun_anisotropy == 0.70, "default sun_anisotropy is 0.70");
     CHECK(f.noise_scale == 0.0, "default noise_scale is 0.0");
     CHECK(f.noise_amount == 0.0, "default noise_amount is 0.0");
+    CHECK(f.shadow_steps == 0, "default shadow_steps is 0");
 }
 
 static void test_zero_density_identity(void)
@@ -204,6 +205,7 @@ static void test_scene_desc_roundtrip(void)
         "  sun_anisotropy = 0.6500\n"
         "  noise_scale = 0.2500\n"
         "  noise_amount = 0.4000\n"
+        "  shadow_steps = 32\n"
         "}\n";
 
     SceneDesc d1, d2;
@@ -222,6 +224,7 @@ static void test_scene_desc_roundtrip(void)
     CHECK_NEAR(d1.fog.sun_anisotropy, 0.6500, 1e-4, "parsed fog sun_anisotropy");
     CHECK_NEAR(d1.fog.noise_scale, 0.2500, 1e-4, "parsed fog noise_scale");
     CHECK_NEAR(d1.fog.noise_amount, 0.4000, 1e-4, "parsed fog noise_amount");
+    CHECK(d1.fog.shadow_steps == 32, "parsed fog shadow_steps");
 
     const char *tmp_path = "/tmp/test_fog_out.scene";
     CHECK(scene_desc_write(&d1, tmp_path, errbuf, sizeof(errbuf)) == 0, "wrote scene with fog");
@@ -232,6 +235,7 @@ static void test_scene_desc_roundtrip(void)
     CHECK_NEAR(d2.fog.color.x, d1.fog.color.x, 1e-4, "roundtrip fog color.x");
     CHECK_NEAR(d2.fog.height, d1.fog.height, 1e-4, "roundtrip fog height");
     CHECK_NEAR(d2.fog.height_falloff, d1.fog.height_falloff, 1e-4, "roundtrip fog height_falloff");
+    CHECK(d2.fog.shadow_steps == 32, "roundtrip fog shadow_steps");
 
     scene_desc_free(&d1);
     scene_desc_free(&d2);

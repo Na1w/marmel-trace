@@ -567,6 +567,8 @@ static void emit_fog(Writer *w, const SceneDesc *d)
         w_key_double(w, "noise_scale", f->noise_scale);
     if (f->noise_amount != FOG_DEFAULT_NOISE_AMOUNT)
         w_key_double(w, "noise_amount", f->noise_amount);
+    if (f->shadow_steps != FOG_DEFAULT_SHADOW_STEPS)
+        w_key_int(w, "shadow_steps", f->shadow_steps);
     w_close(w);
 }
 

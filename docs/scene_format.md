@@ -249,11 +249,13 @@ renders.
 | `sun_anisotropy` | f64 | — | `(-1, 1)` | `0.70` (forward Mie) | O |
 | `noise_scale` | f64 | 1/world | `[0, ∞)` | `0.0` (analytic) | O |
 | `noise_amount` | f64 | — | `[0, 1]` | `0.0` | O |
+| `shadow_steps` | int | steps | `[0, 128]` | `0` (analytic) | O |
 
 * **Uniform distance fog:** when `height_falloff = 0`, transmittance attenuates exponentially with line-of-sight distance: $T(d) = e^{-\text{density} \cdot d}$.
 * **Exponential height fog:** when `height_falloff > 0`, density decays exponentially with height: $\rho(y) = \text{density} \cdot e^{-\lambda (y - \text{height})}$. Integrated analytically along every ray in closed form ($O(1)$ constant time).
 * **Sun inscattering:** forward Mie scattering (Henyey-Greenstein phase function) causes the fog to glow warmly when viewed in the direction of the sun disk.
 * **Procedural turbulence:** when `noise_amount > 0` and `noise_scale > 0`, 3D fBm noise modulates the optical density to create drifting mist banks and billowing smoke plumes.
+* **Volumetric shadow marching:** when `shadow_steps > 0`, performs raymarched participating medium integration testing shadow rays against all geometry towards the sun at each step. Foliage, branches, and terrain cast volumetric shadow shafts, forming sharp crepuscular god rays.
 
 ### 4.3 `material <name>` — repeatable named block
 
