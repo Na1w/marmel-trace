@@ -1,0 +1,663 @@
+# scenes/cathedral_cavern.scene
+#
+# "The Sunken Vault of the Ancients"
+#
+# A monumental subterranean sanctuary submerged in a calm reflecting pool,
+# illuminated by a divine column of volumetric Mie god-rays piercing through
+# a ceiling oculus, warm glowing bronze braziers, and a radiant celestial relic.
+#
+# Key Showcase Features:
+#   * Volumetric Mie God-Rays: Atmospheric sunlight shafts streaming through an analytical CSG ceiling oculus
+#   * Analytical CSG Primitives:
+#       - csg_difference: Ceiling skylight oculus carved through monolithic vault roof
+#       - csg_difference: Monumental Roman archway portal lined with gilded bronze
+#       - csg_difference: Nested CSG carved obsidian astrolabe with dual gold-lined bores
+#       - csg_intersection: Biconvex sapphire optical lens with Beer-Lambert refraction
+#       - csg_difference: Gilded sacrificial chalice basin with ruby gem interior
+#   * Emissive Area Lights: Radiant cyan celestial core and molten fire embers
+#   * Soft-Penumbra Point Lights: Warm amber braziers casting realistic penumbral falloff
+#   * Submerged Water Reflections: Fresnel reflection and Beer-Lambert teal absorption over checkered floor
+#   * PBR Noble Materials: Polished gold, gilded bronze, antique marble, dark basalt, and bump-mapped granite
+#
+# Render:
+#   ./raytracer --scene scenes/cathedral_cavern.scene \
+#               --width 1280 --height 720 --samples 16 --depth 4 --threads \
+#               --out output/cathedral_cavern.bmp
+
+water_level = 0.12
+water_material = cavern_water
+water_enabled = 1
+
+camera {
+    eye = 0.0 2.7 11.2
+    target = 0.0 2.35 -0.2
+    up = 0 1 0
+    vfov = 43.0
+    aperture = 0.005
+    focus_distance = 11.4
+}
+
+sky {
+    sun_dir = 0.2628 0.8958 -0.3583
+    sun_color = 4.5 3.6 2.0
+    horizon_color = 0.03 0.025 0.05
+    zenith_color = 0.01 0.01 0.02
+    gradient_gamma = 0.85
+    sun_glow_exponent = 700.0
+    sun_glow_strength = 1.2
+    sun_radius = 2.2
+    cloud_height = 200.0
+    cloud_scale = 0.002
+    cloud_coverage = 0.02
+    cloud_softness = 0.2
+    cloud_sharpness = 1.2
+    seed = 5521
+}
+
+fog {
+    density = 0.018
+    color = 0.025 0.02 0.035
+    height = 9.8
+    height_falloff = 0.06
+    inscatter_strength = 0.95
+    sun_anisotropy = 0.84
+    noise_scale = 0.14
+    noise_amount = 0.18
+    shadow_steps = 10
+}
+
+# --- Materials -------------------------------------------------------------
+
+material cavern_water {
+    type = water
+    albedo = 0.015 0.05 0.07
+    specular = 0.95 0.95 0.95
+    shininess = 256.0
+    reflectivity = 0.95
+    transparency = 0.82
+    ior = 1.333
+    is_water = 1
+    absorption = 0.40 0.15 0.09
+    deep_color = 0.01 0.03 0.05
+}
+
+material submerged_tiles {
+    albedo = 0.7 0.7 0.7
+    specular = 0.05 0.05 0.05
+    shininess = 16.0
+    roughness = 0.65
+    texture = checker
+    texture_scale = 1.6
+    texture_color_a = 0.24 0.26 0.30
+    texture_color_b = 0.08 0.09 0.11
+}
+
+material dark_basalt {
+    pbr = 1
+    albedo = 0.14 0.14 0.15
+    specular = 0.04 0.04 0.04
+    roughness = 0.75
+    bump_strength = 0.18
+    bump_scale = 1.6
+}
+
+material carved_granite {
+    pbr = 1
+    albedo = 0.32 0.30 0.28
+    specular = 0.05 0.05 0.05
+    roughness = 0.68
+    bump_strength = 0.20
+    bump_scale = 1.4
+}
+
+material cavern_rock {
+    pbr = 1
+    albedo = 0.18 0.17 0.16
+    specular = 0.04 0.04 0.04
+    roughness = 0.92
+    bump_strength = 0.32
+    bump_scale = 1.8
+}
+
+material antique_marble {
+    pbr = 1
+    albedo = 0.85 0.82 0.78
+    specular = 0.08 0.08 0.08
+    roughness = 0.24
+}
+
+material carved_obsidian {
+    pbr = 1
+    albedo = 0.04 0.04 0.05
+    specular = 0.09 0.09 0.09
+    roughness = 0.10
+}
+
+material polished_gold {
+    type = gold
+    reflectivity = 0.90
+    roughness = 0.07
+}
+
+material gilded_bronze {
+    pbr = 1
+    albedo = 0.70 0.48 0.22
+    metallic = 0.85
+    roughness = 0.24
+}
+
+material antique_bronze {
+    pbr = 1
+    albedo = 0.42 0.28 0.18
+    metallic = 0.75
+    roughness = 0.36
+}
+
+material fire_ember {
+    pbr = 1
+    albedo = 0.95 0.32 0.05
+    emissive = 8.0 3.0 0.4
+    roughness = 0.5
+}
+
+material celestial_crystal {
+    pbr = 1
+    albedo = 0.2 0.7 1.0
+    emissive = 6.0 16.0 32.0
+    roughness = 0.1
+}
+
+material sapphire_lens {
+    type = glass
+    beer_lambert = 1
+    absorption = 1.40 0.28 0.05
+    ior = 1.76
+    deep_color = 0.06 0.38 0.80
+    reflectivity = 0.08
+    roughness = 0.03
+}
+
+material ruby_gem {
+    type = glass
+    beer_lambert = 1
+    absorption = 0.08 1.50 1.20
+    ior = 1.76
+    deep_color = 0.85 0.08 0.12
+    reflectivity = 0.08
+    roughness = 0.03
+}
+
+material mossy_boulder {
+    pbr = 1
+    albedo = 0.16 0.20 0.13
+    specular = 0.04 0.04 0.04
+    roughness = 0.88
+    bump_strength = 0.25
+    bump_scale = 1.5
+}
+
+material subterranean_vine {
+    pbr = 1
+    albedo = 0.10 0.18 0.08
+    specular = 0.04 0.04 0.04
+    roughness = 0.75
+}
+
+material vine_bark {
+    pbr = 1
+    albedo = 0.15 0.12 0.09
+    roughness = 0.90
+}
+
+# --- Cavern Architecture & Ceiling Oculus (CSG Difference) -----------------
+
+# Floor beneath water
+box {
+    center = 0.0 -0.25 -1.0
+    half = 18.0 0.25 21.0
+    material = submerged_tiles
+}
+
+# Massive ceiling vault with analytical CSG oculus opening for god-rays
+csg_difference {
+    material = cavern_rock
+    box {
+        center = 0.0 10.1 -1.0
+        half = 20.0 0.9 22.0
+    }
+    cylinder {
+        base = 2.2 8.5 -3.0
+        top = 2.2 11.5 -3.0
+        r_bottom = 2.2
+        r_top = 2.2
+        material = carved_granite
+    }
+}
+
+# Cavern Side Walls
+box {
+    center = -11.1 4.75 -1.0
+    half = 4.9 4.75 21.0
+    material = cavern_rock
+}
+
+box {
+    center = 11.1 4.75 -1.0
+    half = 4.9 4.75 21.0
+    material = cavern_rock
+}
+
+# Cavern Entrance Wall behind camera
+box {
+    center = 0.0 5.0 14.5
+    half = 16.0 5.5 0.5
+    material = cavern_rock
+}
+
+# Monumental Back Archway Portal (CSG Difference: Wall minus Arched Opening)
+csg_difference {
+    material = carved_granite
+    box {
+        center = 0.0 3.6 -7.85
+        half = 5.5 3.6 0.35
+    }
+    csg_union {
+        box {
+            center = 0.0 1.55 -7.75
+            half = 2.0 2.05 0.75
+            material = gilded_bronze
+        }
+        cylinder {
+            base = 0.0 3.6 -8.5
+            top = 0.0 3.6 -7.0
+            r_bottom = 2.0
+            r_top = 2.0
+            material = gilded_bronze
+        }
+    }
+}
+
+# Inner Crypt Wall behind Portal Arch
+box {
+    center = 0.0 4.0 -11.6
+    half = 6.0 4.0 0.4
+    material = dark_basalt
+}
+
+# Sanctuary Point Light glowing deep in the inner crypt
+light {
+    position = 0.0 2.4 -9.8
+    color = 1.0 0.52 0.18
+    intensity = 45.0
+    radius = 0.18
+}
+
+# --- Colonnade Columns & Architraves --------------------------------------
+
+# Left Colonnade (X = -3.8)
+# Column 1 (Front: Z = 5.0)
+box {
+    center = -3.8 0.3 5.0
+    half = 0.5 0.3 0.5
+    material = carved_granite
+}
+cylinder {
+    base = -3.8 0.6 5.0
+    top = -3.8 5.6 5.0
+    r_bottom = 0.40
+    r_top = 0.35
+    material = antique_marble
+}
+box {
+    center = -3.8 5.8 5.0
+    half = 0.45 0.2 0.45
+    material = carved_granite
+}
+
+# Column 2 (Middle: Z = 1.0)
+box {
+    center = -3.8 0.3 1.0
+    half = 0.5 0.3 0.5
+    material = carved_granite
+}
+cylinder {
+    base = -3.8 0.6 1.0
+    top = -3.8 5.6 1.0
+    r_bottom = 0.40
+    r_top = 0.35
+    material = antique_marble
+}
+box {
+    center = -3.8 5.8 1.0
+    half = 0.45 0.2 0.45
+    material = carved_granite
+}
+
+# Column 3 (Back: Z = -3.0)
+box {
+    center = -3.8 0.3 -3.0
+    half = 0.5 0.3 0.5
+    material = carved_granite
+}
+cylinder {
+    base = -3.8 0.6 -3.0
+    top = -3.8 5.6 -3.0
+    r_bottom = 0.40
+    r_top = 0.35
+    material = antique_marble
+}
+box {
+    center = -3.8 5.8 -3.0
+    half = 0.45 0.2 0.45
+    material = carved_granite
+}
+
+# Left Architrave Beam
+box {
+    center = -3.8 6.25 1.0
+    half = 0.4 0.25 4.8
+    material = carved_granite
+}
+
+# Right Colonnade (X = +3.8)
+# Column 1 (Front: Z = 5.0)
+box {
+    center = 3.8 0.3 5.0
+    half = 0.5 0.3 0.5
+    material = carved_granite
+}
+cylinder {
+    base = 3.8 0.6 5.0
+    top = 3.8 5.6 5.0
+    r_bottom = 0.40
+    r_top = 0.35
+    material = antique_marble
+}
+box {
+    center = 3.8 5.8 5.0
+    half = 0.45 0.2 0.45
+    material = carved_granite
+}
+
+# Column 2 (Middle: Z = 1.0)
+box {
+    center = 3.8 0.3 1.0
+    half = 0.5 0.3 0.5
+    material = carved_granite
+}
+cylinder {
+    base = 3.8 0.6 1.0
+    top = 3.8 5.6 1.0
+    r_bottom = 0.40
+    r_top = 0.35
+    material = antique_marble
+}
+box {
+    center = 3.8 5.8 1.0
+    half = 0.45 0.2 0.45
+    material = carved_granite
+}
+
+# Column 3 (Back: Z = -3.0)
+box {
+    center = 3.8 0.3 -3.0
+    half = 0.5 0.3 0.5
+    material = carved_granite
+}
+cylinder {
+    base = 3.8 0.6 -3.0
+    top = 3.8 5.6 -3.0
+    r_bottom = 0.40
+    r_top = 0.35
+    material = antique_marble
+}
+box {
+    center = 3.8 5.8 -3.0
+    half = 0.45 0.2 0.45
+    material = carved_granite
+}
+
+# Right Architrave Beam
+box {
+    center = 3.8 6.25 1.0
+    half = 0.4 0.25 4.8
+    material = carved_granite
+}
+
+# --- Braziers & Point Lights (Soft Penumbra Shadows) ----------------------
+
+# Brazier 1: Left Middle (X = -3.8, Z = 1.0)
+cylinder {
+    base = -3.2 1.6 1.0
+    top = -3.2 1.9 1.0
+    r_bottom = 0.12
+    r_top = 0.32
+    material = antique_bronze
+}
+sphere {
+    center = -3.2 1.95 1.0
+    radius = 0.20
+    material = fire_ember
+}
+light {
+    position = -3.2 2.05 1.0
+    color = 1.0 0.60 0.22
+    intensity = 45.0
+    radius = 0.15
+}
+
+# Brazier 2: Right Middle (X = +3.8, Z = 1.0)
+cylinder {
+    base = 3.2 1.6 1.0
+    top = 3.2 1.9 1.0
+    r_bottom = 0.12
+    r_top = 0.32
+    material = antique_bronze
+}
+sphere {
+    center = 3.2 1.95 1.0
+    radius = 0.20
+    material = fire_ember
+}
+light {
+    position = 3.2 2.05 1.0
+    color = 1.0 0.60 0.22
+    intensity = 45.0
+    radius = 0.15
+}
+
+# Brazier 3: Left Back (X = -3.8, Z = -3.0)
+cylinder {
+    base = -3.2 1.6 -3.0
+    top = -3.2 1.9 -3.0
+    r_bottom = 0.12
+    r_top = 0.32
+    material = antique_bronze
+}
+sphere {
+    center = -3.2 1.95 -3.0
+    radius = 0.20
+    material = fire_ember
+}
+light {
+    position = -3.2 2.05 -3.0
+    color = 1.0 0.58 0.20
+    intensity = 40.0
+    radius = 0.15
+}
+
+# Brazier 4: Right Back (X = +3.8, Z = -3.0)
+cylinder {
+    base = 3.2 1.6 -3.0
+    top = 3.2 1.9 -3.0
+    r_bottom = 0.12
+    r_top = 0.32
+    material = antique_bronze
+}
+sphere {
+    center = 3.2 1.95 -3.0
+    radius = 0.20
+    material = fire_ember
+}
+light {
+    position = 3.2 2.05 -3.0
+    color = 1.0 0.58 0.20
+    intensity = 40.0
+    radius = 0.15
+}
+
+# --- The Central Altar & CSG Relics ---------------------------------------
+
+# Tiered Altar Platform
+box {
+    center = 0.0 0.2 -0.2
+    half = 2.3 0.2 1.4
+    material = dark_basalt
+}
+box {
+    center = 0.0 0.575 -0.2
+    half = 1.7 0.175 1.1
+    material = dark_basalt
+}
+
+# Central Pedestal
+cylinder {
+    base = 0.0 0.75 -0.2
+    top = 0.0 1.5 -0.2
+    r_bottom = 1.05
+    r_top = 0.92
+    material = antique_marble
+}
+
+# Gold Plinth Collar
+cylinder {
+    base = 0.0 1.45 -0.2
+    top = 0.0 1.55 -0.2
+    r_bottom = 0.96
+    r_top = 0.96
+    material = polished_gold
+}
+
+# Relic 1: Carved Astrolabe Sphere (Nested CSG Difference: Obsidian Sphere - Cross-Bore Gold Cylinders)
+csg_difference {
+    material = carved_obsidian
+    sphere {
+        center = 0.0 2.45 -0.2
+        radius = 0.78
+    }
+    csg_union {
+        cylinder {
+            base = 0.0 2.45 -1.2
+            top = 0.0 2.45 1.2
+            r_bottom = 0.42
+            r_top = 0.42
+            material = polished_gold
+        }
+        cylinder {
+            base = -1.2 2.45 -0.2
+            top = 1.2 2.45 -0.2
+            r_bottom = 0.34
+            r_top = 0.34
+            material = polished_gold
+        }
+    }
+}
+
+# Floating Emissive Core inside the carved astrolabe cavity
+sphere {
+    center = 0.0 2.45 -0.2
+    radius = 0.23
+    material = celestial_crystal
+}
+
+# Celestial Relic Light (Area Light Glow)
+light {
+    position = 0.0 2.45 -0.2
+    color = 0.35 0.75 1.0
+    intensity = 26.0
+    radius = 0.15
+}
+
+# Relic 2 (Left): Biconvex Sapphire Lens (CSG Intersection: 2 Overlapping Spheres)
+# Stand
+cylinder {
+    base = -1.05 0.75 0.15
+    top = -1.05 1.35 0.15
+    r_bottom = 0.14
+    r_top = 0.06
+    material = antique_bronze
+}
+# Biconvex Lens
+csg_intersection {
+    material = sapphire_lens
+    sphere {
+        center = -1.05 1.70 0.48
+        radius = 0.46
+    }
+    sphere {
+        center = -1.05 1.70 -0.18
+        radius = 0.46
+    }
+}
+
+# Relic 3 (Right): Gilded Sacrificial Chalice (CSG Difference: Gold Sphere - Ruby Hollow)
+# Stand
+cylinder {
+    base = 1.05 0.75 0.15
+    top = 1.05 1.25 0.15
+    r_bottom = 0.18
+    r_top = 0.08
+    material = polished_gold
+}
+# Hollow Cup
+csg_difference {
+    material = polished_gold
+    sphere {
+        center = 1.05 1.55 0.15
+        radius = 0.36
+    }
+    sphere {
+        center = 1.05 1.68 0.15
+        radius = 0.32
+        material = ruby_gem
+    }
+}
+
+# --- Natural Cavern Boulders & Flora in Shallow Water ----------------------
+
+boulder {
+    position = -5.0 0.3 3.5
+    radius = 0.85
+    roughness = 0.42
+    flatness = 0.22
+    seed = 1234
+    material = mossy_boulder
+}
+
+boulder {
+    position = 4.8 0.25 3.0
+    radius = 0.75
+    roughness = 0.40
+    flatness = 0.25
+    seed = 5678
+    material = mossy_boulder
+}
+
+boulder {
+    position = -2.8 0.15 6.5
+    radius = 0.58
+    roughness = 0.36
+    flatness = 0.28
+    seed = 9101
+    material = mossy_boulder
+}
+
+boulder {
+    position = 3.2 0.15 6.2
+    radius = 0.52
+    roughness = 0.38
+    flatness = 0.30
+    seed = 1121
+    material = mossy_boulder
+}
+

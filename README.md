@@ -257,7 +257,7 @@ RAYTRACER_THREADS=8 ./raytracer --width 1920 --height 1080 --samples 64
     --out output/nordic_trees_fixed.bmp
 
 # Complex architectural & lighting showcases
-./raytracer --scene scenes/cyberpunk_cityscape.scene --out output/cyberpunk.bmp
+./raytracer --scene scenes/cathedral_cavern.scene --out output/cathedral_cavern.bmp
 ./raytracer --scene scenes/olympus_temple.scene --out output/olympus.bmp
 
 # Unbiased path tracing (global illumination) with depth of field and water
@@ -503,8 +503,8 @@ The `scenes/` directory contains a curated collection of feature-rich, atmospher
   `./raytracer --scene scenes/nordic_fjord.scene --width 1280 --height 720 --samples 32 --depth 6 --out output/nordic_fjord.bmp`
 - **`scenes/nordic_trees.scene`** — **"Nordic Forest & Woodland Shoreline"**: Procedural Nordic spruces with tiered drooping branch whorls and needle fronds alongside deciduous birch trees with 3D folded polygonal diamond leaves along a rocky shoreline. Render with:
   `./raytracer --scene scenes/nordic_trees.scene --width 1280 --height 720 --samples 16 --depth 4 --out output/nordic_trees.bmp`
-- **`scenes/cyberpunk_cityscape.scene`** — **"Neo-Shinjuku 2099: The Vertical Sprawl"**: A towering cyberpunk metropolis viewed from a high rooftop terrace. Features architectural window grids, multi-level skybridges, neon billboards, flying aerocar traffic with headlight beams, and dark reflective canals. Render with:
-  `./raytracer --scene scenes/cyberpunk_cityscape.scene --width 1280 --height 720 --samples 32 --depth 6 --out output/cyberpunk_cityscape.bmp`
+- **`scenes/cathedral_cavern.scene`** — **"The Sunken Vault of the Ancients"**: A monumental subterranean cathedral submerged in a calm reflecting pool. Showcases volumetric Mie god-rays piercing through a ceiling oculus, analytical CSG carved architecture (Roman archways, cross-bored obsidian astrolabe with gold interior, biconvex sapphire optical lens with Beer-Lambert refraction), warm glowing bronze braziers with soft penumbral shadows, and radiant emissive area lights. Render with:
+  `./raytracer --scene scenes/cathedral_cavern.scene --width 1280 --height 720 --samples 16 --depth 4 --out output/cathedral_cavern.bmp`
 - **`scenes/olympus_temple.scene`** — **"The Sunken Sanctuary of Helios"**: A classical Hellenistic marble colonnade submerged in an emerald reflecting pool at golden sunset, with a floating golden solar relic, noble PBR metals, and Mediterranean cypress trees. Render with:
   `./raytracer --scene scenes/olympus_temple.scene --width 1280 --height 720 --samples 32 --depth 6 --out output/olympus_temple.bmp`
 - **`scenes/celestial_orrery.scene`** — **"The Grand Astronomical Orrery"**: A clockwork planetary orrery in polished brass, gold, and gemstone planets (sapphire Earth, ruby Mars) hovering above a checkered observatory floor with optical depth of field. Render with:
