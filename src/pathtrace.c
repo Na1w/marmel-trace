@@ -634,11 +634,10 @@ static void pt_fog_segment(const Scene *scene, Ray r, double dist,
         double step_T = exp(-step_tau);
 
         /* Shadow test towards the sun: creates sharp volumetric beams through canopy gaps */
-        Hit sh;
         Ray sray;
         sray.origin = pos;
         sray.dir = scene->sky.sun_dir;
-        int in_shadow = scene_intersect(scene, sray, 0.05, 100.0, &sh);
+        int in_shadow = scene_occluded(scene, sray, 0.05, 100.0);
 
         Vec3 step_inscatter_col = fog->color;
         if (!in_shadow) {

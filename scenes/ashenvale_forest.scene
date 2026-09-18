@@ -18,13 +18,13 @@ camera {
 
 sky {
     sun_dir = -0.34 0.28 -0.90
-    sun_color = 2.60 1.95 1.15
-    horizon_color = 0.45 0.24 0.44
+    sun_color = 1.95 1.45 0.80
+    horizon_color = 0.45 0.22 0.42
     zenith_color = 0.12 0.07 0.22
     gradient_gamma = 0.80
-    sun_glow_exponent = 200.0
-    sun_glow_strength = 1.8
-    sun_radius = 2.8
+    sun_glow_exponent = 800.0
+    sun_glow_strength = 0.8
+    sun_radius = 2.4
     cloud_height = 140.0
     cloud_scale = 0.0028
     cloud_coverage = 0.18
@@ -34,15 +34,15 @@ sky {
 }
 
 fog {
-    density = 0.018
+    density = 0.016
     color = 0.36 0.15 0.40
     height = 5.2
     height_falloff = 0.18
-    inscatter_strength = 0.75
+    inscatter_strength = 0.45
     sun_anisotropy = 0.82
     noise_scale = 0.16
     noise_amount = 0.25
-    shadow_steps = 24
+    shadow_steps = 10
 }
 
 # --- Materials -------------------------------------------------------------
@@ -101,6 +101,19 @@ material red_shrub {
     pbr = 1
     albedo = 0.52 0.08 0.18
     roughness = 0.70
+}
+
+material spruce_bark {
+    pbr = 1
+    albedo = 0.14 0.10 0.07
+    roughness = 0.90
+}
+
+material spruce_needles {
+    pbr = 1
+    albedo = 0.05 0.14 0.06
+    specular = 0.04 0.06 0.03
+    roughness = 0.55
 }
 
 material elven_marble {
@@ -280,34 +293,34 @@ cylinder {
 }
 
 # Foreground leafy tree in front of the giant trunk:
-# Raised base on mound, full rounded crown
+# Raised base on mound, full rounded crown with real 3D polygonal diamond leaves
 tree {
-    position = 0.8 0.0 -1.2
-    height = 2.4
-    radius = 0.26
+    position = 0.5 0.2 -1.0
+    height = 3.3
+    radius = 0.28
     seed = 101
-    foliage = spheres
+    foliage = leaves
     max_depth = 4
-    spread_deg = 35.0
+    spread_deg = 36.0
     len_decay = 0.74
-    leaf_min = 28
-    leaf_span = 14
+    leaf_min = 4
+    leaf_span = 3
     min_branch_radius = 0.02
     material_bark = ancient_bark
     material_leaf = nightelf_canopy
 }
 
-# Secondary higher canopy behind giant trunk
+# Secondary higher canopy behind giant trunk with real 3D polygonal diamond leaves
 tree {
-    position = 1.1 0.0 -4.0
-    height = 2.6
+    position = 0.9 0.0 -3.6
+    height = 3.6
     radius = 0.30
     seed = 303
-    foliage = spheres
+    foliage = leaves
     max_depth = 4
     spread_deg = 35.0
-    leaf_min = 26
-    leaf_span = 12
+    leaf_min = 3
+    leaf_span = 2
     material_bark = ancient_bark
     material_leaf = nightelf_canopy
 }
@@ -316,111 +329,142 @@ tree {
 
 # Prominent dark silhouette trunk on the left edge of frame
 cylinder {
-    base = -2.2 0.0 5.0
-    top = -2.0 4.2 4.4
-    r_bottom = 0.75
-    r_top = 0.50
+    base = -2.7 0.0 5.0
+    top = -2.5 4.2 4.4
+    r_bottom = 0.65
+    r_top = 0.42
     material = dark_bark
 }
 
 cylinder {
-    base = -2.0 4.2 4.4
-    top = -2.3 7.5 4.0
-    r_bottom = 0.50
-    r_top = 0.35
+    base = -2.5 4.2 4.4
+    top = -2.7 7.5 4.0
+    r_bottom = 0.42
+    r_top = 0.30
     material = dark_bark
 }
 
 # Root reaching forward into the left bank
 cylinder {
-    base = -1.7 0.2 5.6
-    top = -2.1 1.6 5.1
-    r_bottom = 0.35
-    r_top = 0.18
+    base = -2.2 0.2 5.6
+    top = -2.6 1.6 5.1
+    r_bottom = 0.32
+    r_top = 0.16
     material = dark_bark
 }
 
 # Gnarled branch arching across the top left
 cylinder {
-    base = -2.0 3.8 4.2
-    top = -0.7 5.4 3.0
-    r_bottom = 0.30
-    r_top = 0.14
+    base = -2.5 3.8 4.2
+    top = -1.2 5.4 3.0
+    r_bottom = 0.28
+    r_top = 0.12
+    material = dark_bark
+}
+
+# Branch arching toward center top framing
+cylinder {
+    base = -1.2 5.4 3.0
+    top = -0.3 5.0 2.2
+    r_bottom = 0.14
+    r_top = 0.08
     material = dark_bark
 }
 
 # Upper branch slicing the sun disk to create god ray 1
 cylinder {
-    base = -1.8 4.3 4.0
-    top = -1.0 4.5 3.0
+    base = -2.3 4.3 4.0
+    top = -1.0 4.2 2.6
     r_bottom = 0.12
     r_top = 0.05
     material = dark_bark
 }
-sphere {
-    center = -1.0 4.5 3.0
-    radius = 0.25
-    material = dark_leaf
-}
 
 # Mid branch slicing the sun disk to create god ray 2
 cylinder {
-    base = -1.7 3.5 4.2
-    top = -1.2 3.4 3.4
+    base = -2.2 3.5 4.2
+    top = -1.2 3.2 2.8
     r_bottom = 0.10
     r_top = 0.04
     material = dark_bark
 }
-sphere {
-    center = -1.2 3.4 3.4
-    radius = 0.20
-    material = dark_leaf
+
+# Drooping twig cutting across the bright sun glare
+cylinder {
+    base = -1.0 4.2 2.6
+    top = -0.7 3.5 2.5
+    r_bottom = 0.05
+    r_top = 0.02
+    material = dark_bark
 }
 
 # Hanging vine / secondary droop branch
 cylinder {
-    base = -1.3 4.5 3.5
-    top = -1.2 3.2 3.6
+    base = -1.7 4.5 3.5
+    top = -1.5 2.8 3.2
     r_bottom = 0.06
-    r_top = 0.04
+    r_top = 0.03
     material = dark_bark
 }
 
-# Dark canopy foliage clusters framing the top-left corner
-sphere {
-    center = -2.3 4.2 4.0
-    radius = 1.10
-    material = dark_leaf
+# Left foreground framing tree with real 3D polygonal diamond leaves framing the morning sun
+tree {
+    position = -2.7 0.0 4.4
+    height = 5.4
+    radius = 0.32
+    seed = 888
+    foliage = leaves
+    max_depth = 4
+    spread_deg = 36.0
+    len_decay = 0.72
+    leaf_min = 2
+    leaf_span = 2
+    material_bark = dark_bark
+    material_leaf = dark_leaf
 }
-sphere {
-    center = -1.9 5.0 3.5
-    radius = 1.05
-    material = dark_leaf
+
+# Background silhouette trees in the morning sun gap (breaking light into god-ray shafts)
+tree {
+    position = -1.6 0.0 -4.5
+    height = 5.2
+    radius = 0.22
+    seed = 654
+    foliage = leaves
+    max_depth = 4
+    spread_deg = 34.0
+    leaf_min = 2
+    leaf_span = 2
+    material_bark = dark_bark
+    material_leaf = dark_leaf
 }
-sphere {
-    center = -1.1 5.5 3.0
-    radius = 0.90
-    material = dark_leaf
-}
-sphere {
-    center = -0.5 5.8 2.6
-    radius = 0.80
-    material = dark_leaf
+
+tree {
+    position = -0.7 0.0 -5.8
+    height = 5.6
+    radius = 0.24
+    seed = 765
+    foliage = leaves
+    max_depth = 4
+    spread_deg = 32.0
+    leaf_min = 2
+    leaf_span = 2
+    material_bark = dark_bark
+    material_leaf = dark_leaf
 }
 
 # --- Right Glade Trees (Purple / Plum Canopies) -----------------------------
 
-# Medium purple canopy tree hovering over the elven ruins
+# Medium purple canopy tree hovering over the elven ruins with 3D diamond leaves
 tree {
     position = 3.8 0.0 -0.6
-    height = 2.2
+    height = 2.4
     radius = 0.24
     seed = 444
-    foliage = spheres
+    foliage = leaves
     max_depth = 4
     spread_deg = 42.0
-    leaf_min = 28
-    leaf_span = 12
+    leaf_min = 2
+    leaf_span = 2
     material_bark = ancient_bark
     material_leaf = purple_canopy
 }
@@ -428,16 +472,38 @@ tree {
 # Background purple tree deeper in the mist
 tree {
     position = 5.4 0.0 -3.8
-    height = 2.8
-    radius = 0.30
+    height = 3.0
+    radius = 0.28
     seed = 555
-    foliage = spheres
+    foliage = leaves
     max_depth = 4
     spread_deg = 38.0
-    leaf_min = 28
-    leaf_span = 12
+    leaf_min = 2
+    leaf_span = 2
     material_bark = ancient_bark
     material_leaf = purple_canopy
+}
+
+# --- Nordic Spruces in the Distant Morning Mist ----------------------------
+
+# Conifer silhouetted behind the elven ruins in the purple haze
+spruce {
+    position = 3.8 0.0 -5.8
+    height = 6.2
+    radius = 0.24
+    seed = 101
+    material_bark = spruce_bark
+    material_leaf = spruce_needles
+}
+
+# Background spruce deep in the mist (center-left)
+spruce {
+    position = -1.4 0.0 -9.5
+    height = 6.5
+    radius = 0.25
+    seed = 303
+    material_bark = spruce_bark
+    material_leaf = spruce_needles
 }
 
 # Distant colossal tree trunk in the purple haze

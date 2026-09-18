@@ -461,7 +461,7 @@ static int bvh_slab(Vec3 mn, Vec3 mx, Vec3 origin, Vec3 inv,
     double enter = fmax(fmax(txmin, tymin), tzmin);
     double exit = fmin(fmin(txmax, tymax), tzmax);
 
-    if (exit < tmin || enter > tmax) return 0;
+    if (exit < enter || exit < tmin || enter > tmax) return 0;
     if (enter < tmin) enter = tmin;
     *t_enter = enter;
     return 1;
@@ -517,8 +517,8 @@ static inline void bvh_slab_2way(Vec3 l_min, Vec3 l_max,
     v2d enter = v2d_max(v2d_max(txmin, tymin), tzmin);
     v2d exit  = v2d_min(v2d_min(txmax, tymax), tzmax);
 
-    int hl = (exit[0] >= tmin && enter[0] <= tmax);
-    int hr = (exit[1] >= tmin && enter[1] <= tmax);
+    int hl = (exit[0] >= enter[0] && exit[0] >= tmin && enter[0] <= tmax);
+    int hr = (exit[1] >= enter[1] && exit[1] >= tmin && enter[1] <= tmax);
 
     *hl_out = hl;
     *hr_out = hr;
