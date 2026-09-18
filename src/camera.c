@@ -58,6 +58,7 @@ Camera camera_create(Vec3 from, Vec3 at, Vec3 up, double vfov_deg, double aspect
     /* --- Depth of field defaults: ideal pinhole, focus at the target -- */
     cam.aperture = CAMERA_DEFAULT_APERTURE;
     cam.focus_distance = vec3_length(vec3_sub(at, from));
+    cam.dome_radius = 0.0;
 
     return cam;
 }

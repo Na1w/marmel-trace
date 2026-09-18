@@ -157,6 +157,7 @@ used (see §8 for the built-in fallback and the full mapping).
 | `vfov` | f64 | degrees | `(0, 180)` | `40` | O |
 | `aperture` | f64 | world | `>= 0` | `0` (pinhole) | O |
 | `focus_distance` | f64 | world | `>= 0` | `0` → derive `|target - eye|` | O |
+| `dome_radius` / `dome_port` | f64 | world | `>= 0` | `0` (disabled) | O |
 
 - `up` must be non-zero after normalisation, and must not be parallel to
   `target - eye`; otherwise hard error (`E_DEGENERATE_CAMERA`).
@@ -178,6 +179,12 @@ distance to the `target` (`|target - eye|`), i.e. the look-at point is in focus
 by default. The canonical writer emits both keys **only when they differ from
 their defaults**, so the built-in scene emits no `aperture`/`focus_distance`
 lines and `scenes/default.scene` remains byte-identical.
+
+**Underwater dome port (`dome_radius` / `dome_port`):** simulates an underwater
+spherical dome port of radius `dome_radius` (concentric with the camera pinhole/thin lens).
+When positioned on an ocean waterline, rays traversing below the local wave height
+enter the water volume without grazing-angle total internal reflection artifacts,
+enabling authentic 50/50 split-waterline over-and-under photography.
 - **Aspect ratio is NOT stored in the file.** The camera aspect is always the
   render's true output aspect `width/height` from the CLI, exactly as
   `main.c` does today (`camera_create(eye, target, up, vfov, width/height)`).
@@ -619,6 +626,31 @@ canonical output they are emitted first, before any block.
 - `water_level` is the y of the pond top face and is used only at build time to
   place the pond box. The pond box (if the file declares one) must be authored
   with its top face at this value; see §8.
+
+### 4.12 `ocean` — repeatable procedural wave surface & volume
+
+Generates a continuous 4-harmonic Gerstner trochoidal ocean wave mesh with exact
+analytic normal evaluation ($T_z \times T_x$), perimeter watertight side skirts,
+and bottom floor. Creates authentic geometric wave crests, troughs, and refraction.
+
+| Key | Type | Units | Range | Default | Req |
+|---|---|---|---|---|---|
+| `material` | name | — | must resolve | — | **R** |
+| `center` | vec3 | world | finite | `0 0 0` | O |
+| `size` | vec3 / pair | world | `> 0` | `100 100` | O |
+| `resolution` | int pair | quads | `[2, 2048]` | `64 64` | O |
+| `amplitude` | f64 | world | `[0, ∞)` | `0.30` | O |
+| `wavelength` | f64 | world | `> 0` | `12.0` | O |
+| `direction` | vec3 / pair | 2D vector | non-zero | `1.0 0.0` | O |
+| `steepness` | f64 | ratio | `[0, 0.90]` | `0.50` | O |
+| `chop` | f64 | world | `[0, ∞)` | `amplitude * 0.25` | O |
+| `chop_wavelength`| f64 | world | `> 0` | `wavelength * 0.25`| O |
+| `depth` | f64 | world | `>= 0` | `0.0` (surface only) | O |
+| `seed` | int | — | `[0, 2^32-1]` | `1234` | O |
+
+* When `depth > 0`, watertight side skirts and a bottom floor at `center.y - depth`
+  are generated, creating an enclosed dielectric water volume with Snell refraction
+  and Beer-Lambert wavelength absorption.
 
 ---
 

@@ -188,6 +188,13 @@ typedef struct {
     int          *mesh_lines;
     int           mesh_line_count;
     int           mesh_line_cap;
+    /* state for ocean blocks */
+    SceneOceanDesc cur_ocean;
+    char           ocean_mat_name[SD_TOK_TEXT];
+    int            ocean_mat_line;
+    int           *ocean_lines;
+    int            ocean_line_count;
+    int            ocean_line_cap;
 } Parser;
 
 /* FILE:LINE: error: MSG (near 'TOKEN')  — the one true error form (§6). */
@@ -417,7 +424,8 @@ typedef enum {
     BLK_DISPLACE,
     BLK_CSG,
     BLK_SDF_CSG,
-    BLK_MESH
+    BLK_MESH,
+    BLK_OCEAN
 } BlockKind;
 
 typedef struct {
@@ -439,7 +447,8 @@ enum {
     CAM_VFOV   = 1u << 3,
     /* Depth-of-field keys (§4.1). */
     CAM_APERTURE       = 1u << 4,
-    CAM_FOCUS_DISTANCE = 1u << 5
+    CAM_FOCUS_DISTANCE = 1u << 5,
+    CAM_DOME_RADIUS    = 1u << 6
 };
 
 enum {
@@ -496,7 +505,11 @@ static const KeySpec CAM_KEYS[] = {
     { "aperture",       KT_DOUBLE, CAM_APERTURE,
       offsetof(CameraDesc, aperture) },
     { "focus_distance", KT_DOUBLE, CAM_FOCUS_DISTANCE,
-      offsetof(CameraDesc, focus_distance) }
+      offsetof(CameraDesc, focus_distance) },
+    { "dome_radius",    KT_DOUBLE, CAM_DOME_RADIUS,
+      offsetof(CameraDesc, dome_radius) },
+    { "dome_port",      KT_DOUBLE, CAM_DOME_RADIUS,
+      offsetof(CameraDesc, dome_radius) }
 };
 
 static const KeySpec SKY_KEYS[] = {
@@ -2330,6 +2343,129 @@ static void sd_close_mesh(Parser *p, SceneDesc *d, const Block *b)
     }
 }
 
+/* --- Ocean / Gerstner wave block helpers --- */
+static int sd_push_ocean_line(Parser *p, int line)
+{
+    int *grown;
+    int  ncap;
+
+    if (p->ocean_line_count >= p->ocean_line_cap) {
+        ncap = (p->ocean_line_cap > 0) ? p->ocean_line_cap * 2 : 16;
+        grown = (int *)realloc(p->ocean_lines, (size_t)ncap * sizeof(int));
+        if (grown == NULL)
+            return -1;
+        p->ocean_lines = grown;
+        p->ocean_line_cap = ncap;
+    }
+    p->ocean_lines[p->ocean_line_count++] = line;
+    return 0;
+}
+
+static void sd_ocean_begin(Parser *p)
+{
+    memset(&p->cur_ocean, 0, sizeof(p->cur_ocean));
+    p->ocean_mat_name[0] = '\0';
+    p->ocean_mat_line = p->line;
+    p->cur_ocean.center = vec3(0.0, 0.0, 0.0);
+    p->cur_ocean.size = vec3(100.0, 0.0, 100.0);
+    p->cur_ocean.res_x = 128;
+    p->cur_ocean.res_z = 128;
+    p->cur_ocean.amplitude = 0.25;
+    p->cur_ocean.wavelength = 12.0;
+    p->cur_ocean.direction = vec3(1.0, 0.0, 0.0);
+    p->cur_ocean.steepness = 0.5;
+    p->cur_ocean.chop = 0.08;
+    p->cur_ocean.chop_wavelength = 4.0;
+    p->cur_ocean.depth = 10.0;
+    p->cur_ocean.seed = 42;
+}
+
+static void sd_apply_ocean_key(Parser *p, Block *b, const Token *t, int n)
+{
+    (void)b;
+    const char *key = t[0].text;
+
+    if (strcmp(key, "material") == 0 || strcmp(key, "mat") == 0) {
+        const char *name = NULL;
+        if (sd_val_name(p, t, n, 2, &name) < 0) return;
+        snprintf(p->ocean_mat_name, sizeof(p->ocean_mat_name), "%s", name);
+        p->cur_ocean.material_name = p->ocean_mat_name;
+        p->ocean_mat_line = p->line;
+    } else if (strcmp(key, "center") == 0 || strcmp(key, "position") == 0 || strcmp(key, "pos") == 0) {
+        (void)sd_val_vec3(p, t, n, 2, &p->cur_ocean.center);
+    } else if (strcmp(key, "size") == 0) {
+        if (n == 3) {
+            double s = 100.0;
+            if (sd_val_double(p, t, n, 2, &s) >= 0) {
+                p->cur_ocean.size = vec3(s, 0.0, s);
+            }
+        } else if (n == 4) {
+            double sx = 100.0, sz = 100.0;
+            if (sd_val_double(p, t, n, 2, &sx) >= 0 &&
+                sd_val_double(p, t, n, 3, &sz) >= 0) {
+                p->cur_ocean.size = vec3(sx, 0.0, sz);
+            }
+        } else {
+            (void)sd_val_vec3(p, t, n, 2, &p->cur_ocean.size);
+        }
+    } else if (strcmp(key, "resolution") == 0 || strcmp(key, "res") == 0) {
+        if (n == 3) {
+            int r = 128;
+            if (sd_val_int(p, t, n, 2, &r) >= 0) {
+                p->cur_ocean.res_x = r;
+                p->cur_ocean.res_z = r;
+            }
+        } else if (n >= 4) {
+            (void)sd_val_int(p, t, n, 2, &p->cur_ocean.res_x);
+            (void)sd_val_int(p, t, n, 3, &p->cur_ocean.res_z);
+        }
+    } else if (strcmp(key, "amplitude") == 0 || strcmp(key, "amp") == 0) {
+        (void)sd_val_double(p, t, n, 2, &p->cur_ocean.amplitude);
+    } else if (strcmp(key, "wavelength") == 0 || strcmp(key, "wave_length") == 0) {
+        (void)sd_val_double(p, t, n, 2, &p->cur_ocean.wavelength);
+    } else if (strcmp(key, "direction") == 0 || strcmp(key, "dir") == 0) {
+        if (n == 4) {
+            double dx = 1.0, dz = 0.0;
+            if (sd_val_double(p, t, n, 2, &dx) >= 0 &&
+                sd_val_double(p, t, n, 3, &dz) >= 0) {
+                p->cur_ocean.direction = vec3(dx, 0.0, dz);
+            }
+        } else {
+            (void)sd_val_vec3(p, t, n, 2, &p->cur_ocean.direction);
+        }
+    } else if (strcmp(key, "steepness") == 0) {
+        (void)sd_val_double(p, t, n, 2, &p->cur_ocean.steepness);
+    } else if (strcmp(key, "chop") == 0) {
+        (void)sd_val_double(p, t, n, 2, &p->cur_ocean.chop);
+    } else if (strcmp(key, "chop_wavelength") == 0) {
+        (void)sd_val_double(p, t, n, 2, &p->cur_ocean.chop_wavelength);
+    } else if (strcmp(key, "depth") == 0) {
+        (void)sd_val_double(p, t, n, 2, &p->cur_ocean.depth);
+    } else if (strcmp(key, "seed") == 0) {
+        (void)sd_val_uint(p, t, n, 2, &p->cur_ocean.seed);
+    } else {
+        sd_warn_unknown_key(p, key);
+    }
+}
+
+static void sd_close_ocean(Parser *p, SceneDesc *d, const Block *b)
+{
+    if (p->ocean_mat_name[0] == '\0') {
+        sd_err_at(p, b->line, "missing required key", "material");
+        return;
+    }
+    p->cur_ocean.material_name = p->ocean_mat_name;
+
+    int idx = scene_desc_add_ocean(d, &p->cur_ocean);
+    if (idx < 0) {
+        sd_err(p, "out of memory", "ocean");
+        return;
+    }
+    if (sd_push_ocean_line(p, p->ocean_mat_line) != 0) {
+        sd_err(p, "out of memory", "ocean");
+    }
+}
+
 /* Dispatch the close of one block to its type-specific finisher. */
 static void sd_close_block(Parser *p, SceneDesc *d, const Block *b)
 {
@@ -2342,6 +2478,7 @@ static void sd_close_block(Parser *p, SceneDesc *d, const Block *b)
     case BLK_DISPLACE: sd_close_displace(p, d, b); break;
     case BLK_SDF_CSG:  sd_close_sdf_csg(p, d, b);  break;
     case BLK_MESH:     sd_close_mesh(p, d, b);     break;
+    case BLK_OCEAN:    sd_close_ocean(p, d, b);    break;
     default:           break; /* camera / sky need no close action */
     }
 }
@@ -2489,6 +2626,15 @@ static void sd_open_block(Parser *p, SceneDesc *d, const Token *t, int n, Block 
         sd_begin_block(b, BLK_MESH, p->line, kw);
         return;
     }
+    if (strcmp(kw, "ocean") == 0 || strcmp(kw, "waves") == 0) {
+        if (n != 2 || t[1].kind != TOK_LBRACE) {
+            sd_err(p, "malformed block header, expected `ocean {`", kw);
+            return;
+        }
+        sd_ocean_begin(p);
+        sd_begin_block(b, BLK_OCEAN, p->line, kw);
+        return;
+    }
     if (strcmp(kw, "tree") == 0 || strcmp(kw, "bush") == 0 ||
         strcmp(kw, "conifer") == 0 || strcmp(kw, "spruce") == 0 || strcmp(kw, "pine") == 0) {
         if (n != 2 || t[1].kind != TOK_LBRACE) {
@@ -2611,6 +2757,9 @@ static void sd_handle_body(Parser *p, SceneDesc *d, const Token *t, int n, Block
         break;
     case BLK_MESH:
         sd_apply_mesh_key(p, b, t, n);
+        break;
+    case BLK_OCEAN:
+        sd_apply_ocean_key(p, b, t, n);
         break;
     default:
         sd_err(p, "key outside a block", t[0].text);
@@ -2883,6 +3032,21 @@ static void sd_resolve_meshes(Parser *p, SceneDesc *d)
     }
 }
 
+static void sd_resolve_oceans(Parser *p, SceneDesc *d)
+{
+    for (int i = 0; i < d->ocean_count && !p->failed; i++) {
+        if (d->oceans[i].material_name != NULL) {
+            int idx = sd_find_material(d, d->oceans[i].material_name);
+            if (idx < 0) {
+                sd_err_at(p, p->ocean_lines[i],
+                          "unknown material", d->oceans[i].material_name);
+                return;
+            }
+            d->oceans[i].material_index = idx;
+        }
+    }
+}
+
 /* ------------------------------------------------------------------ */
 /* Parser: file-level driver                                           */
 /* ------------------------------------------------------------------ */
@@ -3105,6 +3269,13 @@ void scene_desc_free(SceneDesc *d)
         free(d->meshes);
     }
 
+    if (d->oceans != NULL) {
+        for (i = 0; i < d->ocean_count; i++) {
+            free(d->oceans[i].material_name);
+        }
+        free(d->oceans);
+    }
+
     scene_desc_init(d);
 }
 
@@ -3145,11 +3316,15 @@ static int sd_run_parser(SceneDesc *d, char *buf, size_t len,
     p.mesh_lines = NULL;
     p.mesh_line_count = 0;
     p.mesh_line_cap = 0;
+    p.ocean_lines = NULL;
+    p.ocean_line_count = 0;
+    p.ocean_line_cap = 0;
     sd_prim_begin(&p);
     sd_plant_begin(&p);
     sd_boulder_begin(&p);
     sd_light_begin(&p);
     sd_mesh_begin(&p);
+    sd_ocean_begin(&p);
 
     if (len > 0) {
         char *start = buf;
@@ -3172,12 +3347,15 @@ static int sd_run_parser(SceneDesc *d, char *buf, size_t len,
     if (!p.failed)
         sd_resolve_meshes(&p, d);
     if (!p.failed)
+        sd_resolve_oceans(&p, d);
+    if (!p.failed)
         sd_resolve_water(&p, d);
 
     free(p.ref_lines);
     free(p.plant_lines);
     free(p.boulder_lines);
     free(p.mesh_lines);
+    free(p.ocean_lines);
 
     if (p.failed) {
         scene_desc_free(d); /* *d stays safe (and idempotently freeable) */
@@ -3468,4 +3646,27 @@ int scene_desc_add_mesh(SceneDesc *d, const SceneMeshDesc *mesh)
     slot->material_index = SCENE_DESC_NO_MATERIAL;
 
     return d->mesh_count++;
+}
+
+int scene_desc_add_ocean(SceneDesc *d, const SceneOceanDesc *ocean)
+{
+    SceneOceanDesc *slot;
+    char           *mat;
+
+    if (d == NULL || ocean == NULL)
+        return -1;
+    if (sd_grow((void **)&d->oceans, &d->ocean_capacity,
+                d->ocean_count, sizeof(*d->oceans)) != 0)
+        return -1;
+
+    mat = sd_strdup(ocean->material_name);
+    if (ocean->material_name != NULL && mat == NULL)
+        return -1;
+
+    slot = &d->oceans[d->ocean_count];
+    *slot = *ocean;
+    slot->material_name = mat;
+    slot->material_index = SCENE_DESC_NO_MATERIAL;
+
+    return d->ocean_count++;
 }

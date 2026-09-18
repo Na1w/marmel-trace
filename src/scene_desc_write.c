@@ -492,6 +492,8 @@ static void emit_camera(Writer *w, const SceneDesc *d)
         w_key_double(w, "aperture", d->camera.aperture);
     if (d->camera.focus_distance != CAMERA_FOCUS_DISTANCE_DERIVED)
         w_key_double(w, "focus_distance", d->camera.focus_distance);
+    if (d->camera.dome_radius > 1e-6)
+        w_key_double(w, "dome_radius", d->camera.dome_radius);
     w_close(w);
 }
 
@@ -852,6 +854,58 @@ static void emit_light(Writer *w, const SceneDesc *d, int index)
     w_close(w);
 }
 
+static void emit_mesh(Writer *w, const SceneDesc *d, int index)
+{
+    const SceneMeshDesc *m = &d->meshes[index];
+    w_open(w, "mesh", NULL);
+    if (m->file != NULL)
+        w_key_name(w, "file", m->file);
+    w_key_vec3(w, "center", m->center);
+    w_key_vec3(w, "scale", m->scale);
+    w_key_vec3(w, "rotate", m->rotate);
+    w_key_int(w, "smooth", m->smooth);
+    if (m->auto_center)
+        w_key_int(w, "auto_center", m->auto_center);
+    if (m->auto_scale > 0.0)
+        w_key_double(w, "auto_scale", m->auto_scale);
+    if (m->material_name != NULL)
+        w_key_name(w, "material", m->material_name);
+    else if (m->material_index >= 0 && m->material_index < d->material_count &&
+             d->materials[m->material_index].name != NULL)
+        w_key_name(w, "material", d->materials[m->material_index].name);
+    w_close(w);
+}
+
+static void emit_ocean(Writer *w, const SceneDesc *d, int index)
+{
+    const SceneOceanDesc *o = &d->oceans[index];
+    w_open(w, "ocean", NULL);
+    w_key_vec3(w, "center", o->center);
+    w_key_vec3(w, "size", o->size);
+    {
+        char res_buf[64];
+        w_key_prefix(w, "resolution");
+        snprintf(res_buf, sizeof res_buf, "%d %d", o->res_x, o->res_z);
+        w_raw(w, res_buf);
+        w_eol(w);
+    }
+    w_key_double(w, "amplitude", o->amplitude);
+    w_key_double(w, "wavelength", o->wavelength);
+    w_key_vec3(w, "direction", o->direction);
+    w_key_double(w, "steepness", o->steepness);
+    w_key_double(w, "chop", o->chop);
+    w_key_double(w, "chop_wavelength", o->chop_wavelength);
+    w_key_double(w, "depth", o->depth);
+    if (o->seed != 0)
+        w_key_uint(w, "seed", o->seed);
+    if (o->material_name != NULL)
+        w_key_name(w, "material", o->material_name);
+    else if (o->material_index >= 0 && o->material_index < d->material_count &&
+             d->materials[o->material_index].name != NULL)
+        w_key_name(w, "material", d->materials[o->material_index].name);
+    w_close(w);
+}
+
 /* ------------------------------------------------------------------ */
 /* Entry point                                                         */
 /* ------------------------------------------------------------------ */
@@ -905,6 +959,10 @@ int scene_desc_write(const SceneDesc *d, const char *path,
         emit_boulder(&w, d, i);
     for (i = 0; i < d->light_count; ++i)
         emit_light(&w, d, i);
+    for (i = 0; i < d->mesh_count; ++i)
+        emit_mesh(&w, d, i);
+    for (i = 0; i < d->ocean_count; ++i)
+        emit_ocean(&w, d, i);
 
     if (fflush(fp) != 0)
         w_fail(&w, "flush error");

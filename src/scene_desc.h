@@ -81,6 +81,7 @@ typedef struct {
     double aspect;    /* output aspect (width/height); NOT in file */
     double aperture;  /* lens radius for depth of field (0 = pinhole)  */
     double focus_distance; /* eye -> focal plane; 0 = |target - eye|   */
+    double dome_radius;    /* dome port radius for over/under waterline split (0 = pinhole) */
 } CameraDesc;
 
 /* ------------------------------------------------------------------ */
@@ -169,6 +170,24 @@ typedef struct {
     int          auto_center;     /* 1: auto center bounding box at origin */
     double       auto_scale;      /* if > 0: fit bounding box max dimension */
 } SceneMeshDesc;
+
+/* Procedural ocean / Gerstner wave directive */
+typedef struct {
+    char        *material_name;   /* owned referenced material name, or NULL */
+    int          material_index;  /* resolved material index, or SCENE_DESC_NO_MATERIAL */
+    Vec3         center;          /* translation / center position; center.y is base water level */
+    Vec3         size;            /* span: size.x by size.z in metres (size.y unused) */
+    int          res_x;           /* grid resolution in X (e.g. 128) */
+    int          res_z;           /* grid resolution in Z (e.g. 128) */
+    double       amplitude;       /* primary swell amplitude (m, default: 0.25) */
+    double       wavelength;      /* primary swell wavelength (m, default: 12.0) */
+    Vec3         direction;       /* swell propagation direction in XZ plane */
+    double       steepness;       /* Gerstner steepness Q factor (0..1, default: 0.5) */
+    double       chop;            /* secondary chop / cross-swell amplitude (m, default: 0.08) */
+    double       chop_wavelength; /* secondary chop wavelength (m, default: 4.0) */
+    double       depth;           /* depth of volume in metres (adds skirts & bottom) */
+    unsigned     seed;            /* seed for harmonic phase variations */
+} SceneOceanDesc;
 
 /* ------------------------------------------------------------------ */
 /* Procedural plant directive (docs/scene_format.md §4.9 - §4.10)      */
@@ -337,6 +356,10 @@ typedef struct {
     SceneMeshDesc   *meshes;        /* owned dynamic array                 */
     int              mesh_count;
     int              mesh_capacity;
+
+    SceneOceanDesc  *oceans;        /* owned dynamic array                 */
+    int              ocean_count;
+    int              ocean_capacity;
 } SceneDesc;
 
 /* ------------------------------------------------------------------ */
@@ -408,6 +431,7 @@ int scene_desc_add_plant(SceneDesc *d, const ScenePlantDesc *plant);
 int scene_desc_add_boulder(SceneDesc *d, const SceneBoulderDesc *boulder);
 int scene_desc_add_light(SceneDesc *d, const SceneLightDesc *light);
 int scene_desc_add_mesh(SceneDesc *d, const SceneMeshDesc *mesh);
+int scene_desc_add_ocean(SceneDesc *d, const SceneOceanDesc *ocean);
 
 #ifdef __cplusplus
 }

@@ -501,6 +501,36 @@ unsigned char pathtrace_to_byte(double linear)
  * (b == 0) and the miss path is left untouched. This avoids double counting the
  * sun's direct contribution while keeping the gradient/cloud sky intact.
  */
+static int pt_occluded_segment(const Scene *scene, Ray r, double tmin, double tmax, Vec3 *attenuation)
+{
+    *attenuation = vec3(1.0, 1.0, 1.0);
+    Ray cur = r;
+    double remaining = tmax;
+    for (int step = 0; step < 6; ++step) {
+        Hit h;
+        if (!scene_intersect(scene, cur, tmin, remaining, &h)) {
+            return 0;
+        }
+        const Material *m = scene_material(scene, h.material_index);
+        if (m == NULL) return 1;
+        if (m->is_water || m->transparency > 0.8) {
+            if (m->beer_lambert || m->is_water) {
+                Vec3 seg = vec3(exp(-m->absorption.x * h.t),
+                                exp(-m->absorption.y * h.t),
+                                exp(-m->absorption.z * h.t));
+                *attenuation = vec3_mul(*attenuation, seg);
+            }
+            cur.origin = vec3_add(h.point, vec3_scale(cur.dir, 1e-3));
+            remaining -= h.t;
+            if (remaining <= 1e-3) return 0;
+            tmin = 1e-3;
+            continue;
+        }
+        return 1;
+    }
+    return 1;
+}
+
 static Vec3 pt_nee_sun(const Scene *scene, const Material *mm, Vec3 P, Vec3 N, Vec3 V,
                        Vec3 throughput, unsigned seed_key, int bounce)
 {
@@ -510,13 +540,15 @@ static Vec3 pt_nee_sun(const Scene *scene, const Material *mm, Vec3 P, Vec3 N, V
     Vec3 L = sky_sun_disk_dir(sun, scene->sky.sun_radius, r1, r2);
     if (!pt_is_finite(L) || vec3_dot(N, L) <= 0.0) return vec3(0.0, 0.0, 0.0);
     Ray sr; sr.origin = vec3_add(P, vec3_scale(N, 1e-3)); sr.dir = L;
-    if (scene_occluded(scene, sr, 1e-3, 1e30)) return vec3(0.0, 0.0, 0.0);
+    Vec3 atten;
+    if (pt_occluded_segment(scene, sr, 1e-3, 1e30, &atten)) return vec3(0.0, 0.0, 0.0);
     double rad = scene->sky.sun_radius * 3.14159265358979323846 / 180.0;
     double Omega = (scene->sky.sun_radius > 0.0)
                        ? 2.0 * 3.14159265358979323846 * (1.0 - cos(rad))
                        : 1.0;
-    Vec3 lit = mm->pbr ? material_shade_pbr(mm, N, L, V, scene->sky.sun_color)
-                       : material_shade_local(mm, N, L, V, scene->sky.sun_color);
+    Vec3 sun_col = vec3_mul(scene->sky.sun_color, atten);
+    Vec3 lit = mm->pbr ? material_shade_pbr(mm, N, L, V, sun_col)
+                       : material_shade_local(mm, N, L, V, sun_col);
     return vec3_mul(throughput, vec3_scale(lit, Omega));   /* 1/pdf = Omega */
 }
 
@@ -560,9 +592,11 @@ static Vec3 pt_nee_emissive(const Scene *scene, const Material *mm, Vec3 P, Vec3
         Ray sr; sr.origin = vec3_add(P, vec3_scale(N, 1e-3)); sr.dir = wi;
         Hit lh;
         if (!primitive_intersect(&scene->geo.prims[lt->prim_index], sr, 1e-3, 1e30, &lh)) continue;
-        if (scene_occluded(scene, sr, 1e-3, lh.t - 1e-3)) continue;
-        Vec3 lit = mm->pbr ? material_shade_pbr(mm, N, wi, V, lt->emissive)
-                           : material_shade_local(mm, N, wi, V, lt->emissive);
+        Vec3 atten;
+        if (pt_occluded_segment(scene, sr, 1e-3, lh.t - 1e-3, &atten)) continue;
+        Vec3 emit_col = vec3_mul(lt->emissive, atten);
+        Vec3 lit = mm->pbr ? material_shade_pbr(mm, N, wi, V, emit_col)
+                           : material_shade_local(mm, N, wi, V, emit_col);
         sum = vec3_add(sum, vec3_mul(throughput, vec3_scale(lit, Omega)));  /* 1/pdf = Omega */
     }
     return sum;
@@ -633,15 +667,16 @@ static void pt_fog_segment(const Scene *scene, Ray r, double dist,
         double step_tau = rho * dt;
         double step_T = exp(-step_tau);
 
-        /* Shadow test towards the sun: creates sharp volumetric beams through canopy gaps */
+        /* Shadow test towards the sun: creates sharp volumetric beams through canopy gaps and waves */
         Ray sray;
         sray.origin = pos;
         sray.dir = scene->sky.sun_dir;
-        int in_shadow = scene_occluded(scene, sray, 0.05, 100.0);
+        Vec3 atten;
+        int in_shadow = pt_occluded_segment(scene, sray, 0.05, 100.0, &atten);
 
         Vec3 step_inscatter_col = fog->color;
         if (!in_shadow) {
-            step_inscatter_col = vec3_add(step_inscatter_col, sun_glow_unit);
+            step_inscatter_col = vec3_add(step_inscatter_col, vec3_mul(sun_glow_unit, atten));
         }
 
         Vec3 step_inscatter = vec3_scale(step_inscatter_col, 1.0 - step_T);
@@ -690,6 +725,13 @@ Vec3 pathtrace_radiance(const Scene *scene, Ray primary, int max_depth,
 
     Vec3 throughput = vec3(1.0, 1.0, 1.0);
     const Material *medium = NULL; /* material of the medium currently inside */
+
+    if (scene->water_material >= 0) {
+        double w_h = scene_water_height(scene, primary.origin.x, primary.origin.z);
+        if (primary.origin.y < w_h) {
+            medium = scene_material(scene, scene->water_material);
+        }
+    }
 
     /* De-duplication state (t-104b2): the camera ray (b == 0) is treated as
      * "specular" so emitted radiance is always added on the primary hit; it is
@@ -749,7 +791,9 @@ Vec3 pathtrace_radiance(const Scene *scene, Ray primary, int max_depth,
         Vec3 N = h.normal; /* already flipped to oppose the incoming ray */
 
         if (m->is_water) {
-            N = water_normal(P.x, P.z, 0.0); /* wave-perturbed normal, t = 0 */
+            if (fabs(h.normal.y) > 0.999 && fabs(h.normal.x) < 1e-4 && fabs(h.normal.z) < 1e-4) {
+                N = water_normal(P.x, P.z, 0.0); /* wave-perturbed normal, t = 0 */
+            }
         } else if (m->bump_strength > 1e-6) {
             N = texture_normal(m, P, N);
         }
@@ -812,10 +856,9 @@ Vec3 pathtrace_radiance(const Scene *scene, Ray primary, int max_depth,
                             pt_nee_emissive(scene, mm, P, N, V, throughput,
                                             h.prim_index, seed_key, b));
 
-        /* Sun Next-Event-Estimation (t-104b1): first bounce only (see the
-         * skip_env policy note on pt_nee_sun). Adds the direct sun term WITHOUT
-         * modifying `throughput`, so the rest of the path stays unbiased. */
-        if (b == 0) {
+        /* Sun Next-Event-Estimation: applied on bounce 0 (primary hit),
+         * or on bounce 1 if the ray entered a transmissive medium / water via specular refraction. */
+        if (b == 0 || (b == 1 && medium != NULL && last_bounce_specular)) {
             radiance = vec3_add(radiance,
                                 pt_nee_sun(scene, mm, P, N, V, throughput,
                                            seed_key, b));
@@ -935,6 +978,13 @@ static void pt_render_pixel(const Scene *scene, const Camera *cam,
         double uu = ((double)x + jx) / (double)width;
         double vv = 1.0 - ((double)y + jy) / (double)height;
         Ray ray = camera_ray_dof(cam, uu, vv, lr1, lr2);
+        if (cam->dome_radius > 1e-4 && scene->water_material >= 0) {
+            Vec3 p_dome = vec3_add(ray.origin, vec3_scale(ray.dir, cam->dome_radius));
+            double wh = scene_water_height(scene, p_dome.x, p_dome.z);
+            if (p_dome.y < wh) {
+                ray.origin = vec3_sub(p_dome, vec3(0.0, 1e-3, 0.0));
+            }
+        }
 
         /*
          * Per-primary-ray key: a pure function of (x, y, s) only, so the

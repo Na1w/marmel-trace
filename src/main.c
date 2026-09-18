@@ -564,6 +564,8 @@ int main(int argc, char **argv)
      */
     if (desc.camera.focus_distance > CAMERA_FOCUS_DISTANCE_DERIVED)
         cam.focus_distance = desc.camera.focus_distance;
+    if (desc.camera.dome_radius > 0.0)
+        cam.dome_radius = desc.camera.dome_radius;
     scene_desc_free(&desc);
 
     /* 4. Allocate the pixel buffer (overflow-guarded). */

@@ -34,6 +34,7 @@ typedef struct {
      */
     double aperture;       /* lens radius, world units (0 = pinhole)        */
     double focus_distance; /* eye -> focal plane distance (default |at-from|)*/
+    double dome_radius;    /* dome port radius for over/under waterline split (0 = pinhole) */
 } Camera;
 
 /* Camera DOF defaults. `aperture == 0` is an ideal pinhole. */

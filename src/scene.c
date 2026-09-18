@@ -726,6 +726,8 @@ void scene_free(Scene *s)
 
     s->water_material = -1;
     s->water_level = 0.0;
+    s->has_ocean = 0;
+    memset(&s->ocean_params, 0, sizeof(s->ocean_params));
 }
 
 /* ------------------------------------------------------------------ */
@@ -1097,6 +1099,268 @@ static int scene_grow_boulder(Geometry *g, int mat, Vec3 center, double radius,
 }
 
 /* ------------------------------------------------------------------ */
+/* Procedural Gerstner Ocean generator                                 */
+/* ------------------------------------------------------------------ */
+
+#ifndef M_PI
+#define M_PI 3.14159265358979323846
+#endif
+
+double scene_water_height(const Scene *scene, double x, double z)
+{
+    if (!scene) return 0.0;
+    if (!scene->has_ocean) return scene->water_level;
+
+    const SceneOceanParams *o = &scene->ocean_params;
+    double y = o->center.y;
+    double dir_x = o->direction.x;
+    double dir_z = o->direction.z;
+    double dlen = sqrt(dir_x * dir_x + dir_z * dir_z);
+    if (dlen > 1e-12) {
+        dir_x /= dlen;
+        dir_z /= dlen;
+    } else {
+        dir_x = 1.0;
+        dir_z = 0.0;
+    }
+
+    double wl = o->wavelength <= 0.0 ? 12.0 : o->wavelength;
+    double amp = o->amplitude;
+    double chop_wl = o->chop_wavelength > 0.0 ? o->chop_wavelength : wl * 0.25;
+    double chop_amp = o->chop > 0.0 ? o->chop : amp * 0.25;
+
+    double lambda[4] = { wl, wl * 0.52, chop_wl, chop_wl * 0.40 };
+    double A[4] = { amp, amp * 0.38, chop_amp, chop_amp * 0.32 };
+    double angle[4] = { 0.0, 0.628, -0.488, 1.134 };
+    double phi[4] = {
+        0.0,
+        1.7 + (double)(o->seed % 100) * 0.03,
+        3.1 + (double)((o->seed * 7) % 100) * 0.03,
+        0.8 + (double)((o->seed * 13) % 100) * 0.03
+    };
+
+    for (int h = 0; h < 4; ++h) {
+        double ca = cos(angle[h]);
+        double sa = sin(angle[h]);
+        double dx_h = ca * dir_x - sa * dir_z;
+        double dz_h = sa * dir_x + ca * dir_z;
+        double k_h = (2.0 * M_PI) / lambda[h];
+        double theta = k_h * (dx_h * x + dz_h * z) + phi[h];
+        y += A[h] * cos(theta);
+    }
+
+    return y;
+}
+
+static int scene_grow_ocean(Geometry *g, const SceneOceanDesc *o, int mat)
+{
+    if (!g || !o) return -1;
+
+    int rx = o->res_x < 2 ? 2 : o->res_x;
+    int rz = o->res_z < 2 ? 2 : o->res_z;
+    double sx = o->size.x <= 0.0 ? 100.0 : o->size.x;
+    double sz = o->size.z <= 0.0 ? 100.0 : o->size.z;
+    double amp = o->amplitude;
+    double wl = o->wavelength <= 0.0 ? 12.0 : o->wavelength;
+    double steep = o->steepness < 0.0 ? 0.0 : (o->steepness > 0.90 ? 0.90 : o->steepness);
+    double chop_amp = o->chop > 0.0 ? o->chop : amp * 0.25;
+    double chop_wl = o->chop_wavelength > 0.0 ? o->chop_wavelength : wl * 0.25;
+    double depth = o->depth < 0.0 ? 0.0 : o->depth;
+
+    double dir_x = o->direction.x;
+    double dir_z = o->direction.z;
+    double dlen = sqrt(dir_x * dir_x + dir_z * dir_z);
+    if (dlen > 1e-12) {
+        dir_x /= dlen;
+        dir_z /= dlen;
+    } else {
+        dir_x = 1.0;
+        dir_z = 0.0;
+    }
+
+    /* 4 Harmonics */
+    double lambda[4] = { wl, wl * 0.52, chop_wl, chop_wl * 0.40 };
+    double A[4] = { amp, amp * 0.38, chop_amp, chop_amp * 0.32 };
+    double angle[4] = { 0.0, 0.628, -0.488, 1.134 };
+    double Q_scale[4] = { 0.55, 0.25, 0.15, 0.05 };
+    double phi[4] = {
+        0.0,
+        1.7 + (double)(o->seed % 100) * 0.03,
+        3.1 + (double)((o->seed * 7) % 100) * 0.03,
+        0.8 + (double)((o->seed * 13) % 100) * 0.03
+    };
+
+    double d_x[4], d_z[4], k[4], Q[4];
+    for (int h = 0; h < 4; ++h) {
+        double ca = cos(angle[h]);
+        double sa = sin(angle[h]);
+        d_x[h] = ca * dir_x - sa * dir_z;
+        d_z[h] = sa * dir_x + ca * dir_z;
+        k[h] = (2.0 * M_PI) / lambda[h];
+        Q[h] = steep * Q_scale[h];
+        /* Prevent loops: Q[h] must satisfy Q[h] <= 1.0 / (k[h] * A[h]) */
+        if (k[h] * A[h] > 1e-6) {
+            double q_max = 0.85 / (k[h] * A[h]);
+            if (Q[h] > q_max) Q[h] = q_max;
+        }
+        if (Q[h] > 0.85) Q[h] = 0.85;
+    }
+
+    size_t num_verts = (size_t)rx * (size_t)rz;
+    Vec3 *verts = (Vec3 *)malloc(num_verts * sizeof(Vec3));
+    Vec3 *norms = (Vec3 *)malloc(num_verts * sizeof(Vec3));
+    if (!verts || !norms) {
+        free(verts);
+        free(norms);
+        return -1;
+    }
+
+    double dx = sx / (double)(rx - 1);
+    double dz = sz / (double)(rz - 1);
+    double x_min = o->center.x - sx * 0.5;
+    double z_min = o->center.z - sz * 0.5;
+
+    for (int j = 0; j < rz; ++j) {
+        double z0 = z_min + j * dz;
+        for (int i = 0; i < rx; ++i) {
+            double x0 = x_min + i * dx;
+            double x = x0;
+            double z = z0;
+            double y = o->center.y;
+
+            double dxdx0 = 1.0;
+            double dxdz0 = 0.0;
+            double dzdx0 = 0.0;
+            double dzdz0 = 1.0;
+            double dydx0 = 0.0;
+            double dydz0 = 0.0;
+
+            for (int h = 0; h < 4; ++h) {
+                double theta = k[h] * (d_x[h] * x0 + d_z[h] * z0) + phi[h];
+                double s = sin(theta);
+                double c = cos(theta);
+
+                x -= (Q[h] / k[h]) * d_x[h] * s;
+                z -= (Q[h] / k[h]) * d_z[h] * s;
+                y += A[h] * c;
+
+                dxdx0 -= Q[h] * d_x[h] * d_x[h] * c;
+                dxdz0 -= Q[h] * d_x[h] * d_z[h] * c;
+                dzdx0 -= Q[h] * d_x[h] * d_z[h] * c;
+                dzdz0 -= Q[h] * d_z[h] * d_z[h] * c;
+
+                dydx0 -= k[h] * A[h] * d_x[h] * s;
+                dydz0 -= k[h] * A[h] * d_z[h] * s;
+            }
+
+            /* Tangents: Tx = dP/dx0, Tz = dP/dz0 */
+            Vec3 Tx = vec3(dxdx0, dydx0, dzdx0);
+            Vec3 Tz = vec3(dxdz0, dydz0, dzdz0);
+            Vec3 N = vec3_cross(Tz, Tx);
+            double nlen = vec3_length(N);
+            if (nlen > 1e-12) {
+                N = vec3_scale(N, 1.0 / nlen);
+            } else {
+                N = vec3(0.0, 1.0, 0.0);
+            }
+            if (N.y < 0.0) N = vec3_neg(N);
+
+            int idx = j * rx + i;
+            verts[idx] = vec3(x, y, z);
+            norms[idx] = N;
+        }
+    }
+
+    /* 1. Emit top surface smooth triangles */
+    for (int j = 0; j < rz - 1; ++j) {
+        for (int i = 0; i < rx - 1; ++i) {
+            int i00 = j * rx + i;
+            int i10 = j * rx + (i + 1);
+            int i01 = (j + 1) * rx + i;
+            int i11 = (j + 1) * rx + (i + 1);
+
+            /* Tri 1: (v00, v01, v11) */
+            if (geometry_add(g, prim_triangle_smooth(verts[i00], verts[i01], verts[i11],
+                                                     norms[i00], norms[i01], norms[i11], mat)) < 0) {
+                free(verts);
+                free(norms);
+                return -1;
+            }
+            /* Tri 2: (v00, v11, v10) */
+            if (geometry_add(g, prim_triangle_smooth(verts[i00], verts[i11], verts[i10],
+                                                     norms[i00], norms[i11], norms[i10], mat)) < 0) {
+                free(verts);
+                free(norms);
+                return -1;
+            }
+        }
+    }
+
+    /* 2. Perimeter side skirts and bottom floor (watertight dielectric volume) */
+    if (depth > 0.0) {
+        double y_floor = o->center.y - depth;
+
+        /* South edge (j = 0, along X) */
+        Vec3 n_south = vec3(0.0, 0.0, -1.0);
+        for (int i = 0; i < rx - 1; ++i) {
+            Vec3 vt0 = verts[i];
+            Vec3 vt1 = verts[i + 1];
+            Vec3 vb0 = vec3(vt0.x, y_floor, vt0.z);
+            Vec3 vb1 = vec3(vt1.x, y_floor, vt1.z);
+            geometry_add(g, prim_triangle_smooth(vt0, vb0, vb1, n_south, n_south, n_south, mat));
+            geometry_add(g, prim_triangle_smooth(vt0, vb1, vt1, n_south, n_south, n_south, mat));
+        }
+
+        /* North edge (j = rz - 1, along X) */
+        Vec3 n_north = vec3(0.0, 0.0, 1.0);
+        int j_north = (rz - 1) * rx;
+        for (int i = 0; i < rx - 1; ++i) {
+            Vec3 vt0 = verts[j_north + i];
+            Vec3 vt1 = verts[j_north + i + 1];
+            Vec3 vb0 = vec3(vt0.x, y_floor, vt0.z);
+            Vec3 vb1 = vec3(vt1.x, y_floor, vt1.z);
+            geometry_add(g, prim_triangle_smooth(vt0, vb1, vb0, n_north, n_north, n_north, mat));
+            geometry_add(g, prim_triangle_smooth(vt0, vt1, vb1, n_north, n_north, n_north, mat));
+        }
+
+        /* West edge (i = 0, along Z) */
+        Vec3 n_west = vec3(-1.0, 0.0, 0.0);
+        for (int j = 0; j < rz - 1; ++j) {
+            Vec3 vt0 = verts[j * rx];
+            Vec3 vt1 = verts[(j + 1) * rx];
+            Vec3 vb0 = vec3(vt0.x, y_floor, vt0.z);
+            Vec3 vb1 = vec3(vt1.x, y_floor, vt1.z);
+            geometry_add(g, prim_triangle_smooth(vt0, vb1, vb0, n_west, n_west, n_west, mat));
+            geometry_add(g, prim_triangle_smooth(vt0, vt1, vb1, n_west, n_west, n_west, mat));
+        }
+
+        /* East edge (i = rx - 1, along Z) */
+        Vec3 n_east = vec3(1.0, 0.0, 0.0);
+        for (int j = 0; j < rz - 1; ++j) {
+            Vec3 vt0 = verts[j * rx + (rx - 1)];
+            Vec3 vt1 = verts[(j + 1) * rx + (rx - 1)];
+            Vec3 vb0 = vec3(vt0.x, y_floor, vt0.z);
+            Vec3 vb1 = vec3(vt1.x, y_floor, vt1.z);
+            geometry_add(g, prim_triangle_smooth(vt0, vb0, vb1, n_east, n_east, n_east, mat));
+            geometry_add(g, prim_triangle_smooth(vt0, vb1, vt1, n_east, n_east, n_east, mat));
+        }
+
+        /* Bottom floor at y_floor */
+        Vec3 n_floor = vec3(0.0, -1.0, 0.0);
+        Vec3 c00 = vec3(verts[0].x, y_floor, verts[0].z);
+        Vec3 c10 = vec3(verts[rx - 1].x, y_floor, verts[rx - 1].z);
+        Vec3 c01 = vec3(verts[(rz - 1) * rx].x, y_floor, verts[(rz - 1) * rx].z);
+        Vec3 c11 = vec3(verts[rz * rx - 1].x, y_floor, verts[rz * rx - 1].z);
+        geometry_add(g, prim_triangle_smooth(c00, c10, c11, n_floor, n_floor, n_floor, mat));
+        geometry_add(g, prim_triangle_smooth(c00, c11, c01, n_floor, n_floor, n_floor, mat));
+    }
+
+    free(verts);
+    free(norms);
+    return 0;
+}
+
+/* ------------------------------------------------------------------ */
 /* Emissive area-light collection                                      */
 /* ------------------------------------------------------------------ */
 
@@ -1326,6 +1590,29 @@ int scene_build_from_desc(Scene *s, const SceneDesc *d)
         int ntri = obj_load_file(m->file, &s->geo, mat, &xf);
         if (ntri < 0) {
             fprintf(stderr, "warning: failed to load mesh '%s'\n", m->file ? m->file : "(null)");
+        }
+    }
+
+    /* --- Procedural oceans, in file order --------------------------- */
+    for (i = 0; i < d->ocean_count; ++i) {
+        const SceneOceanDesc *o = &d->oceans[i];
+        int mat = (o->material_index >= 0) ? o->material_index : MAT_WATER;
+        if (scene_grow_ocean(&s->geo, o, mat) != 0) {
+            goto fail;
+        }
+        if (!s->has_ocean) {
+            s->has_ocean = 1;
+            s->ocean_params.enabled = 1;
+            s->ocean_params.center = o->center;
+            s->ocean_params.amplitude = o->amplitude;
+            s->ocean_params.wavelength = o->wavelength;
+            s->ocean_params.direction = o->direction;
+            s->ocean_params.steepness = o->steepness;
+            s->ocean_params.chop = o->chop;
+            s->ocean_params.chop_wavelength = o->chop_wavelength;
+            s->ocean_params.seed = o->seed;
+            s->water_level = o->center.y;
+            s->water_material = mat;
         }
     }
 
