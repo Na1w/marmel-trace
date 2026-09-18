@@ -477,40 +477,46 @@ static inline v2d v2d_max(v2d a, v2d b) {
     return (v2d){ fmax(a[0], b[0]), fmax(a[1], b[1]) };
 }
 
-static inline void bvh_slab_2way(Vec3 l_min, Vec3 l_max,
-                                 Vec3 r_min, Vec3 r_max,
-                                 Vec3 origin, Vec3 inv,
+typedef struct {
+    v2d ox, oy, oz;
+    v2d ix, iy, iz;
+} BvhRaySimd;
+
+static inline void bvh_ray_simd_init(BvhRaySimd *rs, Vec3 origin, Vec3 inv)
+{
+    rs->ox = (v2d){ origin.x, origin.x };
+    rs->oy = (v2d){ origin.y, origin.y };
+    rs->oz = (v2d){ origin.z, origin.z };
+    rs->ix = (v2d){ inv.x, inv.x };
+    rs->iy = (v2d){ inv.y, inv.y };
+    rs->iz = (v2d){ inv.z, inv.z };
+}
+
+static inline void bvh_slab_2way(const BvhNode *nl, const BvhNode *nr,
+                                 const BvhRaySimd *rs,
                                  double tmin, double tmax,
                                  double *tl_out, double *tr_out,
                                  int *hl_out, int *hr_out)
 {
-    v2d ox = { origin.x, origin.x };
-    v2d oy = { origin.y, origin.y };
-    v2d oz = { origin.z, origin.z };
+    v2d mnx = { nl->bounds_min.x, nr->bounds_min.x };
+    v2d mxx = { nl->bounds_max.x, nr->bounds_max.x };
+    v2d mny = { nl->bounds_min.y, nr->bounds_min.y };
+    v2d mxy = { nl->bounds_max.y, nr->bounds_max.y };
+    v2d mnz = { nl->bounds_min.z, nr->bounds_min.z };
+    v2d mxz = { nl->bounds_max.z, nr->bounds_max.z };
 
-    v2d ix = { inv.x, inv.x };
-    v2d iy = { inv.y, inv.y };
-    v2d iz = { inv.z, inv.z };
-
-    v2d mnx = { l_min.x, r_min.x };
-    v2d mxx = { l_max.x, r_max.x };
-    v2d mny = { l_min.y, r_min.y };
-    v2d mxy = { l_max.y, r_max.y };
-    v2d mnz = { l_min.z, r_min.z };
-    v2d mxz = { l_max.z, r_max.z };
-
-    v2d t1x = (mnx - ox) * ix;
-    v2d t2x = (mxx - ox) * ix;
+    v2d t1x = (mnx - rs->ox) * rs->ix;
+    v2d t2x = (mxx - rs->ox) * rs->ix;
     v2d txmin = v2d_min(t1x, t2x);
     v2d txmax = v2d_max(t1x, t2x);
 
-    v2d t1y = (mny - oy) * iy;
-    v2d t2y = (mxy - oy) * iy;
+    v2d t1y = (mny - rs->oy) * rs->iy;
+    v2d t2y = (mxy - rs->oy) * rs->iy;
     v2d tymin = v2d_min(t1y, t2y);
     v2d tymax = v2d_max(t1y, t2y);
 
-    v2d t1z = (mnz - oz) * iz;
-    v2d t2z = (mxz - oz) * iz;
+    v2d t1z = (mnz - rs->oz) * rs->iz;
+    v2d t2z = (mxz - rs->oz) * rs->iz;
     v2d tzmin = v2d_min(t1z, t2z);
     v2d tzmax = v2d_max(t1z, t2z);
 
@@ -526,15 +532,25 @@ static inline void bvh_slab_2way(Vec3 l_min, Vec3 l_max,
     *tr_out = (enter[1] < tmin) ? tmin : enter[1];
 }
 #else
-static inline void bvh_slab_2way(Vec3 l_min, Vec3 l_max,
-                                 Vec3 r_min, Vec3 r_max,
-                                 Vec3 origin, Vec3 inv,
+typedef struct {
+    Vec3 origin;
+    Vec3 inv;
+} BvhRaySimd;
+
+static inline void bvh_ray_simd_init(BvhRaySimd *rs, Vec3 origin, Vec3 inv)
+{
+    rs->origin = origin;
+    rs->inv = inv;
+}
+
+static inline void bvh_slab_2way(const BvhNode *nl, const BvhNode *nr,
+                                 const BvhRaySimd *rs,
                                  double tmin, double tmax,
                                  double *tl_out, double *tr_out,
                                  int *hl_out, int *hr_out)
 {
-    *hl_out = bvh_slab(l_min, l_max, origin, inv, tmin, tmax, tl_out);
-    *hr_out = bvh_slab(r_min, r_max, origin, inv, tmin, tmax, tr_out);
+    *hl_out = bvh_slab(nl->bounds_min, nl->bounds_max, rs->origin, rs->inv, tmin, tmax, tl_out);
+    *hr_out = bvh_slab(nr->bounds_min, nr->bounds_max, rs->origin, rs->inv, tmin, tmax, tr_out);
 }
 #endif
 
@@ -583,6 +599,8 @@ int bvh_intersect(const Bvh *b, const Geometry *g, Ray r, double tmin, double tm
         BvhStackEntry *stack = fixed;
         int cap = BVH_STACK_FIXED;
         int sp = 0;
+        BvhRaySimd rsimd;
+        bvh_ray_simd_init(&rsimd, r.origin, inv);
 
         double t_root;
         if (bvh_slab(b->nodes[0].bounds_min, b->nodes[0].bounds_max, r.origin,
@@ -611,7 +629,7 @@ int bvh_intersect(const Bvh *b, const Geometry *g, Ray r, double tmin, double tm
                     const Primitive *p = prims ? &prims[i] : &g->prims[pi];
                     Hit h;
                     h.prim_index = pi;
-                    if (primitive_intersect(p, r, tmin, closest, &h)) {
+                    if (primitive_intersect_norm(p, r, tmin, closest, &h)) {
                         /* Tie-break on equal t by LOWEST prim_index so that the
                          * result is identical to geometry_intersect(), which
                          * scans in index order with a strict `h.t < best.t`
@@ -636,11 +654,9 @@ int bvh_intersect(const Bvh *b, const Geometry *g, Ray r, double tmin, double tm
                  * child whose AABB is missed is simply not pushed. */
                 double tl = 0.0, tr = 0.0;
                 int hl = 0, hr = 0;
-                bvh_slab_2way(b->nodes[node->left].bounds_min,
-                              b->nodes[node->left].bounds_max,
-                              b->nodes[node->right].bounds_min,
-                              b->nodes[node->right].bounds_max,
-                              r.origin, inv, tmin, closest,
+                bvh_slab_2way(&b->nodes[node->left],
+                              &b->nodes[node->right],
+                              &rsimd, tmin, closest,
                               &tl, &tr, &hl, &hr);
 
                 if (hl || hr) {
@@ -728,6 +744,9 @@ int bvh_occluded(const Bvh *b, const Geometry *g, Ray r, double tmin, double tma
         int sp = 0;
 
         Vec3 inv = vec3(1.0 / r.dir.x, 1.0 / r.dir.y, 1.0 / r.dir.z);
+        BvhRaySimd rsimd;
+        bvh_ray_simd_init(&rsimd, r.origin, inv);
+
         double t_root;
         if (bvh_slab(b->nodes[0].bounds_min, b->nodes[0].bounds_max, r.origin,
                      inv, tmin, tmax, &t_root)) {
@@ -743,7 +762,7 @@ int bvh_occluded(const Bvh *b, const Geometry *g, Ray r, double tmin, double tma
                 for (int i = 0; i < node->count; ++i) {
                     int pi = b->order[node->first + i];
                     const Primitive *p = prims ? &prims[i] : &g->prims[pi];
-                    if (primitive_occluded(p, r, tmin, tmax)) {
+                    if (primitive_occluded_norm(p, r, tmin, tmax)) {
                         if (last_occluder) *last_occluder = pi;
                         if (stack != fixed) free(stack);
                         return 1;
@@ -752,11 +771,9 @@ int bvh_occluded(const Bvh *b, const Geometry *g, Ray r, double tmin, double tma
             } else {
                 double tl = 0.0, tr = 0.0;
                 int hl = 0, hr = 0;
-                bvh_slab_2way(b->nodes[node->left].bounds_min,
-                              b->nodes[node->left].bounds_max,
-                              b->nodes[node->right].bounds_min,
-                              b->nodes[node->right].bounds_max,
-                              r.origin, inv, tmin, tmax,
+                bvh_slab_2way(&b->nodes[node->left],
+                              &b->nodes[node->right],
+                              &rsimd, tmin, tmax,
                               &tl, &tr, &hl, &hr);
 
                 if (hl || hr) {
