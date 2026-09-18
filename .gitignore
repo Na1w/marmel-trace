@@ -9,3 +9,4 @@ tests/*.o
 tests/*.d
 output/*.bmp
 !output/scene.bmp
+scratch/

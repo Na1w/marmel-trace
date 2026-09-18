@@ -544,6 +544,12 @@ static void emit_sky(Writer *w, const SceneDesc *d)
         w_key_double(w, "galaxy_tilt", s->galaxy_tilt);
     if (s->galaxy_roll != SKY_DEFAULT_GALAXY_ROLL)
         w_key_double(w, "galaxy_roll", s->galaxy_roll);
+    if (s->cloud_thickness != SKY_DEFAULT_CLOUD_THICKNESS)
+        w_key_double(w, "cloud_thickness", s->cloud_thickness);
+    if (s->cloud_density != SKY_DEFAULT_CLOUD_DENSITY)
+        w_key_double(w, "cloud_density", s->cloud_density);
+    if (s->cloud_steps != SKY_DEFAULT_CLOUD_STEPS)
+        w_key_int(w, "cloud_steps", s->cloud_steps);
     w_close(w);
 }
 

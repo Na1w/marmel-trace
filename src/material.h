@@ -138,6 +138,9 @@ typedef struct {
     double cloud_softness;    /* 0.05 .. 0.25                            */
     double cloud_sharpness;   /* extra pow() on density, e.g. 1.0 .. 3.0 */
     int    cloud_octaves;     /* 4 .. 6                                  */
+    double cloud_thickness;   /* 0 = 2D planar projection; >0 = volumetric raymarched slab */
+    double cloud_density;     /* extinction / density coefficient sigma_t (default 0.08) */
+    int    cloud_steps;       /* raymarch step count (default 16) */
     unsigned seed;
 
     /*
@@ -170,6 +173,9 @@ typedef struct {
 #define SKY_DEFAULT_NEBULA_DIR       ((Vec3){ -0.1059, -0.2060, 0.9728 })
 #define SKY_DEFAULT_GALAXY_TILT      50.0
 #define SKY_DEFAULT_GALAXY_ROLL      -38.0
+#define SKY_DEFAULT_CLOUD_THICKNESS  0.0
+#define SKY_DEFAULT_CLOUD_DENSITY    0.08
+#define SKY_DEFAULT_CLOUD_STEPS      16
 
 /* Fill `p` with a pleasant outdoor-day default setup. */
 void sky_default_params(SkyParams *p);
@@ -334,6 +340,10 @@ Vec3 material_ambient(const Material *m, Vec3 N, const SkyParams *sky);
 /* Full procedural sky: horizon gradient + sun glow + fBm clouds.
  * `dir` must be a unit vector. Pure function of direction and params. */
 Vec3 sky_sample(Vec3 dir, const SkyParams *sky);
+
+/* Evaluates cloud transmittance (optical depth attenuation exp(-tau)) along a ray
+ * from pos in direction dir toward the sun. Returns (1,1,1) if cloud_thickness <= 0. */
+Vec3 sky_cloud_transmittance(const SkyParams *sky, Vec3 pos, Vec3 dir);
 
 /* ------------------------------------------------------------------ */
 /* Sun disk (soft shadows)                                             */

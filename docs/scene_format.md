@@ -213,6 +213,9 @@ field (see §8). The `seed` field here is the *cloud noise* seed.
 | `cloud_softness` | f64 | — | `[0, 1]` | `0.12` | O |
 | `cloud_sharpness` | f64 | — | `> 0` | `1.5` | O |
 | `cloud_octaves` | int | — | `[1, 12]` | `5` | O |
+| `cloud_thickness` | f64 | world | `>= 0` | `0` (2D planar; `>0` enables 3D raymarching) | O |
+| `cloud_density` | f64 | 1/world | `> 0` | `0.08` | O |
+| `cloud_steps` | int | — | `[4, 64]` | `16` | O |
 | `seed` | int | — | `[0, 2^32-1]` | the CLI `--seed` value | O |
 | `sun_radius` | f64 | degrees | `>= 0` | `0` (hard shadow) | O |
 | `star_intensity` | f64 | — | `[0, ∞)` | `0.0` (off) | O |

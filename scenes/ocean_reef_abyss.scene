@@ -30,48 +30,51 @@ camera {
 }
 
 sky {
-    sun_dir = 0.38 0.82 -0.44
-    sun_color = 2.6 2.4 2.0
-    horizon_color = 0.68 0.76 0.84
-    zenith_color = 0.08 0.26 0.62
-    gradient_gamma = 0.85
-    sun_glow_exponent = 300.0
-    sun_glow_strength = 0.8
-    sun_radius = 2.2
-    cloud_height = 180.0
-    cloud_scale = 0.0025
-    cloud_coverage = 0.24
-    cloud_softness = 0.25
-    cloud_sharpness = 1.25
-    cloud_octaves = 6
+    sun_dir = 0.25 0.68 -0.68
+    sun_color = 3.2 2.2 1.2
+    horizon_color = 0.60 0.76 0.90
+    zenith_color = 0.08 0.30 0.82
+    gradient_gamma = 0.75
+    sun_glow_exponent = 450.0
+    sun_glow_strength = 0.35
+    sun_radius = 1.6
+    cloud_height = 85.0
+    cloud_thickness = 45.0
+    cloud_scale = 0.0050
+    cloud_coverage = 0.58
+    cloud_softness = 0.10
+    cloud_sharpness = 1.50
+    cloud_octaves = 5
+    cloud_density = 0.14
+    cloud_steps = 20
     seed = 8844
 }
 
 fog {
     density = 0.003
-    color = 0.65 0.78 0.88
-    height = 4.0
-    height_falloff = 0.20
-    inscatter_strength = 0.35
+    color = 0.65 0.78 0.90
+    height = 1.8
+    height_falloff = 0.50
+    inscatter_strength = 0.60
     sun_anisotropy = 0.75
     noise_scale = 0.20
-    noise_amount = 0.12
-    shadow_steps = 12
+    noise_amount = 0.10
+    shadow_steps = 16
 }
 
 # --- Materials -------------------------------------------------------------
 
 material ocean_water {
     type = water
-    albedo = 0.01 0.04 0.06
+    albedo = 0.02 0.06 0.08
     specular = 0.98 0.98 0.98
     shininess = 256.0
     reflectivity = 0.0
     transparency = 1.0
     ior = 1.333
     is_water = 1
-    absorption = 0.18 0.035 0.010
-    deep_color = 0.01 0.22 0.32
+    absorption = 0.85 0.22 0.06
+    deep_color = 0.02 0.46 0.56
 }
 
 material tropical_sand {
@@ -85,7 +88,7 @@ material tropical_sand {
 
 material karst_limestone {
     pbr = 1
-    albedo = 0.54 0.52 0.48
+    albedo = 0.28 0.25 0.22
     specular = 0.04 0.04 0.04
     roughness = 0.85
     bump_strength = 0.35
@@ -94,7 +97,7 @@ material karst_limestone {
 
 material karst_cave_rock {
     pbr = 1
-    albedo = 0.28 0.26 0.23
+    albedo = 0.12 0.10 0.09
     specular = 0.04 0.04 0.04
     roughness = 0.90
     bump_strength = 0.35
@@ -229,19 +232,28 @@ ocean {
 
 # --- Above-Water Scenery: Natural Sea Arch & Karst Pinnacles --------------
 
-# Monolithic Sea Arch Stack on the right, rising from the sea
+# Monolithic Sea Arch Stack on the right, rising from the sea with open arch
 csg_difference {
     material = karst_limestone
     box {
         center = 4.4 0.3 -6.5
         half = 1.7 2.1 2.5
     }
-    cylinder {
-        base = 2.0 -0.5 -6.5
-        top = 6.6 -0.5 -6.5
-        r_bottom = 1.5
-        r_top = 1.5
-        material = karst_cave_rock
+    csg_union {
+        cylinder {
+            base = 4.2 -0.3 -10.0
+            top = 4.2 -0.3 -3.0
+            r_bottom = 1.5
+            r_top = 1.5
+            material = karst_cave_rock
+        }
+        cylinder {
+            base = 3.3 -1.2 -4.5
+            top = 4.7 2.6 -8.3
+            r_bottom = 1.4
+            r_top = 1.4
+            material = karst_cave_rock
+        }
     }
 }
 

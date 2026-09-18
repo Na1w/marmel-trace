@@ -542,6 +542,9 @@ static Vec3 pt_nee_sun(const Scene *scene, const Material *mm, Vec3 P, Vec3 N, V
     Ray sr; sr.origin = vec3_add(P, vec3_scale(N, 1e-3)); sr.dir = L;
     Vec3 atten;
     if (pt_occluded_segment(scene, sr, 1e-3, 1e30, &atten)) return vec3(0.0, 0.0, 0.0);
+    Vec3 cloud_trans = sky_cloud_transmittance(&scene->sky, sr.origin, sr.dir);
+    atten = vec3_mul(atten, cloud_trans);
+    if (atten.x < 1e-4 && atten.y < 1e-4 && atten.z < 1e-4) return vec3(0.0, 0.0, 0.0);
     double rad = scene->sky.sun_radius * 3.14159265358979323846 / 180.0;
     double Omega = (scene->sky.sun_radius > 0.0)
                        ? 2.0 * 3.14159265358979323846 * (1.0 - cos(rad))
@@ -622,9 +625,27 @@ static void pt_fog_segment(const Scene *scene, Ray r, double dist,
     if (steps < 4) steps = 4;
     if (steps > 128) steps = 128;
 
-    double max_t = (dist > 50.0) ? 50.0 : dist;
-    double dt = max_t / (double)steps;
+    int is_sky = (dist >= 1e20);
     double lambda = fog->height_falloff;
+    double max_t;
+    if (is_sky) {
+        double top_y = (lambda > 1e-4) ? (fog->height + 3.0 / lambda) : 25.0;
+        if (r.origin.y >= top_y) {
+            *transmittance = 1.0;
+            *inscatter = vec3(0.0, 0.0, 0.0);
+            return;
+        }
+        double dy = r.dir.y;
+        if (dy > 0.02) {
+            max_t = (top_y - r.origin.y) / dy;
+            if (max_t > 40.0) max_t = 40.0;
+        } else {
+            max_t = 40.0;
+        }
+    } else {
+        max_t = (dist > 60.0) ? 60.0 : dist;
+    }
+    double dt = max_t / (double)steps;
 
     /* Phase function towards the sun */
     double g = fog->sun_anisotropy;
@@ -634,9 +655,9 @@ static void pt_fog_segment(const Scene *scene, Ray r, double dist,
     double denom = 1.0 + g * g - 2.0 * g * cos_theta;
     if (denom < 1e-4) denom = 1e-4;
     double phase_hg = (1.0 - g * g) / (denom * sqrt(denom));
-    /* Blend forward Mie lobe with isotropic atmospheric scattering so light shafts
-     * cutting across the glade remain clearly visible from oblique angles */
-    double phase = 0.65 * phase_hg + 0.35;
+    /* Clamp forward peak to preserve dynamic range and avoid blowout */
+    if (phase_hg > 6.0) phase_hg = 6.0;
+    double phase = 0.70 * phase_hg + 0.30;
     Vec3 sun_glow_unit = vec3_scale(scene->sky.sun_color, phase * fog->inscatter_strength);
 
     double T_acc = 1.0;
@@ -667,14 +688,20 @@ static void pt_fog_segment(const Scene *scene, Ray r, double dist,
         double step_tau = rho * dt;
         double step_T = exp(-step_tau);
 
-        /* Shadow test towards the sun: creates sharp volumetric beams through canopy gaps and waves */
+        /* Shadow test towards the sun: creates sharp volumetric beams through canopy gaps, waves, and clouds */
         Ray sray;
         sray.origin = pos;
         sray.dir = scene->sky.sun_dir;
         Vec3 atten;
         int in_shadow = pt_occluded_segment(scene, sray, 0.05, 100.0, &atten);
+        if (!in_shadow) {
+            Vec3 cloud_trans = sky_cloud_transmittance(&scene->sky, sray.origin, sray.dir);
+            atten = vec3_mul(atten, cloud_trans);
+        }
 
-        Vec3 step_inscatter_col = fog->color;
+        /* Ambient haze is modest indirect light; direct sunbeam illuminates through the medium */
+        Vec3 ambient_col = vec3_scale(fog->color, 0.08);
+        Vec3 step_inscatter_col = ambient_col;
         if (!in_shadow) {
             step_inscatter_col = vec3_add(step_inscatter_col, vec3_mul(sun_glow_unit, atten));
         }
@@ -685,7 +712,7 @@ static void pt_fog_segment(const Scene *scene, Ray r, double dist,
         if (T_acc < 1e-4) break;
     }
 
-    if (dist > max_t) {
+    if (!is_sky && dist > max_t) {
         double rem_dist = dist - max_t;
         Ray rem_ray;
         rem_ray.origin = vec3_add(r.origin, vec3_scale(r.dir, max_t));
@@ -699,6 +726,71 @@ static void pt_fog_segment(const Scene *scene, Ray r, double dist,
 
     *transmittance = T_acc;
     *inscatter = inscatter_acc;
+}
+
+/*
+ * Underwater volumetric segment marching: computes Beer-Lambert wavelength
+ * absorption together with volumetric forward-scattering of direct sunlight,
+ * creating realistic underwater crepuscular rays (god rays) and atmospheric
+ * turquoise depth haze.
+ */
+static void pt_water_segment(const Scene *scene, const Material *m, Ray r, double dist,
+                             unsigned seed_key, int bounce,
+                             Vec3 *beta, Vec3 *radiance)
+{
+    if (m == NULL || beta == NULL || radiance == NULL) {
+        return;
+    }
+    if (!m->is_water || scene->fog.shadow_steps <= 0 || dist <= 1e-4) {
+        pt_apply_medium(m, dist, beta, radiance);
+        return;
+    }
+
+    int steps = scene->fog.shadow_steps;
+    if (steps < 4) steps = 4;
+    if (steps > 16) steps = 16;
+    double dt = dist / (double)steps;
+
+    double cos_theta = vec3_dot(r.dir, scene->sky.sun_dir);
+    double g = 0.72;
+    double denom = 1.0 + g * g - 2.0 * g * cos_theta;
+    if (denom < 1e-4) denom = 1e-4;
+    double phase = (1.0 - g * g) / (denom * sqrt(denom));
+    if (phase > 4.5) phase = 4.5;
+
+    double jitter = pt_rand01(seed_key, (unsigned)bounce, 0xAC31u);
+    Vec3 step_T = vec3(exp(-m->absorption.x * dt),
+                       exp(-m->absorption.y * dt),
+                       exp(-m->absorption.z * dt));
+
+    for (int i = 0; i < steps; ++i) {
+        double t = ((double)i + jitter) * dt;
+        Vec3 pos = vec3_add(r.origin, vec3_scale(r.dir, t));
+
+        Ray sray;
+        sray.origin = pos;
+        sray.dir = scene->sky.sun_dir;
+        Vec3 atten;
+        int in_shadow = pt_occluded_segment(scene, sray, 0.02, 100.0, &atten);
+        if (!in_shadow) {
+            Vec3 cloud_trans = sky_cloud_transmittance(&scene->sky, sray.origin, sray.dir);
+            atten = vec3_mul(atten, cloud_trans);
+        }
+
+        Vec3 ambient = vec3_scale(m->deep_color, 0.40);
+        Vec3 sun_scat = vec3(0.0, 0.0, 0.0);
+        if (!in_shadow) {
+            sun_scat = vec3_scale(vec3_mul(scene->sky.sun_color, atten), phase * 0.18);
+        }
+
+        Vec3 step_col = vec3_add(ambient, sun_scat);
+        Vec3 step_inscatter = vec3(step_col.x * (1.0 - step_T.x),
+                                   step_col.y * (1.0 - step_T.y),
+                                   step_col.z * (1.0 - step_T.z));
+
+        *radiance = vec3_add(*radiance, vec3_mul(*beta, step_inscatter));
+        *beta = vec3_mul(*beta, step_T);
+    }
 }
 
 /* ------------------------------------------------------------------ */
@@ -744,8 +836,8 @@ Vec3 pathtrace_radiance(const Scene *scene, Ray primary, int max_depth,
         Hit h;
         if (!scene_intersect(scene, r, PT_RAY_EPS, PT_RAY_MAX, &h)) {
             if (medium != NULL) {
-                pt_apply_medium(medium, PT_MEDIUM_FALLBACK_DEPTH, &throughput,
-                                &radiance);
+                pt_water_segment(scene, medium, r, PT_MEDIUM_FALLBACK_DEPTH,
+                                 seed_key, b, &throughput, &radiance);
                 medium = NULL;
             }
             /* Escaped to the environment: add the sky once, weighted by beta. */
@@ -766,7 +858,7 @@ Vec3 pathtrace_radiance(const Scene *scene, Ray primary, int max_depth,
 
         /* Attenuate the segment just travelled through a transmissive medium or fog. */
         if (medium != NULL) {
-            pt_apply_medium(medium, h.t, &throughput, &radiance);
+            pt_water_segment(scene, medium, r, h.t, seed_key, b, &throughput, &radiance);
         } else if (scene->fog.density > 0.0) {
             double T = 1.0;
             Vec3 inscatter = vec3(0.0, 0.0, 0.0);

@@ -72,13 +72,16 @@ void sky_default_params(SkyParams *p)
     p->sun_glow_exponent = 350.0;
     p->sun_glow_strength = 0.8;
 
-    p->cloud_height   = 120.0;
-    p->cloud_scale    = 0.0025;
-    p->cloud_coverage = 0.5;
-    p->cloud_softness = 0.12;
+    p->cloud_height    = 120.0;
+    p->cloud_scale     = 0.0025;
+    p->cloud_coverage  = 0.5;
+    p->cloud_softness  = 0.12;
     p->cloud_sharpness = 1.5;
-    p->cloud_octaves  = 5;
-    p->seed           = 1337u;
+    p->cloud_octaves   = 5;
+    p->cloud_thickness = SKY_DEFAULT_CLOUD_THICKNESS;
+    p->cloud_density   = SKY_DEFAULT_CLOUD_DENSITY;
+    p->cloud_steps     = SKY_DEFAULT_CLOUD_STEPS;
+    p->seed            = 1337u;
 
     p->sun_radius        = SKY_DEFAULT_SUN_RADIUS;
     p->star_intensity    = SKY_DEFAULT_STAR_INTENSITY;
@@ -369,6 +372,99 @@ Vec3 material_ambient(const Material *m, Vec3 N, const SkyParams *sky)
     return vec3_scale(vec3_mul(m->albedo, hemi), ambient_factor);
 }
 
+static double eval_cloud_density_at(const SkyParams *sky, Vec3 p)
+{
+    if (sky->cloud_thickness <= 1e-4) return 0.0;
+    double y_bot = sky->cloud_height;
+    double y_top = y_bot + sky->cloud_thickness;
+    if (p.y < y_bot || p.y > y_top) return 0.0;
+
+    double h_rel = (p.y - y_bot) / sky->cloud_thickness; /* in [0, 1] */
+    /* Cloud vertical density profile: flat condensation base, billowing top */
+    double vert_profile = smoothstep(0.0, 0.12, h_rel) * smoothstep(1.0, 0.60, h_rel);
+    if (vert_profile <= 0.0) return 0.0;
+
+    int octaves = sky->cloud_octaves;
+    if (octaves < 1) octaves = 1;
+    if (octaves > 6) octaves = 6;
+
+    double sx = p.x * sky->cloud_scale;
+    double sy = (p.y - y_bot) * (sky->cloud_scale * 1.5);
+    double sz = p.z * sky->cloud_scale;
+    double raw = noise_fbm3(sx, sy, sz, octaves, 2.0, 0.5, sky->seed);
+    double d0 = clamp01(0.5 * (raw + 1.0));
+
+    double d = d0 * vert_profile;
+
+    double a = sky->cloud_coverage - sky->cloud_softness;
+    double b = sky->cloud_coverage + sky->cloud_softness;
+    double alpha = smoothstep(a, b, d);
+    if (alpha <= 0.0) return 0.0;
+
+    alpha = pow_nonneg(alpha, sky->cloud_sharpness);
+    double mult = (sky->cloud_density > 0.0) ? sky->cloud_density : 0.08;
+    return alpha * mult;
+}
+
+Vec3 sky_cloud_transmittance(const SkyParams *sky, Vec3 pos, Vec3 dir)
+{
+    if (sky == NULL || sky->cloud_thickness <= 1e-4) {
+        return vec3(1.0, 1.0, 1.0);
+    }
+    if (dir.y <= 1e-4) {
+        return vec3(1.0, 1.0, 1.0);
+    }
+
+    double y_bot = sky->cloud_height;
+    double y_top = y_bot + sky->cloud_thickness;
+
+    double t0 = (y_bot - pos.y) / dir.y;
+    double t1 = (y_top - pos.y) / dir.y;
+
+    double t_start = (t0 > 0.0) ? t0 : 0.0;
+    double t_end = t1;
+    if (t_end <= t_start) {
+        return vec3(1.0, 1.0, 1.0);
+    }
+
+    double slab_dist = t_end - t_start;
+    if (slab_dist > 3000.0) {
+        slab_dist = 3000.0;
+        t_end = t_start + slab_dist;
+    }
+
+    int steps = sky->cloud_steps / 2;
+    if (steps < 4) steps = 4;
+    if (steps > 16) steps = 16;
+
+    double dt = slab_dist / (double)steps;
+    double tau = 0.0;
+
+    for (int i = 0; i < steps; ++i) {
+        double t = t_start + ((double)i + 0.5) * dt;
+        Vec3 p = vec3_add(pos, vec3_scale(dir, t));
+        double rho = eval_cloud_density_at(sky, p);
+        tau += rho * dt;
+        if (tau > 15.0) { tau = 15.0; break; }
+    }
+
+    double T = exp(-tau);
+
+    /* Crepuscular shaft modulation: creates crisp, realistic god rays piercing cloud gaps */
+    Vec3 u_dir, v_dir;
+    sky_basis(sky->sun_dir, &u_dir, &v_dir);
+    double u = vec3_dot(pos, u_dir);
+    double v = vec3_dot(pos, v_dir);
+
+    const double shaft_scale = 0.22;
+    double raw_shaft = noise_fbm2(u * shaft_scale, v * shaft_scale, 3, 2.0, 0.5, sky->seed ^ 0x9E3779B9u);
+    double shaft = smoothstep(-0.25, 0.35, raw_shaft);
+    double beam_factor = 0.12 + 0.88 * shaft;
+    T *= beam_factor;
+
+    return vec3(T, T, T);
+}
+
 /* ------------------------------------------------------------------ */
 /* Procedural sky                                                      */
 /* ------------------------------------------------------------------ */
@@ -392,45 +488,113 @@ Vec3 sky_sample(Vec3 dir, const SkyParams *sky)
         base = vec3_add(base, vec3_scale(sky->sun_color, glow));
     }
 
-    /* --- Clouds on a horizontal layer at cloud_height ----------------- */
-    const double cloud_eps = 0.03;
-    if (dir.y > cloud_eps) {
-        /* Project the ray onto the cloud plane (camera at origin). */
-        double tt = sky->cloud_height / dir.y;
-        double px = dir.x * tt;
-        double pz = dir.z * tt;
+    /* --- Volumetric 3D clouds or legacy 2D planar clouds -------------- */
+    if (sky->cloud_thickness > 1e-4) {
+        const double cloud_eps = 0.01;
+        if (dir.y > cloud_eps) {
+            double y_bot = sky->cloud_height;
+            double y_top = y_bot + sky->cloud_thickness;
+            double t0 = y_bot / dir.y;
+            double t1 = y_top / dir.y;
 
-        int octaves = sky->cloud_octaves;
-        if (octaves < 1) {
-            octaves = 1;
+            double slab_dist = t1 - t0;
+            if (slab_dist > 3500.0) slab_dist = 3500.0;
+
+            int steps = sky->cloud_steps;
+            if (steps < 4) steps = 4;
+            if (steps > 64) steps = 64;
+            double dt = slab_dist / (double)steps;
+
+            /* Cloud albedo and diffuse ambient light from sky dome */
+            Vec3 cloud_albedo = vec3(0.96, 0.97, 0.98);
+            Vec3 sky_ambient = vec3_lerp(sky->horizon_color, sky->zenith_color, 0.55);
+            Vec3 ambient_col = vec3_scale(vec3_mul(cloud_albedo, sky_ambient), 0.60);
+
+            /* Directional sun lighting on cloud top and forward silver lining */
+            double lit = (cos_sun > 0.0) ? cos_sun : 0.0;
+            double silver = 0.50 * pow_nonneg(fmax(0.0, cos_sun), 14.0);
+
+            double T_acc = 1.0;
+            Vec3 cloud_inscatter = vec3(0.0, 0.0, 0.0);
+
+            for (int i = 0; i < steps; ++i) {
+                double t = t0 + ((double)i + 0.5) * dt;
+                Vec3 p = vec3_scale(dir, t);
+                double rho = eval_cloud_density_at(sky, p);
+                if (rho <= 1e-5) continue;
+
+                /* Light towards the sun: short march (4 steps) to cloud top */
+                double sun_tau = 0.0;
+                if (sky->sun_dir.y > 0.02) {
+                    double t_sun_top = (y_top - p.y) / sky->sun_dir.y;
+                    if (t_sun_top > 0.0) {
+                        double dt_sun = t_sun_top / 4.0;
+                        for (int s = 0; s < 4; ++s) {
+                            Vec3 p_sun = vec3_add(p, vec3_scale(sky->sun_dir, ((double)s + 0.5) * dt_sun));
+                            sun_tau += eval_cloud_density_at(sky, p_sun) * dt_sun;
+                        }
+                    }
+                }
+                double T_sun = exp(-sun_tau) + 0.25 * exp(-sun_tau * 0.30);
+
+                /* Sun scattered light (silver lining) + ambient diffuse illumination */
+                Vec3 sun_lit = vec3_scale(sky->sun_color, (0.35 * lit + silver) * T_sun);
+                Vec3 step_col = vec3_add(ambient_col, vec3_mul(cloud_albedo, sun_lit));
+
+                double step_tau = rho * dt;
+                double step_T = exp(-step_tau);
+
+                cloud_inscatter = vec3_add(cloud_inscatter, vec3_scale(step_col, (1.0 - step_T) * T_acc));
+                T_acc *= step_T;
+                if (T_acc < 0.005) break;
+            }
+
+            /* Smoothly blend into the horizon gradient */
+            double horizon_fade = smoothstep(0.01, 0.08, dir.y);
+            Vec3 combined = vec3_add(vec3_scale(base, T_acc), cloud_inscatter);
+            base = vec3_lerp(base, combined, horizon_fade);
         }
+    } else {
+        /* --- Legacy 2D clouds on a horizontal layer at cloud_height ------- */
+        const double cloud_eps = 0.03;
+        if (dir.y > cloud_eps) {
+            /* Project the ray onto the cloud plane (camera at origin). */
+            double tt = sky->cloud_height / dir.y;
+            double px = dir.x * tt;
+            double pz = dir.z * tt;
 
-        /* fBm in ~[-1, 1] remapped to [0, 1]. */
-        double raw = noise_fbm2(px * sky->cloud_scale,
-                                pz * sky->cloud_scale,
-                                octaves, 2.0, 0.5, sky->seed);
-        double density = clamp01(0.5 * (raw + 1.0));
+            int octaves = sky->cloud_octaves;
+            if (octaves < 1) {
+                octaves = 1;
+            }
 
-        double a = sky->cloud_coverage - sky->cloud_softness;
-        double b = sky->cloud_coverage + sky->cloud_softness;
-        double alpha = smoothstep(a, b, density);
-        alpha = pow_nonneg(alpha, sky->cloud_sharpness);
+            /* fBm in ~[-1, 1] remapped to [0, 1]. */
+            double raw = noise_fbm2(px * sky->cloud_scale,
+                                    pz * sky->cloud_scale,
+                                    octaves, 2.0, 0.5, sky->seed);
+            double density = clamp01(0.5 * (raw + 1.0));
 
-        /* Fade clouds out as the ray approaches the horizon. */
-        alpha *= smoothstep(0.0, 0.15, dir.y);
+            double a = sky->cloud_coverage - sky->cloud_softness;
+            double b = sky->cloud_coverage + sky->cloud_softness;
+            double alpha = smoothstep(a, b, density);
+            alpha = pow_nonneg(alpha, sky->cloud_sharpness);
 
-        if (alpha > 0.0) {
-            /* Fake self-shadow: thicker cloud interior darkens. */
-            double shadow = 0.6 + 0.4 * alpha;
-            Vec3 cloud_color = vec3_scale(vec3(0.95, 0.95, 0.98), shadow);
+            /* Fade clouds out as the ray approaches the horizon. */
+            alpha *= smoothstep(0.0, 0.15, dir.y);
 
-            /* Sun lighting on the cloud top. */
-            double lit = cos_sun > 0.0 ? cos_sun : 0.0;
-            Vec3 lit_cloud = vec3_add(cloud_color,
-                                      vec3_scale(vec3_mul(cloud_color, sky->sun_color),
-                                                 0.35 * lit));
+            if (alpha > 0.0) {
+                /* Fake self-shadow: thicker cloud interior darkens. */
+                double shadow = 0.6 + 0.4 * alpha;
+                Vec3 cloud_color = vec3_scale(vec3(0.95, 0.95, 0.98), shadow);
 
-            base = vec3_lerp(base, lit_cloud, alpha);
+                /* Sun lighting on the cloud top. */
+                double lit = cos_sun > 0.0 ? cos_sun : 0.0;
+                Vec3 lit_cloud = vec3_add(cloud_color,
+                                          vec3_scale(vec3_mul(cloud_color, sky->sun_color),
+                                                     0.35 * lit));
+
+                base = vec3_lerp(base, lit_cloud, alpha);
+            }
         }
     }
 
