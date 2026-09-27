@@ -157,6 +157,7 @@ typedef struct {
     double galaxy_intensity; /* 0 = off, >0 = distant spiral galaxy disk */
     Vec3   galaxy_dir;       /* celestial direction toward galaxy center */
     Vec3   nebula_dir;       /* celestial direction toward nebula center */
+    double nebula_scale;     /* angular scale multiplier (default 1.0) */
     double galaxy_tilt;      /* inclination angle in degrees (0 = face-on, 90 = edge-on, default 50.0) */
     double galaxy_roll;      /* position angle / roll in degrees (default -38.0) */
 } SkyParams;
@@ -168,6 +169,7 @@ typedef struct {
 #define SKY_DEFAULT_STAR_INTENSITY   0.0
 #define SKY_DEFAULT_STAR_DENSITY     250.0
 #define SKY_DEFAULT_NEBULA_INTENSITY 0.0
+#define SKY_DEFAULT_NEBULA_SCALE     1.0
 #define SKY_DEFAULT_GALAXY_INTENSITY 0.0
 #define SKY_DEFAULT_GALAXY_DIR       ((Vec3){ -0.35, 0.45, 0.82 })
 #define SKY_DEFAULT_NEBULA_DIR       ((Vec3){ -0.1059, -0.2060, 0.9728 })

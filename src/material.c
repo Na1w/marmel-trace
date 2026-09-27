@@ -87,6 +87,7 @@ void sky_default_params(SkyParams *p)
     p->star_intensity    = SKY_DEFAULT_STAR_INTENSITY;
     p->star_density      = SKY_DEFAULT_STAR_DENSITY;
     p->nebula_intensity  = SKY_DEFAULT_NEBULA_INTENSITY;
+    p->nebula_scale      = SKY_DEFAULT_NEBULA_SCALE;
     p->galaxy_intensity  = SKY_DEFAULT_GALAXY_INTENSITY;
     p->galaxy_dir        = SKY_DEFAULT_GALAXY_DIR;
     p->nebula_dir        = SKY_DEFAULT_NEBULA_DIR;
@@ -664,31 +665,43 @@ Vec3 sky_sample(Vec3 dir, const SkyParams *sky)
             double v = vec3_dot(dir, nt2);
             double w_dir = vec3_dot(dir, ndir);
 
-            /* Authentic telescope angular scale for emission complex */
-            const double R_field = 0.078;
+            /* Authentic telescope angular scale or whole-sky cosmic canopy */
+            double neb_scale = (sky->nebula_scale > 1e-4) ? sky->nebula_scale : 1.0;
+            const double R_field = 0.078 * neb_scale;
             double r_ang = sqrt(u * u + v * v);
+            double min_w = (R_field < 1.3) ? cos(R_field) : -0.2;
 
-            if (w_dir > 0.985 && r_ang < R_field) {
+            if (w_dir > min_w && (R_field >= 1.3 || r_ang < R_field)) {
                 /* Depth interval for 3D cosmic slab */
                 double t_enter = 0.88;
                 double t_exit  = 1.12;
                 const int num_steps = 26;
                 double dt = (t_exit - t_enter) / (double)num_steps;
 
-                /* Guaranteed smooth edge feathering to prevent any circular knife-edge */
-                double edge_fade = 1.0 - smoothstep(0.35, 0.95, r_ang / R_field);
-                edge_fade = edge_fade * edge_fade;
+                /* Guaranteed smooth edge feathering or horizon fade */
+                double edge_fade;
+                if (R_field < 1.3) {
+                    edge_fade = 1.0 - smoothstep(0.35, 0.95, r_ang / R_field);
+                    edge_fade = edge_fade * edge_fade;
+                } else {
+                    double hy = dir.y;
+                    if (hy < 0.0) hy = 0.0;
+                    edge_fade = smoothstep(0.01, 0.18, hy);
+                }
 
                 Vec3 accum_nebula = vec3(0.0, 0.0, 0.0);
                 double transmittance = 1.0;
+
+                double r_norm = (R_field < 1.3) ? R_field : 1.3;
+                double freq_mult = (neb_scale > 1.0) ? (6.5 * sqrt(neb_scale / (r_norm / 0.078 * 0.078))) : 6.5;
 
                 for (int s = 0; s < num_steps; ++s) {
                     double t_cur = t_enter + (s + 0.5) * dt;
                     Vec3 p_world = vec3_scale(dir, t_cur);
                     Vec3 p_rel = vec3_sub(p_world, ndir);
 
-                    double nx = vec3_dot(p_rel, nt1) / R_field;
-                    double ny = vec3_dot(p_rel, nt2) / R_field;
+                    double nx = vec3_dot(p_rel, nt1) / r_norm;
+                    double ny = vec3_dot(p_rel, nt2) / r_norm;
                     double nz = vec3_dot(p_rel, ndir) / 0.10;
 
                     /* Rotate coordinates by 35 degrees to align Cygnus Wall shock front */
@@ -698,9 +711,9 @@ Vec3 sky_sample(Vec3 dir, const SkyParams *sky)
                     /* Soft z-axis containment */
                     double z_decay = exp(-nz * nz * 4.0);
 
-                    /* Higher spatial frequency for intricate multi-scale fractal wisps */
-                    double fx = rx * 6.5;
-                    double fy = ry * 6.5;
+                    /* Multi-scale fractal wisps spanning the heavens */
+                    double fx = rx * freq_mult;
+                    double fy = ry * freq_mult;
                     double fz = nz * 6.5;
 
                     /* Domain warping creates swirling, turbulent cosmic fluid motion */

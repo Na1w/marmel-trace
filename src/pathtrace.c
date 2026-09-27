@@ -886,7 +886,8 @@ Vec3 pathtrace_radiance(const Scene *scene, Ray primary, int max_depth,
             if (fabs(h.normal.y) > 0.999 && fabs(h.normal.x) < 1e-4 && fabs(h.normal.z) < 1e-4) {
                 N = water_normal(P.x, P.z, 0.0); /* wave-perturbed normal, t = 0 */
             }
-        } else if (m->bump_strength > 1e-6) {
+        }
+        if (m->bump_strength > 1e-6) {
             N = texture_normal(m, P, N);
         }
         if (vec3_dot(N, d) > 0.0) {

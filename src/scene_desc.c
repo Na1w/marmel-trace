@@ -477,7 +477,8 @@ enum {
     SKY_GALAXY_ROLL      = 1u << 22,
     SKY_CLOUD_THICKNESS  = 1u << 23,
     SKY_CLOUD_DENSITY    = 1u << 24,
-    SKY_CLOUD_STEPS      = 1u << 25
+    SKY_CLOUD_STEPS      = 1u << 25,
+    SKY_NEBULA_SCALE     = 1u << 26
 };
 
 /* Value kinds a key can take (docs/scene_format.md §3.4). */
@@ -541,7 +542,8 @@ static const KeySpec SKY_KEYS[] = {
     { "galaxy_roll",       KT_DOUBLE, SKY_GALAXY_ROLL,      offsetof(SkyParams, galaxy_roll) },
     { "cloud_thickness",   KT_DOUBLE, SKY_CLOUD_THICKNESS,  offsetof(SkyParams, cloud_thickness) },
     { "cloud_density",     KT_DOUBLE, SKY_CLOUD_DENSITY,    offsetof(SkyParams, cloud_density) },
-    { "cloud_steps",       KT_INT,    SKY_CLOUD_STEPS,      offsetof(SkyParams, cloud_steps) }
+    { "cloud_steps",       KT_INT,    SKY_CLOUD_STEPS,      offsetof(SkyParams, cloud_steps) },
+    { "nebula_scale",      KT_DOUBLE, SKY_NEBULA_SCALE,     offsetof(SkyParams, nebula_scale) }
 };
 
 enum {

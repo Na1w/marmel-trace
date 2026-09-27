@@ -532,6 +532,8 @@ static void emit_sky(Writer *w, const SceneDesc *d)
         w_key_double(w, "star_density", s->star_density);
     if (s->nebula_intensity != SKY_DEFAULT_NEBULA_INTENSITY)
         w_key_double(w, "nebula_intensity", s->nebula_intensity);
+    if (s->nebula_scale != SKY_DEFAULT_NEBULA_SCALE && s->nebula_scale > 0.0)
+        w_key_double(w, "nebula_scale", s->nebula_scale);
     if (s->galaxy_intensity != SKY_DEFAULT_GALAXY_INTENSITY)
         w_key_double(w, "galaxy_intensity", s->galaxy_intensity);
     if (!vec3_is(s->galaxy_dir, SKY_DEFAULT_GALAXY_DIR.x,

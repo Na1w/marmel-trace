@@ -598,7 +598,8 @@ static Vec3 trace_hit(const Scene *scene, Ray r, int depth, int max_depth,
     Vec3 N = h->normal; /* already flipped to oppose the ray */
     if (m->is_water) {
         N = water_normal(P.x, P.z, time); /* wave-perturbed normal */
-    } else if (m->bump_strength > 1e-6) {
+    }
+    if (m->bump_strength > 1e-6) {
         N = texture_normal(m, P, N);
     }
     if (vec3_dot(N, r.dir) > 0) {
