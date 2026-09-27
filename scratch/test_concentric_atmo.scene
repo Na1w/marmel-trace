@@ -1,0 +1,59 @@
+camera {
+  eye    = 0.0 0.0 -10.0
+  target = 0.0 0.0 0.0
+  up     = 0.0 1.0 0.0
+  vfov   = 38.0
+}
+
+sky {
+  sun_dir            = -0.3800 -0.0400 0.9240
+  sun_color          = 1.00 0.55 0.03
+  sun_radius         = 0.0
+  horizon_color      = 0.0 0.0 0.0
+  zenith_color       = 0.0 0.0 0.0
+  gradient_gamma     = 1.0
+  sun_glow_exponent  = 22.0
+  sun_glow_strength  = 4.5
+  cloud_coverage     = 2.0
+}
+
+material mat_hero_body {
+  pbr = 1
+  albedo = 0.62 0.66 0.74
+  roughness = 0.48
+  metallic = 0.02
+}
+
+material mat_earth_atmo {
+  pbr = 1
+  albedo = 0.05 0.2 0.8
+  transparency = 0.85
+  ior = 1.0
+  emissive = 0.35 1.40 3.80
+  roughness = 0.1
+}
+
+material mat_sun_core {
+  pbr = 1
+  albedo = 0.1 0.1 0.1
+  emissive = 5.2 2.8 0.06
+  roughness = 0.5
+}
+
+sphere {
+  center   = -4.1 -0.4 0.0
+  radius   = 2.75
+  material = mat_sun_core
+}
+
+sphere {
+  center   = 3.6 -0.15 0.0
+  radius   = 2.85
+  material = mat_hero_body
+}
+
+sphere {
+  center   = 3.6 -0.15 0.0
+  radius   = 2.90
+  material = mat_earth_atmo
+}

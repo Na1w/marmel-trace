@@ -287,6 +287,8 @@ static void clear_plant_flags(ScenePlantDesc *p)
     p->has_third_child_chance = 0;
     p->has_leaf_min = 0;
     p->has_leaf_span = 0;
+    p->has_foliage = 0;
+    p->has_plant_type = 0;
 }
 
 /* ------------------------------------------------------------------ */

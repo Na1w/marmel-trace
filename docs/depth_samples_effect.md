@@ -260,7 +260,7 @@ quickly, and the user was almost certainly comparing **already-deep** renders:
   luminance jump — depth 1 already supplies the bulk of direct + first-bounce light.
 * Beyond depth 1 the increments are tiny: 1→4 = MAD 3.18 (default) / 6.00 (example);
   4→5 = 0.38; 8→16 = 0.13; **16→64 = 0.009**.
-* Russian Roulette starts at bounce 3 (`PT_RR_START_BOUNCE 3`), so with the default
+* Russian Roulette starts at bounce 2 (`PT_RR_START_BOUNCE 2`), so with the default
   depth 6 most paths die before reaching the cap anyway. Changing `--depth` from,
   say, 6 to 8 therefore moves only a handful of samples — **visually
   indistinguishable** at normal viewing, even though the files differ byte-for-byte.

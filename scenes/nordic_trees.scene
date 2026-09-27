@@ -1,0 +1,307 @@
+# scenes/nordic_trees.scene
+#
+# Nordic Forest & Woodland Shoreline
+# Demonstrating procedural polygonal foliage:
+#   * Nordic Spruce / Conifers (gran/tall) with tapered central trunk,
+#     tiered whorls of drooping branches and triangular needle fronds.
+#   * Deciduous tree (lövträd) with 3D folded polygonal diamond leaves.
+#   * Comparison with legacy sphere-cluster foliage ("bollar på stickor").
+#
+# Render with:
+#   ./raytracer --scene scenes/nordic_trees.scene --width 1280 --height 720 --samples 16 --depth 6 --out output/nordic_trees.png
+
+water_level = 0.0
+water_material = clear_water
+water_enabled = 1
+
+camera {
+    eye = -1.2 3.0 12.0
+    target = 0.6 2.4 -3.0
+    up = 0 1 0
+    vfov = 42.0
+}
+
+sky {
+    sun_dir = 0.65 0.35 -0.68
+    sun_color = 1.0 0.88 0.72
+    horizon_color = 0.82 0.88 0.95
+    zenith_color = 0.18 0.42 0.82
+    gradient_gamma = 0.75
+    sun_glow_exponent = 200.0
+    sun_glow_strength = 1.2
+    sun_radius = 2.5
+    cloud_height = 140.0
+    cloud_scale = 0.0028
+    cloud_coverage = 0.35
+    cloud_softness = 0.18
+    cloud_sharpness = 1.4
+    seed = 42
+}
+
+fog {
+    density = 0.006
+    color = 0.84 0.88 0.94
+    height = 5.5
+    height_falloff = 0.22
+    inscatter_strength = 0.35
+    sun_anisotropy = 0.74
+    noise_scale = 0.16
+    noise_amount = 0.35
+}
+
+# --- Materials -------------------------------------------------------------
+
+material ground_moss {
+    albedo = 0.18 0.28 0.12
+    specular = 0.02 0.02 0.02
+    shininess = 6.0
+    roughness = 0.85
+}
+
+material ground_bank {
+    albedo = 0.32 0.26 0.18
+    specular = 0.03 0.03 0.03
+    shininess = 8.0
+    roughness = 0.8
+}
+
+material spruce_bark {
+    albedo = 0.18 0.12 0.08
+    specular = 0.02 0.02 0.02
+    shininess = 8.0
+    roughness = 0.9
+}
+
+material spruce_needles {
+    albedo = 0.05 0.18 0.07
+    specular = 0.06 0.08 0.05
+    shininess = 24.0
+    roughness = 0.5
+}
+
+material pine_needles {
+    albedo = 0.07 0.22 0.09
+    specular = 0.06 0.08 0.05
+    shininess = 28.0
+    roughness = 0.45
+}
+
+material birch_bark {
+    albedo = 0.82 0.79 0.72
+    specular = 0.05 0.05 0.05
+    shininess = 16.0
+    roughness = 0.65
+}
+
+material deciduous_leaf {
+    albedo = 0.14 0.46 0.11
+    specular = 0.10 0.14 0.08
+    shininess = 36.0
+    roughness = 0.35
+}
+
+material autumn_leaf {
+    albedo = 0.72 0.38 0.08
+    specular = 0.12 0.12 0.08
+    shininess = 32.0
+    roughness = 0.4
+}
+
+material sphere_leaf {
+    albedo = 0.12 0.42 0.14
+    specular = 0.08 0.12 0.08
+    shininess = 20.0
+    roughness = 0.5
+}
+
+material clear_water {
+    type = water
+    albedo = 0.02 0.10 0.14
+    specular = 0.95 0.95 0.95
+    shininess = 256.0
+    reflectivity = 0.92
+    transparency = 0.85
+    ior = 1.333
+    is_water = 1
+    absorption = 0.22 0.08 0.04
+    deep_color = 0.01 0.06 0.09
+}
+
+material granite {
+    albedo = 0.38 0.39 0.41
+    specular = 0.05 0.05 0.05
+    shininess = 16.0
+    roughness = 0.7
+}
+
+# --- Environment & Shoreline -----------------------------------------------
+
+# Lake bed under water
+plane {
+    point = 0.0 -0.40 0.0
+    normal = 0.0 1.0 0.0
+    material = ground_bank
+}
+
+# Mossy bank rising on the left under deciduous trees
+sphere {
+    center = -5.0 -11.0 -4.0
+    radius = 12.0
+    material = ground_moss
+}
+
+# Center ground holding the spruces
+sphere {
+    center = 1.0 -13.0 -4.5
+    radius = 14.0
+    material = ground_moss
+}
+
+# Right shore holding the legacy comparison tree
+sphere {
+    center = 7.0 -12.5 -4.0
+    radius = 13.5
+    material = ground_bank
+}
+
+# Shoreline angular boulders (facet-modulated polyhedra)
+boulder {
+    position = -1.2 0.08 1.5
+    radius = 0.68
+    roughness = 0.38
+    flatness = 0.72
+    seed = 101
+    material = granite
+}
+
+boulder {
+    position = -2.0 0.04 2.2
+    radius = 0.48
+    roughness = 0.42
+    flatness = 0.68
+    seed = 202
+    material = granite
+}
+
+boulder {
+    position = 3.5 0.08 0.2
+    radius = 0.78
+    roughness = 0.35
+    flatness = 0.75
+    seed = 303
+    material = granite
+}
+
+boulder {
+    position = 4.4 0.02 0.8
+    radius = 0.52
+    roughness = 0.40
+    flatness = 0.70
+    seed = 404
+    material = granite
+}
+
+boulder {
+    position = 0.2 -0.20 2.6
+    radius = 0.36
+    roughness = 0.44
+    flatness = 0.66
+    seed = 505
+    material = granite
+}
+
+# Warm shoreline lantern / fire glow (tucked behind boulder)
+light {
+    position = -1.2 0.30 0.8
+    color = 1.0 0.62 0.25
+    intensity = 26.0
+    radius = 0.09
+}
+
+# --- Trees & Vegetation ----------------------------------------------------
+
+# 1. Main Nordic Spruce (Center) - Tall majestic conifer with tiered drooping branches & needle fronds
+spruce {
+    position = 0.8 0.0 -3.5
+    height = 6.2
+    radius = 0.24
+    seed = 101
+    material_bark = spruce_bark
+    material_leaf = spruce_needles
+}
+
+# 2. Medium Nordic Spruce (Mid-right)
+spruce {
+    position = 3.6 0.0 -6.0
+    height = 5.0
+    radius = 0.19
+    seed = 303
+    material_bark = spruce_bark
+    material_leaf = pine_needles
+}
+
+# 3. Smaller Spruce sapling (Shoreline front-right)
+spruce {
+    position = 2.2 0.0 0.2
+    height = 2.8
+    radius = 0.11
+    seed = 777
+    material_bark = spruce_bark
+    material_leaf = spruce_needles
+}
+
+# 4. Deciduous Birch with 3D folded polygonal diamond leaves (Left)
+tree {
+    position = -3.8 0.0 -3.5
+    height = 4.8
+    radius = 0.20
+    seed = 555
+    foliage = leaves
+    max_depth = 4
+    spread_deg = 36.0
+    material_bark = birch_bark
+    material_leaf = deciduous_leaf
+}
+
+# 5. Autumn Deciduous tree with 3D folded polygonal leaves (Background left)
+tree {
+    position = -6.5 0.0 -8.5
+    height = 5.6
+    radius = 0.22
+    seed = 888
+    foliage = leaves
+    max_depth = 4
+    spread_deg = 32.0
+    material_bark = spruce_bark
+    material_leaf = autumn_leaf
+}
+
+# 6. Distant background spruce forest silhouettes
+spruce {
+    position = -1.5 0.0 -14.0
+    height = 7.5
+    radius = 0.28
+    seed = 412
+    material_bark = spruce_bark
+    material_leaf = spruce_needles
+}
+
+spruce {
+    position = 5.5 0.0 -12.0
+    height = 6.8
+    radius = 0.25
+    seed = 909
+    material_bark = spruce_bark
+    material_leaf = pine_needles
+}
+
+# 7. Comparison: Legacy sphere-cluster tree ("bollar på stickor") on far right
+tree {
+    position = 6.8 0.0 -4.5
+    height = 3.8
+    radius = 0.13
+    seed = 123
+    foliage = spheres
+    material_bark = spruce_bark
+    material_leaf = sphere_leaf
+}

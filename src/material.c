@@ -14,6 +14,9 @@
 
 /* Local PI so we do not depend on M_PI (POSIX-only). */
 #define MATERIAL_PI 3.14159265358979323846
+#ifndef M_PI
+#define M_PI MATERIAL_PI
+#endif
 
 /* ------------------------------------------------------------------ */
 /* Small scalar helpers                                                */
@@ -69,17 +72,43 @@ void sky_default_params(SkyParams *p)
     p->sun_glow_exponent = 350.0;
     p->sun_glow_strength = 0.8;
 
-    p->cloud_height   = 120.0;
-    p->cloud_scale    = 0.0025;
-    p->cloud_coverage = 0.5;
-    p->cloud_softness = 0.12;
+    p->cloud_height    = 120.0;
+    p->cloud_scale     = 0.0025;
+    p->cloud_coverage  = 0.5;
+    p->cloud_softness  = 0.12;
     p->cloud_sharpness = 1.5;
-    p->cloud_octaves  = 5;
-    p->seed           = 1337u;
+    p->cloud_octaves   = 5;
+    p->cloud_thickness = SKY_DEFAULT_CLOUD_THICKNESS;
+    p->cloud_density   = SKY_DEFAULT_CLOUD_DENSITY;
+    p->cloud_steps     = SKY_DEFAULT_CLOUD_STEPS;
+    p->seed            = 1337u;
 
-    /* Point-like sun: hard shadows (byte-identical to the pre-soft-shadow
-     * renderer). Non-zero values enable sun-disk area-light sampling. */
-    p->sun_radius     = SKY_DEFAULT_SUN_RADIUS;
+    p->sun_radius        = SKY_DEFAULT_SUN_RADIUS;
+    p->star_intensity    = SKY_DEFAULT_STAR_INTENSITY;
+    p->star_density      = SKY_DEFAULT_STAR_DENSITY;
+    p->nebula_intensity  = SKY_DEFAULT_NEBULA_INTENSITY;
+    p->nebula_scale      = SKY_DEFAULT_NEBULA_SCALE;
+    p->galaxy_intensity  = SKY_DEFAULT_GALAXY_INTENSITY;
+    p->galaxy_dir        = SKY_DEFAULT_GALAXY_DIR;
+    p->nebula_dir        = SKY_DEFAULT_NEBULA_DIR;
+    p->galaxy_tilt       = SKY_DEFAULT_GALAXY_TILT;
+    p->galaxy_roll       = SKY_DEFAULT_GALAXY_ROLL;
+}
+
+void fog_default_params(FogParams *p)
+{
+    if (p == NULL) {
+        return;
+    }
+    p->density            = FOG_DEFAULT_DENSITY;
+    p->color              = FOG_DEFAULT_COLOR;
+    p->height             = FOG_DEFAULT_HEIGHT;
+    p->height_falloff     = FOG_DEFAULT_HEIGHT_FALLOFF;
+    p->inscatter_strength = FOG_DEFAULT_INSCATTER_STRENGTH;
+    p->sun_anisotropy     = FOG_DEFAULT_SUN_ANISOTROPY;
+    p->noise_scale        = FOG_DEFAULT_NOISE_SCALE;
+    p->noise_amount       = FOG_DEFAULT_NOISE_AMOUNT;
+    p->shadow_steps       = FOG_DEFAULT_SHADOW_STEPS;
 }
 
 /* ------------------------------------------------------------------ */
@@ -95,6 +124,7 @@ void material_texture_defaults(Material *m)
     m->texture_scale   = TEXTURE_DEFAULT_SCALE;
     m->texture_color_a = TEXTURE_DEFAULT_COLOR_A;
     m->texture_color_b = TEXTURE_DEFAULT_COLOR_B;
+    m->texture_image   = NULL;
 }
 
 /* ------------------------------------------------------------------ */
@@ -343,6 +373,99 @@ Vec3 material_ambient(const Material *m, Vec3 N, const SkyParams *sky)
     return vec3_scale(vec3_mul(m->albedo, hemi), ambient_factor);
 }
 
+static double eval_cloud_density_at(const SkyParams *sky, Vec3 p)
+{
+    if (sky->cloud_thickness <= 1e-4) return 0.0;
+    double y_bot = sky->cloud_height;
+    double y_top = y_bot + sky->cloud_thickness;
+    if (p.y < y_bot || p.y > y_top) return 0.0;
+
+    double h_rel = (p.y - y_bot) / sky->cloud_thickness; /* in [0, 1] */
+    /* Cloud vertical density profile: flat condensation base, billowing top */
+    double vert_profile = smoothstep(0.0, 0.12, h_rel) * smoothstep(1.0, 0.60, h_rel);
+    if (vert_profile <= 0.0) return 0.0;
+
+    int octaves = sky->cloud_octaves;
+    if (octaves < 1) octaves = 1;
+    if (octaves > 6) octaves = 6;
+
+    double sx = p.x * sky->cloud_scale;
+    double sy = (p.y - y_bot) * (sky->cloud_scale * 1.5);
+    double sz = p.z * sky->cloud_scale;
+    double raw = noise_fbm3(sx, sy, sz, octaves, 2.0, 0.5, sky->seed);
+    double d0 = clamp01(0.5 * (raw + 1.0));
+
+    double d = d0 * vert_profile;
+
+    double a = sky->cloud_coverage - sky->cloud_softness;
+    double b = sky->cloud_coverage + sky->cloud_softness;
+    double alpha = smoothstep(a, b, d);
+    if (alpha <= 0.0) return 0.0;
+
+    alpha = pow_nonneg(alpha, sky->cloud_sharpness);
+    double mult = (sky->cloud_density > 0.0) ? sky->cloud_density : 0.08;
+    return alpha * mult;
+}
+
+Vec3 sky_cloud_transmittance(const SkyParams *sky, Vec3 pos, Vec3 dir)
+{
+    if (sky == NULL || sky->cloud_thickness <= 1e-4) {
+        return vec3(1.0, 1.0, 1.0);
+    }
+    if (dir.y <= 1e-4) {
+        return vec3(1.0, 1.0, 1.0);
+    }
+
+    double y_bot = sky->cloud_height;
+    double y_top = y_bot + sky->cloud_thickness;
+
+    double t0 = (y_bot - pos.y) / dir.y;
+    double t1 = (y_top - pos.y) / dir.y;
+
+    double t_start = (t0 > 0.0) ? t0 : 0.0;
+    double t_end = t1;
+    if (t_end <= t_start) {
+        return vec3(1.0, 1.0, 1.0);
+    }
+
+    double slab_dist = t_end - t_start;
+    if (slab_dist > 3000.0) {
+        slab_dist = 3000.0;
+        t_end = t_start + slab_dist;
+    }
+
+    int steps = sky->cloud_steps / 2;
+    if (steps < 4) steps = 4;
+    if (steps > 16) steps = 16;
+
+    double dt = slab_dist / (double)steps;
+    double tau = 0.0;
+
+    for (int i = 0; i < steps; ++i) {
+        double t = t_start + ((double)i + 0.5) * dt;
+        Vec3 p = vec3_add(pos, vec3_scale(dir, t));
+        double rho = eval_cloud_density_at(sky, p);
+        tau += rho * dt;
+        if (tau > 15.0) { tau = 15.0; break; }
+    }
+
+    double T = exp(-tau);
+
+    /* Crepuscular shaft modulation: creates crisp, realistic god rays piercing cloud gaps */
+    Vec3 u_dir, v_dir;
+    sky_basis(sky->sun_dir, &u_dir, &v_dir);
+    double u = vec3_dot(pos, u_dir);
+    double v = vec3_dot(pos, v_dir);
+
+    const double shaft_scale = 0.22;
+    double raw_shaft = noise_fbm2(u * shaft_scale, v * shaft_scale, 3, 2.0, 0.5, sky->seed ^ 0x9E3779B9u);
+    double shaft = smoothstep(-0.25, 0.35, raw_shaft);
+    double beam_factor = 0.12 + 0.88 * shaft;
+    T *= beam_factor;
+
+    return vec3(T, T, T);
+}
+
 /* ------------------------------------------------------------------ */
 /* Procedural sky                                                      */
 /* ------------------------------------------------------------------ */
@@ -366,45 +489,462 @@ Vec3 sky_sample(Vec3 dir, const SkyParams *sky)
         base = vec3_add(base, vec3_scale(sky->sun_color, glow));
     }
 
-    /* --- Clouds on a horizontal layer at cloud_height ----------------- */
-    const double cloud_eps = 0.03;
-    if (dir.y > cloud_eps) {
-        /* Project the ray onto the cloud plane (camera at origin). */
-        double tt = sky->cloud_height / dir.y;
-        double px = dir.x * tt;
-        double pz = dir.z * tt;
+    /* --- Volumetric 3D clouds or legacy 2D planar clouds -------------- */
+    if (sky->cloud_thickness > 1e-4) {
+        const double cloud_eps = 0.01;
+        if (dir.y > cloud_eps) {
+            double y_bot = sky->cloud_height;
+            double y_top = y_bot + sky->cloud_thickness;
+            double t0 = y_bot / dir.y;
+            double t1 = y_top / dir.y;
 
-        int octaves = sky->cloud_octaves;
-        if (octaves < 1) {
-            octaves = 1;
+            double slab_dist = t1 - t0;
+            if (slab_dist > 3500.0) slab_dist = 3500.0;
+
+            int steps = sky->cloud_steps;
+            if (steps < 4) steps = 4;
+            if (steps > 64) steps = 64;
+            double dt = slab_dist / (double)steps;
+
+            /* Cloud albedo and diffuse ambient light from sky dome */
+            Vec3 cloud_albedo = vec3(0.96, 0.97, 0.98);
+            Vec3 sky_ambient = vec3_lerp(sky->horizon_color, sky->zenith_color, 0.55);
+            Vec3 ambient_col = vec3_scale(vec3_mul(cloud_albedo, sky_ambient), 0.60);
+
+            /* Directional sun lighting on cloud top and forward silver lining */
+            double lit = (cos_sun > 0.0) ? cos_sun : 0.0;
+            double silver = 0.50 * pow_nonneg(fmax(0.0, cos_sun), 14.0);
+
+            double T_acc = 1.0;
+            Vec3 cloud_inscatter = vec3(0.0, 0.0, 0.0);
+
+            for (int i = 0; i < steps; ++i) {
+                double t = t0 + ((double)i + 0.5) * dt;
+                Vec3 p = vec3_scale(dir, t);
+                double rho = eval_cloud_density_at(sky, p);
+                if (rho <= 1e-5) continue;
+
+                /* Light towards the sun: short march (4 steps) to cloud top */
+                double sun_tau = 0.0;
+                if (sky->sun_dir.y > 0.02) {
+                    double t_sun_top = (y_top - p.y) / sky->sun_dir.y;
+                    if (t_sun_top > 0.0) {
+                        double dt_sun = t_sun_top / 4.0;
+                        for (int s = 0; s < 4; ++s) {
+                            Vec3 p_sun = vec3_add(p, vec3_scale(sky->sun_dir, ((double)s + 0.5) * dt_sun));
+                            sun_tau += eval_cloud_density_at(sky, p_sun) * dt_sun;
+                        }
+                    }
+                }
+                double T_sun = exp(-sun_tau) + 0.25 * exp(-sun_tau * 0.30);
+
+                /* Sun scattered light (silver lining) + ambient diffuse illumination */
+                Vec3 sun_lit = vec3_scale(sky->sun_color, (0.35 * lit + silver) * T_sun);
+                Vec3 step_col = vec3_add(ambient_col, vec3_mul(cloud_albedo, sun_lit));
+
+                double step_tau = rho * dt;
+                double step_T = exp(-step_tau);
+
+                cloud_inscatter = vec3_add(cloud_inscatter, vec3_scale(step_col, (1.0 - step_T) * T_acc));
+                T_acc *= step_T;
+                if (T_acc < 0.005) break;
+            }
+
+            /* Smoothly blend into the horizon gradient */
+            double horizon_fade = smoothstep(0.01, 0.08, dir.y);
+            Vec3 combined = vec3_add(vec3_scale(base, T_acc), cloud_inscatter);
+            base = vec3_lerp(base, combined, horizon_fade);
         }
+    } else {
+        /* --- Legacy 2D clouds on a horizontal layer at cloud_height ------- */
+        const double cloud_eps = 0.03;
+        if (dir.y > cloud_eps) {
+            /* Project the ray onto the cloud plane (camera at origin). */
+            double tt = sky->cloud_height / dir.y;
+            double px = dir.x * tt;
+            double pz = dir.z * tt;
 
-        /* fBm in ~[-1, 1] remapped to [0, 1]. */
-        double raw = noise_fbm2(px * sky->cloud_scale,
-                                pz * sky->cloud_scale,
-                                octaves, 2.0, 0.5, sky->seed);
-        double density = clamp01(0.5 * (raw + 1.0));
+            int octaves = sky->cloud_octaves;
+            if (octaves < 1) {
+                octaves = 1;
+            }
 
-        double a = sky->cloud_coverage - sky->cloud_softness;
-        double b = sky->cloud_coverage + sky->cloud_softness;
-        double alpha = smoothstep(a, b, density);
-        alpha = pow_nonneg(alpha, sky->cloud_sharpness);
+            /* fBm in ~[-1, 1] remapped to [0, 1]. */
+            double raw = noise_fbm2(px * sky->cloud_scale,
+                                    pz * sky->cloud_scale,
+                                    octaves, 2.0, 0.5, sky->seed);
+            double density = clamp01(0.5 * (raw + 1.0));
 
-        /* Fade clouds out as the ray approaches the horizon. */
-        alpha *= smoothstep(0.0, 0.15, dir.y);
+            double a = sky->cloud_coverage - sky->cloud_softness;
+            double b = sky->cloud_coverage + sky->cloud_softness;
+            double alpha = smoothstep(a, b, density);
+            alpha = pow_nonneg(alpha, sky->cloud_sharpness);
 
-        if (alpha > 0.0) {
-            /* Fake self-shadow: thicker cloud interior darkens. */
-            double shadow = 0.6 + 0.4 * alpha;
-            Vec3 cloud_color = vec3_scale(vec3(0.95, 0.95, 0.98), shadow);
+            /* Fade clouds out as the ray approaches the horizon. */
+            alpha *= smoothstep(0.0, 0.15, dir.y);
 
-            /* Sun lighting on the cloud top. */
-            double lit = cos_sun > 0.0 ? cos_sun : 0.0;
-            Vec3 lit_cloud = vec3_add(cloud_color,
-                                      vec3_scale(vec3_mul(cloud_color, sky->sun_color),
-                                                 0.35 * lit));
+            if (alpha > 0.0) {
+                /* Fake self-shadow: thicker cloud interior darkens. */
+                double shadow = 0.6 + 0.4 * alpha;
+                Vec3 cloud_color = vec3_scale(vec3(0.95, 0.95, 0.98), shadow);
 
-            base = vec3_lerp(base, lit_cloud, alpha);
+                /* Sun lighting on the cloud top. */
+                double lit = cos_sun > 0.0 ? cos_sun : 0.0;
+                Vec3 lit_cloud = vec3_add(cloud_color,
+                                          vec3_scale(vec3_mul(cloud_color, sky->sun_color),
+                                                     0.35 * lit));
+
+                base = vec3_lerp(base, lit_cloud, alpha);
+            }
+        }
+    }
+
+    /* --- Procedural stars (opt-in) ----------------------------------- */
+    if (sky->star_intensity > 0.0) {
+        double freq = sky->star_density > 0.0 ? sky->star_density : 250.0;
+        Vec3 g = vec3_scale(dir, freq);
+        int ix = (int)floor(g.x);
+        int iy = (int)floor(g.y);
+        int iz = (int)floor(g.z);
+
+        for (int dz = -1; dz <= 1; ++dz) {
+            for (int dy = -1; dy <= 1; ++dy) {
+                for (int dx = -1; dx <= 1; ++dx) {
+                    int cx = ix + dx;
+                    int cy = iy + dy;
+                    int cz = iz + dz;
+                    /* Wang-hash mix */
+                    unsigned h = sky->seed ^ 0x57A85u;
+                    h += (unsigned)cx * 0x85ebca6bU;
+                    h += (unsigned)cy * 0xc2b2ae35U;
+                    h += (unsigned)cz * 0x27d4eb2fU;
+                    h ^= h >> 16; h *= 0x7feb352dU;
+                    h ^= h >> 15; h *= 0x846ca68bU;
+                    h ^= h >> 16;
+
+                    if ((h & 0xFF) < 14) { /* ~5.5% probability */
+                        double jx = (double)cx + 0.1 + 0.8 * ((double)((h >> 8) & 0xFF) / 255.0);
+                        double jy = (double)cy + 0.1 + 0.8 * ((double)((h >> 16) & 0xFF) / 255.0);
+                        double jz = (double)cz + 0.1 + 0.8 * ((double)((h >> 24) & 0xFF) / 255.0);
+                        double d2 = (g.x - jx)*(g.x - jx) + (g.y - jy)*(g.y - jy) + (g.z - jz)*(g.z - jz);
+                        const double r_star = 0.085; /* sub-pixel pinprick (~0.8 px) */
+                        if (d2 < r_star * r_star) {
+                            double d = sqrt(d2);
+                            double s = 1.0 - d / r_star;
+                            s = s * s;
+                            unsigned mag_val = h % 1000;
+                            double brightness = (mag_val > 985) ? 6.0 : ((mag_val > 920) ? 2.8 : ((mag_val > 700) ? 1.2 : 0.5));
+                            Vec3 star_col;
+                            if (h % 9 == 0) star_col = vec3(0.75, 0.88, 1.30);      /* Hot O/B star */
+                            else if (h % 13 == 0) star_col = vec3(1.30, 0.85, 0.50); /* K/M giant */
+                            else if (h % 7 == 0) star_col = vec3(1.15, 1.10, 0.85);  /* F/G star */
+                            else star_col = vec3(1.0, 1.0, 1.0);                     /* Pure white */
+                            base = vec3_add(base, vec3_scale(star_col, s * brightness * sky->star_intensity));
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /* --- Procedural 3D Volumetric Interstellar Emission Complex ------ */
+    /* Modeled directly after actual narrowband astrophotography (nebula.tiff, nebula2.tiff):
+     * - Vast interstellar molecular complex (North America & Pelican complex NGC 7000 / IC 5070)
+     * - Deep hydrogen-alpha (656.3 nm) crimson gas clouds permeating space
+     * - Energetic ionization shock fronts / bright walls (the Cygnus Wall)
+     * - Cold molecular dust lanes (LDN 935) creating deep dark absorption silhouettes
+     * - True 3D raymarching with domain-warped fBm turbulence */
+    if (sky->nebula_intensity > 0.0) {
+        Vec3 ndir = vec3_normalize(sky->nebula_dir);
+        if (vec3_length_sq(ndir) > 1e-6) {
+            Vec3 nup = (fabs(ndir.y) < 0.9) ? vec3(0.0, 1.0, 0.0) : vec3(1.0, 0.0, 0.0);
+            Vec3 nt1 = vec3_normalize(vec3_cross(ndir, nup));
+            Vec3 nt2 = vec3_cross(ndir, nt1);
+
+            double u = vec3_dot(dir, nt1);
+            double v = vec3_dot(dir, nt2);
+            double w_dir = vec3_dot(dir, ndir);
+
+            /* Authentic telescope angular scale or whole-sky cosmic canopy */
+            double neb_scale = (sky->nebula_scale > 1e-4) ? sky->nebula_scale : 1.0;
+            const double R_field = 0.078 * neb_scale;
+            double r_ang = sqrt(u * u + v * v);
+            double min_w = (R_field < 1.3) ? cos(R_field) : -0.2;
+
+            if (w_dir > min_w && (R_field >= 1.3 || r_ang < R_field)) {
+                /* Depth interval for 3D cosmic slab */
+                double t_enter = 0.88;
+                double t_exit  = 1.12;
+                const int num_steps = 26;
+                double dt = (t_exit - t_enter) / (double)num_steps;
+
+                /* Guaranteed smooth edge feathering or horizon fade */
+                double edge_fade;
+                if (R_field < 1.3) {
+                    edge_fade = 1.0 - smoothstep(0.35, 0.95, r_ang / R_field);
+                    edge_fade = edge_fade * edge_fade;
+                } else {
+                    double hy = dir.y;
+                    if (hy < 0.0) hy = 0.0;
+                    edge_fade = smoothstep(0.01, 0.18, hy);
+                }
+
+                Vec3 accum_nebula = vec3(0.0, 0.0, 0.0);
+                double transmittance = 1.0;
+
+                double r_norm = (R_field < 1.3) ? R_field : 1.3;
+                double freq_mult = (neb_scale > 1.0) ? (6.5 * sqrt(neb_scale / (r_norm / 0.078 * 0.078))) : 6.5;
+
+                for (int s = 0; s < num_steps; ++s) {
+                    double t_cur = t_enter + (s + 0.5) * dt;
+                    Vec3 p_world = vec3_scale(dir, t_cur);
+                    Vec3 p_rel = vec3_sub(p_world, ndir);
+
+                    double nx = vec3_dot(p_rel, nt1) / r_norm;
+                    double ny = vec3_dot(p_rel, nt2) / r_norm;
+                    double nz = vec3_dot(p_rel, ndir) / 0.10;
+
+                    /* Rotate coordinates by 35 degrees to align Cygnus Wall shock front */
+                    double rx =  0.82 * nx + 0.57 * ny;
+                    double ry = -0.57 * nx + 0.82 * ny;
+
+                    /* Soft z-axis containment */
+                    double z_decay = exp(-nz * nz * 4.0);
+
+                    /* Multi-scale fractal wisps spanning the heavens */
+                    double fx = rx * freq_mult;
+                    double fy = ry * freq_mult;
+                    double fz = nz * 6.5;
+
+                    /* Domain warping creates swirling, turbulent cosmic fluid motion */
+                    double qx = noise_fbm3(fx + 1.4, fy + 0.8, fz, 3, 2.0, 0.5, 0x57415250u);
+                    double qy = noise_fbm3(fx + 4.2, fy + 2.6, fz, 3, 2.0, 0.5, 0x45444459u);
+                    double qz = noise_fbm3(fx - 2.8, fy + 5.1, fz, 3, 2.0, 0.5, 0x5A574152u);
+
+                    double wx = fx + 0.70 * qx;
+                    double wy = fy + 0.70 * qy;
+                    double wz = fz + 0.70 * qz;
+
+                    /* 5-octave turbulent density field with domain warping */
+                    double fbm1 = noise_fbm3(wx, wy, wz, 5, 2.15, 0.50, 0x4E454255u);
+                    double fbm2 = noise_fbm3(wx * 2.2 + 2.4, wy * 2.2 - 1.8, wz * 2.2, 4, 2.1, 0.5, 0x53484545u);
+
+                    /* Folded interstellar sheets / ionization curtains */
+                    double sheet1 = exp(-fbm1 * fbm1 * 18.0);
+                    double sheet2 = exp(-fbm2 * fbm2 * 22.0);
+                    double curtains = sheet1 * 0.75 + sheet2 * 0.45;
+
+                    /* Cygnus Wall: prominent glowing ionization front in NGC 7000 */
+                    double wall_coord = ry + 0.28 * rx * rx - 0.04;
+                    double wall_front = exp(-wall_coord * wall_coord * 36.0) * sheet1;
+
+                    /* Large-scale cloud clumping with high threshold:
+                     * Carves deep dark voids, bays (Gulf of Mexico), and distinct cloud masses! */
+                    double clump = noise_fbm3(rx * 2.2 + 0.7, ry * 2.2 + 2.9, nz * 2.2, 3, 2.0, 0.5, 0x434C554Du);
+                    double clump_mask = smoothstep(0.46, 0.78, clump * 0.5 + 0.5);
+
+                    /* Total glowing gas density */
+                    double gas = (curtains * 0.70 + wall_front * 0.90) * clump_mask * edge_fade * z_decay;
+                    if (gas < 0.005) continue;
+
+                    /* 3D Cold Molecular Dust Veins (LDN 935 Gulf of Mexico dark rift) */
+                    double dust_fbm = noise_fbm3(fx * 1.4 - 2.1 + 0.35 * qx, fy * 1.4 + 1.8 + 0.35 * qy, fz * 1.4, 4, 2.0, 0.5, 0x44555354u);
+                    double dust_rift = smoothstep(0.38, 0.72, dust_fbm * 0.5 + 0.5);
+                    double dust_channel = exp(-(rx * rx + (ry - 0.08) * (ry - 0.08)) * 4.0);
+                    double dust_density = dust_rift * dust_channel * edge_fade * z_decay;
+
+                    /* Astrophotographic Narrowband Colors:
+                     * Hydrogen-alpha (656.3 nm) monochromatic ruby crimson:
+                     * - Deep H-alpha crimson base: (0.85, 0.08, 0.16)
+                     * - Bright ionization shock ridge: (1.25, 0.18, 0.26)
+                     * - Cygnus Wall intense excitation: (1.45, 0.25, 0.32)
+                     * - [O III] cyan ionization veil: (0.10, 0.60, 0.75) */
+                    Vec3 ha_base = vec3(0.85, 0.08, 0.16);
+                    Vec3 ha_bright = vec3(1.25, 0.18, 0.26);
+                    Vec3 ha_wall = vec3(1.45, 0.25, 0.32);
+                    Vec3 o3_tint = vec3(0.10, 0.60, 0.75);
+
+                    double wall_blend = clamp01(wall_front * 2.0);
+                    Vec3 gas_color = vec3_lerp(ha_base, ha_bright, curtains);
+                    if (wall_blend > 0.2) {
+                        gas_color = vec3_lerp(gas_color, ha_wall, wall_blend * 0.65);
+                    }
+                    /* Delicate [O III] cyan ionization in dense shock pockets */
+                    double o3_mix = smoothstep(0.45, 0.85, gas) * (1.0 - wall_blend * 0.5) * 0.24;
+                    gas_color = vec3_lerp(gas_color, o3_tint, o3_mix);
+
+                    Vec3 emission = vec3_scale(gas_color, gas * 0.60);
+
+                    /* Volumetric extinction (Beer-Lambert):
+                     * Foreground dust absorbs background emission, giving real 3D depth */
+                    double sigma_a = (gas * 0.25 + dust_density * 28.0);
+                    double step_tau = sigma_a * dt;
+                    double step_trans = exp(-step_tau);
+
+                    double integ_factor = (sigma_a > 1e-6) ? ((1.0 - step_trans) / sigma_a) : dt;
+                    accum_nebula = vec3_add(accum_nebula, vec3_scale(emission, transmittance * integ_factor * 11.0));
+                    transmittance *= step_trans;
+
+                    if (transmittance < 0.01) break;
+                }
+
+                base = vec3_add(base, vec3_scale(accum_nebula, sky->nebula_intensity));
+            }
+        }
+    }
+
+    /* --- Procedural 3D Volumetric Distant Spiral Galaxy ---------------- */
+    /* Modeled directly after genuine telescope deep-sky exposure (real_space.tiff):
+     * - True 3D volumetric raymarching through thick galactic disk & spheroidal bulge
+     * - 3D multi-octave fBm turbulence along logarithmic spiral arms
+     * - 3D spheroidal nucleus & bulge (Population II golden starlight)
+     * - 3D Beer-Lambert dust extinction casting realistic near-side silhouettes
+     * - Seamless feathering into deep space with zero edge artifact */
+    if (sky->galaxy_intensity > 0.0) {
+        Vec3 gdir = vec3_normalize(sky->galaxy_dir);
+        if (vec3_length_sq(gdir) > 1e-6) {
+            Vec3 gup = (fabs(gdir.y) < 0.9) ? vec3(0.0, 1.0, 0.0) : vec3(1.0, 0.0, 0.0);
+            Vec3 gt1 = vec3_normalize(vec3_cross(gdir, gup));
+            Vec3 gt2 = vec3_cross(gdir, gt1);
+
+            /* Orientation roll and inclination angle */
+            double roll = sky->galaxy_roll * (M_PI / 180.0);
+            double cos_r = cos(roll);
+            double sin_r = sin(roll);
+            Vec3 disk_u = vec3_add(vec3_scale(gt1, cos_r), vec3_scale(gt2, -sin_r));
+            Vec3 disk_v = vec3_add(vec3_scale(gt1, sin_r), vec3_scale(gt2, cos_r));
+
+            double u = vec3_dot(dir, disk_u);
+            double v = vec3_dot(dir, disk_v);
+            double w_dir = vec3_dot(dir, gdir);
+
+            const double R_disk = 0.016;  /* Authentic telescope angular scale from real_space.tiff */
+            double inc_rad = sky->galaxy_tilt * (M_PI / 180.0);
+            double sin_inc = sin(inc_rad);
+            double cos_inc = cos(inc_rad);
+            double ellip_r = sqrt(u * u + (v / cos_inc) * (v / cos_inc));
+
+            if (w_dir > 0.985 && ellip_r < R_disk * 1.45) {
+                /* Depth interval for 3D galactic slab */
+                double denom = w_dir * cos_inc - v * sin_inc;
+                double t_mid = (fabs(denom) > 1e-4) ? (cos_inc / denom) : 1.0;
+
+                const double t_half = 0.0075;
+                double t_enter = t_mid - t_half;
+                double t_exit  = t_mid + t_half;
+                const int num_gal_steps = 32;
+                double dt = (t_exit - t_enter) / (double)num_gal_steps;
+
+                Vec3 accum_gal = vec3(0.0, 0.0, 0.0);
+                double gal_transmittance = 1.0;
+
+                for (int s = 0; s < num_gal_steps; ++s) {
+                    double t_cur = t_enter + (s + 0.5) * dt;
+                    Vec3 p_world = vec3_scale(dir, t_cur);
+                    Vec3 p_rel = vec3_sub(p_world, gdir);
+
+                    double gu = vec3_dot(p_rel, disk_u);
+                    double gv = vec3_dot(p_rel, disk_v);
+                    double gw = vec3_dot(p_rel, gdir);
+
+                    /* Galaxy intrinsic 3D coordinates */
+                    double x_gal = gu;
+                    double y_gal = gv * cos_inc + gw * sin_inc;
+                    double z_gal = -gv * sin_inc + gw * cos_inc;
+
+                    double r_cyl = sqrt(x_gal * x_gal + y_gal * y_gal);
+                    double gn = r_cyl / R_disk;
+                    if (gn > 1.45) continue;
+
+                    double phi = atan2(y_gal, x_gal);
+
+                    /* 1. True 3D Spheroidal Bulge (thick in z, round in 3D) */
+                    const double q_bulge = 0.55;
+                    double r_bulge = sqrt((x_gal / R_disk) * (x_gal / R_disk) + 
+                                          (y_gal / R_disk) * (y_gal / R_disk) + 
+                                          (z_gal / (R_disk * q_bulge)) * (z_gal / (R_disk * q_bulge)));
+                    
+                    /* Sharp stellar nucleus + diffuse spheroidal bulge */
+                    double nuc_core  = exp(-r_bulge * 45.0) * 16.0;
+                    double nuc_bulge = exp(-r_bulge * 9.0) * 3.6 + exp(-r_bulge * 3.8) * 1.1;
+
+                    /* 2. 3D Stellar Disk Profile: sech^2(z / z0) * exp(-r / Rd) */
+                    const double z0_star = 0.0013;
+                    double sech_star = 1.0 / cosh(z_gal / z0_star);
+                    double sech2_star = sech_star * sech_star;
+                    double disk_base = exp(-gn * 2.4) * sech2_star;
+
+                    /* 3. Multi-arm Logarithmic Spiral Density Waves with 3D Domain Warping */
+                    double pitch = 2.4;
+                    double log_r = log(fmax(0.015, gn + 0.03));
+                    double spiral_phase = phi - pitch * log_r;
+
+                    /* 3D domain warping creates natural swirling filaments */
+                    double warp = noise_fbm3(x_gal * 450.0, y_gal * 450.0, z_gal * 900.0, 3, 2.0, 0.5, 0x50495241u);
+                    double spiral_warped = spiral_phase + 0.35 * warp;
+
+                    /* Primary 2-arm mode + secondary branching spurs */
+                    double arm_wave1 = pow_nonneg(clamp01(0.5 * (1.0 + cos(2.0 * spiral_warped))), 1.5);
+                    double arm_wave2 = pow_nonneg(clamp01(0.5 * (1.0 + cos(4.0 * spiral_warped - 0.7))), 2.0);
+                    
+                    /* Inner spiral ring / pseudobar at gn ~ 0.22 - 0.38 */
+                    double ring_dist = fabs(gn - 0.28) / 0.12;
+                    double inner_ring = exp(-ring_dist * ring_dist * 3.0) * 0.60;
+
+                    double arm_density = (arm_wave1 * 0.75 + arm_wave2 * 0.35 + inner_ring);
+
+                    /* 3D clumping: OB associations & young star-forming clusters along arms */
+                    double fbm_clump = noise_fbm3(x_gal * 800.0 + 2.1, y_gal * 800.0 - 1.8, z_gal * 1600.0, 4, 2.15, 0.5, 0x4B4E4F54u);
+                    double knot_val = smoothstep(0.38, 0.78, fbm_clump * 0.5 + 0.5);
+                    double ob_knots = knot_val * knot_val * arm_density * smoothstep(0.10, 0.30, gn);
+
+                    /* Spiral arms modulate the continuous stellar disk (density waves) */
+                    double arm_mod = 0.18 + 0.82 * arm_density + 2.4 * ob_knots;
+                    double stars = disk_base * arm_mod;
+
+                    /* 4. Dramatic 3D Volumetric Dust Lanes (Beer-Lambert extinction)
+                     * Dust is concentrated on inner trailing edge of spiral arms in a thin layer */
+                    const double z0_dust = 0.00035;
+                    double sech_dust = 1.0 / cosh(z_gal / z0_dust);
+                    double sech2_dust = sech_dust * sech_dust;
+
+                    double dust_phase = spiral_phase - 0.35 + 0.20 * warp;
+                    double dust_wave = pow_nonneg(clamp01(0.5 * (1.0 + cos(2.0 * dust_phase))), 2.2);
+                    double dust_turb = noise_fbm3(x_gal * 950.0 - 4.5, y_gal * 950.0 + 3.2, z_gal * 1900.0, 4, 2.0, 0.5, 0x44555354u);
+                    double dust_lane = dust_wave * smoothstep(0.20, 0.70, dust_turb * 0.5 + 0.5);
+                    double dust = dust_lane * exp(-gn * 1.6) * smoothstep(0.06, 0.20, gn) * sech2_dust;
+
+                    /* Authentic Astrophotographic Colors:
+                     * Nucleus: warm golden-yellow starlight (Population II)
+                     * Disk/Arms: soft bluish-white starlight (Population I)
+                     * OB associations: bright sparkling starlight clusters */
+                    Vec3 c_nuc  = vec3(1.45, 1.25, 0.90);
+                    Vec3 c_disk = vec3(0.78, 0.90, 1.25);
+                    Vec3 c_knot = vec3(1.10, 1.35, 1.95);
+
+                    Vec3 emis = vec3_add(
+                        vec3_scale(c_nuc, (nuc_core + nuc_bulge)),
+                        vec3_add(vec3_scale(c_disk, stars * 2.8),
+                                 vec3_scale(c_knot, ob_knots * disk_base * 6.5))
+                    );
+
+                    /* Physical Beer-Lambert extinction:
+                     * Powerful dust extinction silhouettes foreground arms across the bulge */
+                    double sigma_a = stars * 1.5 + dust * 2200.0;
+                    double step_tau = sigma_a * dt;
+                    double step_trans = exp(-step_tau);
+
+                    double integ = (sigma_a > 1e-5) ? ((1.0 - step_trans) / sigma_a) : dt;
+                    accum_gal = vec3_add(accum_gal, vec3_scale(emis, gal_transmittance * integ * 22.0));
+                    gal_transmittance *= step_trans;
+
+                    if (gal_transmittance < 0.01) break;
+                }
+
+                /* Smooth edge feathering: seamless fade into space background */
+                double edge_fade = 1.0 - smoothstep(1.0, 1.45, ellip_r / R_disk);
+                base = vec3_add(base, vec3_scale(accum_gal, edge_fade * edge_fade * sky->galaxy_intensity));
+            }
         }
     }
 
@@ -414,6 +954,100 @@ Vec3 sky_sample(Vec3 dir, const SkyParams *sky)
     if (!(base.z >= 0.0)) base.z = 0.0;
 
     return base;
+}
+
+/* ------------------------------------------------------------------ */
+/* Atmospheric Fog & Smoke                                             */
+/* ------------------------------------------------------------------ */
+
+void fog_segment(const FogParams *fog, const SkyParams *sky, Ray ray,
+                 double dist, double *transmittance, Vec3 *inscatter)
+{
+    if (transmittance) *transmittance = 1.0;
+    if (inscatter) *inscatter = vec3(0.0, 0.0, 0.0);
+
+    if (fog == NULL || fog->density <= 0.0 || dist <= 1e-7) {
+        return;
+    }
+
+    double rho0 = fog->density;
+    double lambda = (fog->height_falloff > 0.0) ? fog->height_falloff : 0.0;
+    double y0 = ray.origin.y - fog->height;
+    double dy = ray.dir.y;
+    double tau = 0.0;
+    int is_sky = (dist >= 1e20);
+
+    if (lambda <= 1e-6) {
+        /* Uniform distance fog (constant density rho0) */
+        tau = is_sky ? 1e6 : (rho0 * dist);
+    } else {
+        /* Exponential height fog: rho(y) = rho0 * exp(-lambda * (y - height)) */
+        double base_density = rho0 * exp(-lambda * y0);
+
+        if (is_sky) {
+            if (dy > 1e-5) {
+                tau = base_density / (lambda * dy);
+            } else {
+                tau = 1e6;
+            }
+        } else {
+            if (fabs(dy) < 1e-5) {
+                tau = base_density * dist;
+            } else {
+                double term = (1.0 - exp(-lambda * dy * dist)) / (lambda * dy);
+                tau = base_density * term;
+            }
+        }
+    }
+
+    if (tau < 0.0) tau = 0.0;
+
+    /* Optional 3D procedural noise turbulence */
+    if (fog->noise_amount > 1e-4 && fog->noise_scale > 1e-4) {
+        double eval_dist = is_sky ? 20.0 : (dist > 50.0 ? 50.0 : dist * 0.5);
+        Vec3 p = vec3_add(ray.origin, vec3_scale(ray.dir, eval_dist));
+        double n = noise_fbm3(p.x * fog->noise_scale,
+                              p.y * fog->noise_scale,
+                              p.z * fog->noise_scale,
+                              3, 2.0, 0.5, 1337u);
+        double turb = 0.5 * (n + 1.0);
+        if (turb < 0.0) turb = 0.0;
+        if (turb > 1.0) turb = 1.0;
+        double mod = (1.0 - fog->noise_amount) + fog->noise_amount * turb * 2.0;
+        tau *= mod;
+    }
+
+    double T = exp(-tau);
+    if (T < 0.0) T = 0.0;
+    if (T > 1.0) T = 1.0;
+
+    Vec3 inscatter_col = fog->color;
+    if (sky != NULL && fog->inscatter_strength > 0.0) {
+        double g = fog->sun_anisotropy;
+        if (g < -0.95) g = -0.95;
+        if (g >  0.95) g =  0.95;
+        double cos_theta = vec3_dot(ray.dir, sky->sun_dir);
+        double denom = 1.0 + g * g - 2.0 * g * cos_theta;
+        if (denom < 1e-4) denom = 1e-4;
+        double phase = (1.0 - g * g) / (denom * sqrt(denom));
+        Vec3 sun_glow = vec3_scale(sky->sun_color, phase * fog->inscatter_strength);
+        inscatter_col = vec3_add(inscatter_col, sun_glow);
+    }
+
+    if (transmittance) *transmittance = T;
+    if (inscatter) *inscatter = vec3_scale(inscatter_col, 1.0 - T);
+}
+
+Vec3 fog_apply(const FogParams *fog, const SkyParams *sky, Ray ray,
+               double dist, Vec3 surface_color)
+{
+    if (fog == NULL || fog->density <= 0.0) {
+        return surface_color;
+    }
+    double T = 1.0;
+    Vec3 inscatter = vec3(0.0, 0.0, 0.0);
+    fog_segment(fog, sky, ray, dist, &T, &inscatter);
+    return vec3_add(vec3_scale(surface_color, T), inscatter);
 }
 
 /* ------------------------------------------------------------------ */

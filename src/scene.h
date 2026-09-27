@@ -27,7 +27,16 @@
 #include "geometry.h"
 #include "bvh.h"
 #include "material.h"
+#include "texture.h"
 #include "scene_desc.h"   /* SceneDesc: declarative scene description model */
+
+/*
+ * One loaded 2D image texture associated with a file path.
+ */
+typedef struct {
+    char         *path;
+    ImageTexture *image;
+} SceneTexture;
 
 /*
  * One emissive PBR primitive acting as a sampled AREA LIGHT.
@@ -58,13 +67,31 @@ typedef struct {
 #define SCENE_MAX_EMISSIVE_LIGHTS 8
 
 typedef struct {
-    Geometry   geo;              /* all primitives                            */
-    Bvh       *bvh;              /* acceleration structure over geo (owned)   */
-    Material  *materials;        /* material table (owned)                    */
-    int        material_count;
-    SkyParams  sky;              /* sun + sky/cloud parameters                */
-    double     water_level;      /* world-space y of the water surface        */
-    int        water_material;   /* index of the water material, or -1        */
+    int      enabled;
+    Vec3     center;
+    double   amplitude;
+    double   wavelength;
+    Vec3     direction;
+    double   steepness;
+    double   chop;
+    double   chop_wavelength;
+    unsigned seed;
+} SceneOceanParams;
+
+typedef struct {
+    Geometry         geo;              /* all primitives                            */
+    Bvh             *bvh;              /* acceleration structure over geo (owned)   */
+    Material        *materials;        /* material table (owned)                    */
+    int              material_count;
+    SceneTexture    *textures;         /* loaded image textures (owned)             */
+    int              texture_count;
+    int              texture_capacity;
+    SkyParams        sky;              /* sun + sky/cloud parameters                */
+    FogParams        fog;              /* atmospheric fog / smoke parameters        */
+    double           water_level;      /* world-space y of the water surface        */
+    int              water_material;   /* index of the water material, or -1        */
+    int              has_ocean;        /* 1 => procedural Gerstner ocean active     */
+    SceneOceanParams ocean_params;     /* wave parameters for height query          */
 
     /*
      * Emissive PBR primitives promoted to sampled area lights (see
@@ -77,6 +104,13 @@ typedef struct {
     EmissiveLight emissive_lights[SCENE_MAX_EMISSIVE_LIGHTS];
     int           emissive_light_count;   /* 0 => feature disabled (default) */
 } Scene;
+
+/*
+ * Evaluate water surface world-space Y at (x, z).
+ * If the scene has a procedural ocean, this evaluates the Gerstner surface height.
+ * Otherwise, it returns scene->water_level.
+ */
+double scene_water_height(const Scene *scene, double x, double z);
 
 /*
  * Build a scene from a declarative description (docs/scene_format.md).
@@ -125,12 +159,17 @@ void scene_default_desc(SceneDesc *out);
  */
 void scene_free(Scene *s);
 
-/*
- * Nearest-hit query. Wraps bvh_intersect() (falling back to a linear scan if
- * no BVH is present). Returns 1 on hit, 0 otherwise.
- */
 int scene_intersect(const Scene *s, Ray r, double tmin, double tmax, Hit *out);
 
+/*
+ * Any-hit occlusion query for shadow rays. Returns 1 if any primitive blocks
+ * the ray within [tmin, tmax], 0 otherwise. Uses an internal thread-local
+ * shadow cache for instant early termination on coherent shadow rays.
+ */
+int scene_occluded(const Scene *s, Ray r, double tmin, double tmax);
+
+/* Any-hit occlusion query with caller-supplied shadow cache pointer. */
+int scene_occluded_cached(const Scene *s, Ray r, double tmin, double tmax, int *cache_prim);
 /* Material lookup by index; returns NULL if out of range (or s is NULL). */
 const Material *scene_material(const Scene *s, int index);
 

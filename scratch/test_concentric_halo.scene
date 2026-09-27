@@ -1,0 +1,45 @@
+camera {
+  eye    = 0.0 0.0 -10.0
+  target = 0.0 0.0 0.0
+  up     = 0.0 1.0 0.0
+  vfov   = 38.0
+}
+
+sky {
+  sun_dir            = -0.3800 -0.0400 0.9240
+  sun_color          = 1.00 0.55 0.03
+  sun_radius         = 0.0
+  horizon_color      = 0.0 0.0 0.0
+  zenith_color       = 0.0 0.0 0.0
+  gradient_gamma     = 1.0
+  sun_glow_exponent  = 22.0
+  sun_glow_strength  = 4.5
+  cloud_coverage     = 2.0
+}
+
+material mat_hero_body {
+  pbr = 1
+  albedo = 0.62 0.66 0.74
+  roughness = 0.48
+  metallic = 0.02
+}
+
+material mat_atmo_halo {
+  pbr = 1
+  albedo = 0.1 0.1 0.1
+  emissive = 0.35 1.80 5.20
+  roughness = 0.3
+}
+
+sphere {
+  center   = 3.6 -0.15 0.0
+  radius   = 2.85
+  material = mat_hero_body
+}
+
+# Concentric in X and Y, slightly behind in Z
+sphere {
+  center   = 3.643 -0.152 0.12
+  radius   = 2.885
+  material = mat_atmo_halo
+}

@@ -70,6 +70,7 @@ int render_image_ex(const Scene *scene, const Camera *cam, int width, int height
  * call (single-threaded or wall-clock if threaded). Diagnostic only.
  */
 double render_last_seconds(void);
+void render_set_last_seconds(double s);
 
 /*
  * Total primary samples taken by the most recent render (sum over all pixels).

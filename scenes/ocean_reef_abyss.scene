@@ -1,0 +1,506 @@
+# scenes/ocean_reef_abyss.scene
+#
+# "The Sunken Reef & Sea Arch — Over & Under"
+#
+# A 50/50 split-waterline ocean showcase capturing both above and below the surface:
+# Above: Crisp coastal morning, cumulus clouds, natural karst sea arch and limestone pinnacles.
+# Below: Crystal-clear turquoise ocean with Snell refraction, Beer-Lambert wavelength
+#        absorption, wave slope perturbation, and organic CSG marine structures:
+#          * csg_difference: Monolithic sea arch carved through limestone sea cliff
+#          * csg_difference + csg_union: Giant open Tridacna clam shell with nacre interior
+#          * Bioluminescent pearl (emissive area light) casting vivid cyan glow through the water
+#          * csg_difference: Porous brain coral dome with golden sponge cavity
+#          * csg_intersection: Biconvex emerald sea fan with refractive Beer-Lambert glass
+#          * csg_difference: Sunken ancient terracotta amphora resting on the sandy seabed
+#          * Manta ray gliding through the sunlit tropical shallows
+#          * Rippled white tropical sand seabed, coral boulders, and windswept clifftop pine
+
+water_level = 0.0
+water_material = ocean_water
+water_enabled = 1
+
+camera {
+    eye = 0.0 0.20 1.4
+    target = 0.0 0.18 -1.0
+    up = 0 1 0
+    vfov = 54.0
+    dome_radius = 0.12
+    aperture = 0.001
+    focus_distance = 2.2
+}
+
+sky {
+    sun_dir = 0.25 0.68 -0.68
+    sun_color = 3.2 2.2 1.2
+    horizon_color = 0.60 0.76 0.90
+    zenith_color = 0.08 0.30 0.82
+    gradient_gamma = 0.75
+    sun_glow_exponent = 450.0
+    sun_glow_strength = 0.35
+    sun_radius = 1.6
+    cloud_height = 85.0
+    cloud_thickness = 45.0
+    cloud_scale = 0.0050
+    cloud_coverage = 0.58
+    cloud_softness = 0.10
+    cloud_sharpness = 1.50
+    cloud_octaves = 5
+    cloud_density = 0.14
+    cloud_steps = 20
+    seed = 8844
+}
+
+fog {
+    density = 0.003
+    color = 0.65 0.78 0.90
+    height = 1.8
+    height_falloff = 0.50
+    inscatter_strength = 0.60
+    sun_anisotropy = 0.75
+    noise_scale = 0.20
+    noise_amount = 0.10
+    shadow_steps = 16
+}
+
+# --- Materials -------------------------------------------------------------
+
+material ocean_water {
+    type = water
+    albedo = 0.02 0.06 0.08
+    specular = 0.98 0.98 0.98
+    shininess = 256.0
+    reflectivity = 0.0
+    transparency = 1.0
+    ior = 1.333
+    is_water = 1
+    absorption = 0.85 0.22 0.06
+    deep_color = 0.02 0.46 0.56
+}
+
+material tropical_sand {
+    pbr = 1
+    albedo = 0.70 0.64 0.50
+    specular = 0.04 0.04 0.04
+    roughness = 0.78
+    bump_strength = 0.25
+    bump_scale = 3.0
+}
+
+material karst_limestone {
+    pbr = 1
+    albedo = 0.28 0.25 0.22
+    specular = 0.04 0.04 0.04
+    roughness = 0.85
+    bump_strength = 0.35
+    bump_scale = 1.8
+}
+
+material karst_cave_rock {
+    pbr = 1
+    albedo = 0.12 0.10 0.09
+    specular = 0.04 0.04 0.04
+    roughness = 0.90
+    bump_strength = 0.35
+    bump_scale = 1.5
+}
+
+material clam_outer_shell {
+    pbr = 1
+    albedo = 0.54 0.48 0.40
+    specular = 0.05 0.05 0.05
+    roughness = 0.70
+    bump_strength = 0.30
+    bump_scale = 2.2
+}
+
+material clam_inner_nacre {
+    pbr = 1
+    albedo = 0.96 0.94 0.92
+    specular = 0.35 0.38 0.42
+    roughness = 0.12
+}
+
+material luminous_pearl {
+    pbr = 1
+    albedo = 0.5 0.98 0.95
+    emissive = 5.0 18.0 20.0
+    roughness = 0.04
+}
+
+material brain_coral {
+    pbr = 1
+    albedo = 0.94 0.36 0.44
+    specular = 0.06 0.06 0.06
+    roughness = 0.60
+    bump_strength = 0.35
+    bump_scale = 3.5
+}
+
+material golden_sponge {
+    pbr = 1
+    albedo = 0.98 0.74 0.15
+    specular = 0.04 0.04 0.04
+    roughness = 0.75
+    bump_strength = 0.25
+    bump_scale = 2.8
+}
+
+material emerald_fan {
+    type = glass
+    beer_lambert = 1
+    ior = 1.55
+    absorption = 1.40 0.04 0.75
+    deep_color = 0.04 0.90 0.30
+    reflectivity = 0.08
+    roughness = 0.03
+}
+
+material terracotta_urn {
+    pbr = 1
+    albedo = 0.72 0.36 0.22
+    specular = 0.04 0.04 0.04
+    roughness = 0.68
+    bump_strength = 0.20
+    bump_scale = 2.0
+}
+
+material antique_gold {
+    type = gold
+    reflectivity = 0.88
+    roughness = 0.12
+}
+
+material manta_dorsal {
+    pbr = 1
+    albedo = 0.14 0.16 0.20
+    specular = 0.08 0.08 0.08
+    roughness = 0.28
+}
+
+material manta_ventral {
+    pbr = 1
+    albedo = 0.88 0.90 0.92
+    specular = 0.06 0.06 0.06
+    roughness = 0.35
+}
+
+material purple_coral_rock {
+    pbr = 1
+    albedo = 0.52 0.24 0.55
+    specular = 0.05 0.05 0.05
+    roughness = 0.80
+    bump_strength = 0.30
+    bump_scale = 2.0
+}
+
+material turquoise_coral_rock {
+    pbr = 1
+    albedo = 0.20 0.58 0.52
+    specular = 0.05 0.05 0.05
+    roughness = 0.78
+    bump_strength = 0.28
+    bump_scale = 2.0
+}
+
+material coastal_pine_bark {
+    pbr = 1
+    albedo = 0.18 0.12 0.08
+    roughness = 0.92
+}
+
+material coastal_pine_leaf {
+    pbr = 1
+    albedo = 0.06 0.28 0.05
+    roughness = 0.70
+}
+
+# --- The Procedural Ocean Surface & Medium ---------------------------------
+ocean {
+    material = ocean_water
+    center = 0.0 0.0 0.0
+    size = 60.0 60.0
+    resolution = 180 180
+    amplitude = 0.24
+    wavelength = 6.0
+    direction = 0.80 0.60
+    steepness = 0.70
+    chop = 0.08
+    chop_wavelength = 2.0
+    depth = 6.0
+    seed = 8844
+}
+
+# --- Above-Water Scenery: Natural Sea Arch & Karst Pinnacles --------------
+
+# Monolithic Sea Arch Stack on the right, rising from the sea with open arch
+csg_difference {
+    material = karst_limestone
+    box {
+        center = 4.4 0.3 -6.5
+        half = 1.7 2.1 2.5
+    }
+    csg_union {
+        cylinder {
+            base = 4.2 -0.3 -10.0
+            top = 4.2 -0.3 -3.0
+            r_bottom = 1.5
+            r_top = 1.5
+            material = karst_cave_rock
+        }
+        cylinder {
+            base = 3.3 -1.2 -4.5
+            top = 4.7 2.6 -8.3
+            r_bottom = 1.4
+            r_top = 1.4
+            material = karst_cave_rock
+        }
+    }
+}
+
+# Windswept Coastal Pine growing atop the Sea Arch
+tree {
+    position = 3.6 2.4 -6.5
+    type = conifer
+    height = 2.2
+    radius = 0.15
+    seed = 732
+    material_bark = coastal_pine_bark
+    material_leaf = coastal_pine_leaf
+}
+
+# Rugged Karst Limestone Pinnacles in the background
+cylinder {
+    base = -16.0 -3.0 -28.0
+    top = -16.0 6.5 -28.0
+    r_bottom = 4.5
+    r_top = 2.8
+    material = karst_limestone
+}
+sphere {
+    center = -16.0 6.5 -28.0
+    radius = 2.8
+    material = karst_limestone
+}
+tree {
+    position = -16.0 9.3 -28.0
+    type = conifer
+    height = 2.0
+    radius = 0.12
+    seed = 415
+    material_bark = coastal_pine_bark
+    material_leaf = coastal_pine_leaf
+}
+
+cylinder {
+    base = -7.5 -2.5 -22.0
+    top = -7.5 4.5 -22.0
+    r_bottom = 3.0
+    r_top = 1.6
+    material = karst_limestone
+}
+sphere {
+    center = -7.5 4.5 -22.0
+    radius = 1.6
+    material = karst_limestone
+}
+tree {
+    position = -7.5 6.1 -22.0
+    type = conifer
+    height = 1.8
+    radius = 0.10
+    seed = 551
+    material_bark = coastal_pine_bark
+    material_leaf = coastal_pine_leaf
+}
+
+# --- Underwater World: Seabed & CSG Organic Marine Formations -------------
+
+# Sandy seabed
+box {
+    center = 0.0 -1.5 0.0
+    half = 30.0 0.5 30.0
+    material = tropical_sand
+}
+
+# CSG Feature 1: The Giant Clam with Bioluminescent Pearl (Open toward camera)
+# Lower Shell Half resting on the seabed
+csg_difference {
+    material = clam_outer_shell
+    sphere {
+        center = -0.62 -0.82 0.70
+        radius = 0.38
+    }
+    csg_union {
+        sphere {
+            center = -0.62 -0.75 0.70
+            radius = 0.34
+            material = clam_inner_nacre
+        }
+        box {
+            center = -0.62 -0.35 0.70
+            half = 0.5 0.25 0.5
+            material = clam_inner_nacre
+        }
+    }
+}
+
+# Upper Shell Half (Hinged at back, tilted open facing camera)
+csg_difference {
+    material = clam_outer_shell
+    sphere {
+        center = -0.62 -0.58 0.55
+        radius = 0.36
+    }
+    csg_union {
+        sphere {
+            center = -0.62 -0.54 0.58
+            radius = 0.32
+            material = clam_inner_nacre
+        }
+        box {
+            center = -0.62 -0.88 0.58
+            half = 0.5 0.25 0.5
+            material = clam_inner_nacre
+        }
+    }
+}
+
+# The Bioluminescent Pearl inside the Clam (Emissive Area Light)
+sphere {
+    center = -0.62 -0.75 0.70
+    radius = 0.09
+    material = luminous_pearl
+}
+
+# CSG Feature 2: Organic Brain Coral Head with Golden Sponge Cavity
+csg_difference {
+    material = brain_coral
+    sphere {
+        center = 0.70 -0.60 0.65
+        radius = 0.46
+    }
+    cylinder {
+        base = 0.70 -1.1 0.65
+        top = 0.70 -0.1 0.65
+        r_bottom = 0.20
+        r_top = 0.20
+        material = golden_sponge
+    }
+}
+
+# CSG Feature 3: Biconvex Emerald Sea Fan (CSG Intersection of 2 Spheres)
+csg_intersection {
+    material = emerald_fan
+    sphere {
+        center = 0.38 -0.50 0.50
+        radius = 0.36
+    }
+    sphere {
+        center = 0.38 -0.50 0.28
+        radius = 0.36
+    }
+}
+
+# CSG Feature 4: Sunken Terracotta Amphora (CSG Difference: Outer Urn minus Inner Hollow)
+csg_difference {
+    material = terracotta_urn
+    cylinder {
+        base = -0.38 -0.85 -0.10
+        top = -0.38 -0.25 -0.10
+        r_bottom = 0.13
+        r_top = 0.19
+    }
+    cylinder {
+        base = -0.38 -0.75 -0.10
+        top = -0.38 -0.12 -0.10
+        r_bottom = 0.09
+        r_top = 0.15
+        material = antique_gold
+    }
+}
+sphere {
+    center = -0.38 -0.62 -0.10
+    radius = 0.22
+    material = terracotta_urn
+}
+
+# Feature 5: Manta Ray Gliding in the Shallows (Sleek aerodynamic profile)
+sphere {
+    center = 0.16 -0.38 0.82
+    radius = 0.15
+    material = manta_dorsal
+}
+triangle {
+    a = 0.16 -0.38 0.98
+    b = -0.32 -0.38 0.65
+    c = 0.16 -0.38 0.58
+    material = manta_dorsal
+}
+triangle {
+    a = 0.16 -0.38 0.98
+    b = 0.64 -0.38 0.65
+    c = 0.16 -0.38 0.58
+    material = manta_dorsal
+}
+cylinder {
+    base = 0.16 -0.38 0.58
+    top = 0.16 -0.36 0.08
+    r_bottom = 0.012
+    r_top = 0.005
+    material = manta_dorsal
+}
+
+# Coral Reef Rocks & Boulders on the Seabed
+
+# Reef branch coral cluster
+boulder {
+    position = 0.52 -0.80 0.45
+    radius = 0.22
+    roughness = 0.45
+    flatness = 0.20
+    seed = 333
+    material = purple_coral_rock
+}
+boulder {
+    position = -0.42 -0.85 0.70
+    radius = 0.18
+    roughness = 0.40
+    flatness = 0.25
+    seed = 888
+    material = turquoise_coral_rock
+}
+boulder {
+    position = -1.6 -0.95 0.35
+    radius = 0.36
+    roughness = 0.40
+    flatness = 0.32
+    seed = 441
+    material = purple_coral_rock
+}
+
+boulder {
+    position = 1.4 -0.85 0.50
+    radius = 0.45
+    roughness = 0.38
+    flatness = 0.35
+    seed = 772
+    material = turquoise_coral_rock
+}
+
+boulder {
+    position = -0.1 -0.92 1.3
+    radius = 0.30
+    roughness = 0.35
+    flatness = 0.40
+    seed = 993
+    material = karst_cave_rock
+}
+
+boulder {
+    position = 1.0 -0.88 1.4
+    radius = 0.28
+    roughness = 0.38
+    flatness = 0.40
+    seed = 124
+    material = karst_cave_rock
+}

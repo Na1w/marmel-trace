@@ -1,0 +1,17 @@
+camera {
+  eye    = 0.0 0.0 -10.0
+  target = 0.0 0.0 0.0
+  up     = 0.0 1.0 0.0
+  vfov   = 55.0
+}
+
+sky {
+  sun_dir            = 0.0 0.0 1.0
+  sun_color          = 1.0 0.95 0.85
+  horizon_color      = 0.0 0.0 0.0
+  zenith_color       = 0.0 0.0 0.0
+  gradient_gamma     = 1.0
+  sun_glow_exponent  = 60.0
+  sun_glow_strength  = 3.0
+  cloud_coverage     = 2.0
+}

@@ -281,6 +281,7 @@ static int vec3_is_zero(Vec3 v)
 static int mat_texture_is_default(const Material *m)
 {
     return m->texture_kind == TEXTURE_DEFAULT_KIND &&
+           m->texture_image == NULL &&
            m->texture_scale == TEXTURE_DEFAULT_SCALE &&
            vec3_is(m->texture_color_a, TEXTURE_DEFAULT_COLOR_A.x,
                    TEXTURE_DEFAULT_COLOR_A.y, TEXTURE_DEFAULT_COLOR_A.z) &&
@@ -491,6 +492,18 @@ static void emit_camera(Writer *w, const SceneDesc *d)
         w_key_double(w, "aperture", d->camera.aperture);
     if (d->camera.focus_distance != CAMERA_FOCUS_DISTANCE_DERIVED)
         w_key_double(w, "focus_distance", d->camera.focus_distance);
+    if (d->camera.dome_radius > 1e-6)
+        w_key_double(w, "dome_radius", d->camera.dome_radius);
+    if (d->camera.anamorphic_squeeze > 0.0 &&
+        fabs(d->camera.anamorphic_squeeze - CAMERA_DEFAULT_ANAMORPHIC_SQUEEZE) > 1e-4)
+        w_key_double(w, "anamorphic_squeeze", d->camera.anamorphic_squeeze);
+    if (d->camera.flare.enabled) {
+        w_key_int(w, "lens_flare", d->camera.flare.enabled);
+        w_key_double(w, "flare_intensity", d->camera.flare.intensity);
+        w_key_double(w, "flare_threshold", d->camera.flare.threshold);
+        w_key_double(w, "flare_streak_length", d->camera.flare.streak_length);
+        w_key_vec3(w, "flare_tint", d->camera.flare.tint);
+    }
     w_close(w);
 }
 
@@ -523,6 +536,59 @@ static void emit_sky(Writer *w, const SceneDesc *d)
      */
     if (s->sun_radius != SKY_DEFAULT_SUN_RADIUS)
         w_key_double(w, "sun_radius", s->sun_radius);
+    if (s->star_intensity != SKY_DEFAULT_STAR_INTENSITY)
+        w_key_double(w, "star_intensity", s->star_intensity);
+    if (s->star_density != SKY_DEFAULT_STAR_DENSITY)
+        w_key_double(w, "star_density", s->star_density);
+    if (s->nebula_intensity != SKY_DEFAULT_NEBULA_INTENSITY)
+        w_key_double(w, "nebula_intensity", s->nebula_intensity);
+    if (s->nebula_scale != SKY_DEFAULT_NEBULA_SCALE && s->nebula_scale > 0.0)
+        w_key_double(w, "nebula_scale", s->nebula_scale);
+    if (s->galaxy_intensity != SKY_DEFAULT_GALAXY_INTENSITY)
+        w_key_double(w, "galaxy_intensity", s->galaxy_intensity);
+    if (!vec3_is(s->galaxy_dir, SKY_DEFAULT_GALAXY_DIR.x,
+                 SKY_DEFAULT_GALAXY_DIR.y, SKY_DEFAULT_GALAXY_DIR.z))
+        w_key_vec3(w, "galaxy_dir", s->galaxy_dir);
+    if (!vec3_is(s->nebula_dir, SKY_DEFAULT_NEBULA_DIR.x,
+                 SKY_DEFAULT_NEBULA_DIR.y, SKY_DEFAULT_NEBULA_DIR.z))
+        w_key_vec3(w, "nebula_dir", s->nebula_dir);
+    if (s->galaxy_tilt != SKY_DEFAULT_GALAXY_TILT)
+        w_key_double(w, "galaxy_tilt", s->galaxy_tilt);
+    if (s->galaxy_roll != SKY_DEFAULT_GALAXY_ROLL)
+        w_key_double(w, "galaxy_roll", s->galaxy_roll);
+    if (s->cloud_thickness != SKY_DEFAULT_CLOUD_THICKNESS)
+        w_key_double(w, "cloud_thickness", s->cloud_thickness);
+    if (s->cloud_density != SKY_DEFAULT_CLOUD_DENSITY)
+        w_key_double(w, "cloud_density", s->cloud_density);
+    if (s->cloud_steps != SKY_DEFAULT_CLOUD_STEPS)
+        w_key_int(w, "cloud_steps", s->cloud_steps);
+    w_close(w);
+}
+
+static void emit_fog(Writer *w, const SceneDesc *d)
+{
+    const FogParams *f = &d->fog;
+    if (!d->has_fog && f->density <= 0.0)
+        return;
+
+    w_open(w, "fog", NULL);
+    w_key_double(w, "density", f->density);
+    if (!vec3_is(f->color, FOG_DEFAULT_COLOR.x, FOG_DEFAULT_COLOR.y, FOG_DEFAULT_COLOR.z))
+        w_key_vec3(w, "color", f->color);
+    if (f->height != FOG_DEFAULT_HEIGHT)
+        w_key_double(w, "height", f->height);
+    if (f->height_falloff != FOG_DEFAULT_HEIGHT_FALLOFF)
+        w_key_double(w, "height_falloff", f->height_falloff);
+    if (f->inscatter_strength != FOG_DEFAULT_INSCATTER_STRENGTH)
+        w_key_double(w, "inscatter_strength", f->inscatter_strength);
+    if (f->sun_anisotropy != FOG_DEFAULT_SUN_ANISOTROPY)
+        w_key_double(w, "sun_anisotropy", f->sun_anisotropy);
+    if (f->noise_scale != FOG_DEFAULT_NOISE_SCALE)
+        w_key_double(w, "noise_scale", f->noise_scale);
+    if (f->noise_amount != FOG_DEFAULT_NOISE_AMOUNT)
+        w_key_double(w, "noise_amount", f->noise_amount);
+    if (f->shadow_steps != FOG_DEFAULT_SHADOW_STEPS)
+        w_key_int(w, "shadow_steps", f->shadow_steps);
     w_close(w);
 }
 
@@ -551,10 +617,15 @@ static void emit_material_texture(Writer *w, const Material *m)
         return; /* untextured: emit nothing (byte-identity preserved) */
 
     switch (m->texture_kind) {
-    case TEXTURE_CHECKER: w_key_name(w, "texture", "checker"); break;
-    case TEXTURE_STRIPES: w_key_name(w, "texture", "stripes"); break;
+    case TEXTURE_CHECKER:      w_key_name(w, "texture", "checker"); break;
+    case TEXTURE_STRIPES:      w_key_name(w, "texture", "stripes"); break;
+    case TEXTURE_PLANET_EARTH: w_key_name(w, "texture", "earth");   break;
+    case TEXTURE_PLANET_MOON:  w_key_name(w, "texture", "moon");    break;
+    case TEXTURE_NOISE:        w_key_name(w, "texture", "noise");   break;
+    case TEXTURE_IMAGE:        w_key_name(w, "texture", "image"); break;
+    case TEXTURE_UV_CHECKER:   w_key_name(w, "texture", "uv_checker"); break;
     case TEXTURE_NONE:
-    default:              w_key_name(w, "texture", "none");    break;
+    default:                   w_key_name(w, "texture", "none");    break;
     }
 
     if (!default_scale)
@@ -592,39 +663,40 @@ static void emit_material(Writer *w, const SceneDesc *d, int i)
 {
     const MaterialDesc *md = &d->materials[i];
     const Material     *m  = &md->mat;
+    int has_custom_tex = (md->texture_file != NULL && md->texture_file[0] != '\0');
 
     w_blank(w);
     w_open(w, "material", (md->name != NULL) ? md->name : "");
 
-    if (mat_is_water_preset(m)) {
+    if (!has_custom_tex && mat_is_water_preset(m)) {
         w_key_name(w, "type", "water");
-    } else if (mat_is_opaque_preset(m)) {
+    } else if (!has_custom_tex && mat_is_opaque_preset(m)) {
         w_key_name(w, "type", "opaque");
-    } else if (mat_is_glass_preset(m)) {
+    } else if (!has_custom_tex && mat_is_glass_preset(m)) {
         w_key_name(w, "type", "glass");
-    } else if (mat_is_gold_preset(m)) {
+    } else if (!has_custom_tex && mat_is_gold_preset(m)) {
         w_key_name(w, "type", "gold");
-    } else if (mat_is_copper_preset(m)) {
+    } else if (!has_custom_tex && mat_is_copper_preset(m)) {
         w_key_name(w, "type", "copper");
-    } else if (mat_is_silver_preset(m)) {
+    } else if (!has_custom_tex && mat_is_silver_preset(m)) {
         w_key_name(w, "type", "silver");
-    } else if (mat_is_aluminum_preset(m)) {
+    } else if (!has_custom_tex && mat_is_aluminum_preset(m)) {
         w_key_name(w, "type", "aluminum");
-    } else if (mat_is_iron_preset(m)) {
+    } else if (!has_custom_tex && mat_is_iron_preset(m)) {
         w_key_name(w, "type", "iron");
-    } else if (mat_is_chrome_preset(m)) {
+    } else if (!has_custom_tex && mat_is_chrome_preset(m)) {
         w_key_name(w, "type", "chrome");
-    } else if (mat_is_brass_preset(m)) {
+    } else if (!has_custom_tex && mat_is_brass_preset(m)) {
         w_key_name(w, "type", "brass");
-    } else if (mat_is_plastic_preset(m)) {
+    } else if (!has_custom_tex && mat_is_plastic_preset(m)) {
         w_key_name(w, "type", "plastic");
-    } else if (mat_is_rubber_preset(m)) {
+    } else if (!has_custom_tex && mat_is_rubber_preset(m)) {
         w_key_name(w, "type", "rubber");
-    } else if (mat_is_ceramic_preset(m)) {
+    } else if (!has_custom_tex && mat_is_ceramic_preset(m)) {
         w_key_name(w, "type", "ceramic");
-    } else if (mat_is_diamond_preset(m)) {
+    } else if (!has_custom_tex && mat_is_diamond_preset(m)) {
         w_key_name(w, "type", "diamond");
-    } else if (mat_is_emissive_preset(m)) {
+    } else if (!has_custom_tex && mat_is_emissive_preset(m)) {
         w_key_name(w, "type", "emissive");
     } else {
         w_key_vec3(w, "albedo", m->albedo);
@@ -643,15 +715,23 @@ static void emit_material(Writer *w, const SceneDesc *d, int i)
         w_key_vec3(w, "deep_color", m->deep_color);
         emit_material_pbr(w, m);
         emit_material_texture(w, m);
+        if (m->bump_strength != MATERIAL_DEFAULT_BUMP_STRENGTH)
+            w_key_double(w, "bump_strength", m->bump_strength);
+        if (m->bump_scale != MATERIAL_DEFAULT_BUMP_SCALE)
+            w_key_double(w, "bump_scale", m->bump_scale);
+        if (!vec3_is(m->atmosphere_glow, MATERIAL_DEFAULT_ATMOSPHERE_GLOW.x,
+                     MATERIAL_DEFAULT_ATMOSPHERE_GLOW.y,
+                     MATERIAL_DEFAULT_ATMOSPHERE_GLOW.z))
+            w_key_vec3(w, "atmosphere_glow", m->atmosphere_glow);
+        if (has_custom_tex) {
+            w_key_name(w, "texture_file", md->texture_file);
+        }
     }
     w_close(w);
 }
 
-static void emit_prim(Writer *w, const SceneDesc *d, int i)
+static void emit_prim_desc(Writer *w, const ScenePrimDesc *p)
 {
-    const ScenePrimDesc *p = &d->prims[i];
-
-    w_blank(w);
     switch (p->kind) {
     case PRIM_SPHERE:
         w_open(w, "sphere", NULL);
@@ -681,12 +761,30 @@ static void emit_prim(Writer *w, const SceneDesc *d, int i)
         w_key_double(w, "r_bottom", p->radius);
         w_key_double(w, "r_top", p->radius2);
         break;
+    case PRIM_CSG: {
+        const char *kw = "csg_union";
+        if (p->csg_op == CSG_INTERSECTION) kw = "csg_intersection";
+        else if (p->csg_op == CSG_DIFFERENCE) kw = "csg_difference";
+        w_open(w, kw, NULL);
+        if (p->material_name != NULL)
+            w_key_name(w, "material", p->material_name);
+        if (p->left) emit_prim_desc(w, p->left);
+        if (p->right) emit_prim_desc(w, p->right);
+        w_close(w);
+        return;
+    }
     default:
         w_fail(w, "unknown primitive kind cannot be serialised");
         return;
     }
     w_key_name(w, "material", p->material_name);
     w_close(w);
+}
+
+static void emit_prim(Writer *w, const SceneDesc *d, int i)
+{
+    w_blank(w);
+    emit_prim_desc(w, &d->prims[i]);
 }
 
 static void emit_plant(Writer *w, const SceneDesc *d, int i)
@@ -730,6 +828,99 @@ static void emit_plant(Writer *w, const SceneDesc *d, int i)
         w_key_int(w, "leaf_min", p->leaf_min);
     if (p->has_leaf_span)
         w_key_int(w, "leaf_span", p->leaf_span);
+    if (p->has_plant_type) {
+        const char *tname = "deciduous";
+        if (p->plant_type == PLANT_TYPE_CONIFER) tname = "conifer";
+        else if (p->plant_type == PLANT_TYPE_BUSH) tname = "bush";
+        w_key_name(w, "type", tname);
+    }
+    if (p->has_foliage) {
+        const char *fname = "spheres";
+        if (p->foliage == PLANT_FOLIAGE_LEAVES) fname = "leaves";
+        else if (p->foliage == PLANT_FOLIAGE_NEEDLES) fname = "needles";
+        w_key_name(w, "foliage", fname);
+    }
+    w_close(w);
+}
+
+static void emit_boulder(Writer *w, const SceneDesc *d, int index)
+{
+    const SceneBoulderDesc *b = &d->boulders[index];
+    w_open(w, "boulder", NULL);
+    w_key_vec3(w, "position", b->position);
+    w_key_double(w, "radius", b->radius);
+    w_key_double(w, "roughness", b->roughness);
+    w_key_double(w, "flatness", b->flatness);
+    if (b->seed != 0)
+        w_key_uint(w, "seed", b->seed);
+    if (b->material_name != NULL)
+        w_key_name(w, "material", b->material_name);
+    else if (b->material_index >= 0 && b->material_index < d->material_count &&
+             d->materials[b->material_index].name != NULL)
+        w_key_name(w, "material", d->materials[b->material_index].name);
+    w_close(w);
+}
+
+static void emit_light(Writer *w, const SceneDesc *d, int index)
+{
+    const SceneLightDesc *l = &d->lights[index];
+    w_open(w, "light", NULL);
+    w_key_vec3(w, "position", l->position);
+    w_key_vec3(w, "color", l->color);
+    w_key_double(w, "intensity", l->intensity);
+    w_key_double(w, "radius", l->radius);
+    w_close(w);
+}
+
+static void emit_mesh(Writer *w, const SceneDesc *d, int index)
+{
+    const SceneMeshDesc *m = &d->meshes[index];
+    w_open(w, "mesh", NULL);
+    if (m->file != NULL)
+        w_key_name(w, "file", m->file);
+    w_key_vec3(w, "center", m->center);
+    w_key_vec3(w, "scale", m->scale);
+    w_key_vec3(w, "rotate", m->rotate);
+    w_key_int(w, "smooth", m->smooth);
+    if (m->auto_center)
+        w_key_int(w, "auto_center", m->auto_center);
+    if (m->auto_scale > 0.0)
+        w_key_double(w, "auto_scale", m->auto_scale);
+    if (m->material_name != NULL)
+        w_key_name(w, "material", m->material_name);
+    else if (m->material_index >= 0 && m->material_index < d->material_count &&
+             d->materials[m->material_index].name != NULL)
+        w_key_name(w, "material", d->materials[m->material_index].name);
+    w_close(w);
+}
+
+static void emit_ocean(Writer *w, const SceneDesc *d, int index)
+{
+    const SceneOceanDesc *o = &d->oceans[index];
+    w_open(w, "ocean", NULL);
+    w_key_vec3(w, "center", o->center);
+    w_key_vec3(w, "size", o->size);
+    {
+        char res_buf[64];
+        w_key_prefix(w, "resolution");
+        snprintf(res_buf, sizeof res_buf, "%d %d", o->res_x, o->res_z);
+        w_raw(w, res_buf);
+        w_eol(w);
+    }
+    w_key_double(w, "amplitude", o->amplitude);
+    w_key_double(w, "wavelength", o->wavelength);
+    w_key_vec3(w, "direction", o->direction);
+    w_key_double(w, "steepness", o->steepness);
+    w_key_double(w, "chop", o->chop);
+    w_key_double(w, "chop_wavelength", o->chop_wavelength);
+    w_key_double(w, "depth", o->depth);
+    if (o->seed != 0)
+        w_key_uint(w, "seed", o->seed);
+    if (o->material_name != NULL)
+        w_key_name(w, "material", o->material_name);
+    else if (o->material_index >= 0 && o->material_index < d->material_count &&
+             d->materials[o->material_index].name != NULL)
+        w_key_name(w, "material", d->materials[o->material_index].name);
     w_close(w);
 }
 
@@ -775,12 +966,21 @@ int scene_desc_write(const SceneDesc *d, const char *path,
     emit_globals(&w, d);
     emit_camera(&w, d);
     emit_sky(&w, d);
+    emit_fog(&w, d);
     for (i = 0; i < d->material_count; ++i)
         emit_material(&w, d, i);
     for (i = 0; i < d->prim_count; ++i)
         emit_prim(&w, d, i);
     for (i = 0; i < d->plant_count; ++i)
         emit_plant(&w, d, i);
+    for (i = 0; i < d->boulder_count; ++i)
+        emit_boulder(&w, d, i);
+    for (i = 0; i < d->light_count; ++i)
+        emit_light(&w, d, i);
+    for (i = 0; i < d->mesh_count; ++i)
+        emit_mesh(&w, d, i);
+    for (i = 0; i < d->ocean_count; ++i)
+        emit_ocean(&w, d, i);
 
     if (fflush(fp) != 0)
         w_fail(&w, "flush error");

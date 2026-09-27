@@ -58,6 +58,9 @@ Camera camera_create(Vec3 from, Vec3 at, Vec3 up, double vfov_deg, double aspect
     /* --- Depth of field defaults: ideal pinhole, focus at the target -- */
     cam.aperture = CAMERA_DEFAULT_APERTURE;
     cam.focus_distance = vec3_length(vec3_sub(at, from));
+    cam.dome_radius = 0.0;
+    cam.anamorphic_squeeze = CAMERA_DEFAULT_ANAMORPHIC_SQUEEZE;
+    flare_default_params(&cam.flare);
 
     return cam;
 }
@@ -110,8 +113,19 @@ Ray camera_ray_dof(const Camera *cam, double u, double v, double r1, double r2)
     Vec3 up = vec3_normalize(cam->vertical);
     double rad = cam->aperture * sqrt(r1);
     double theta = 2.0 * CAMERA_PI * r2;
-    Vec3 offset = vec3_add(vec3_scale(right, rad * cos(theta)),
-                           vec3_scale(up, rad * sin(theta)));
+    double sq = cam->anamorphic_squeeze;
+    Vec3 offset;
+    if (sq <= 0.0 || fabs(sq - 1.0) < 1e-12) {
+        offset = vec3_add(vec3_scale(right, rad * cos(theta)),
+                          vec3_scale(up, rad * sin(theta)));
+    } else {
+        /*
+         * Anamorphic squeeze: aperture disk is compressed horizontally
+         * (or elongated vertically), producing oval bokeh.
+         */
+        offset = vec3_add(vec3_scale(right, (rad / sq) * cos(theta)),
+                          vec3_scale(up, rad * sin(theta)));
+    }
 
     Ray r;
     r.origin = vec3_add(cam->position, offset);

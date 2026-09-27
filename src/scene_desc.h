@@ -81,6 +81,9 @@ typedef struct {
     double aspect;    /* output aspect (width/height); NOT in file */
     double aperture;  /* lens radius for depth of field (0 = pinhole)  */
     double focus_distance; /* eye -> focal plane; 0 = |target - eye|   */
+    double dome_radius;    /* dome port radius for over/under waterline split (0 = pinhole) */
+    double anamorphic_squeeze; /* anamorphic bokeh squeeze (default 1.0) */
+    FlareParams flare;         /* anamorphic horizontal streak lens flare */
 } CameraDesc;
 
 /* ------------------------------------------------------------------ */
@@ -99,8 +102,9 @@ typedef struct {
  * whole-struct copy wires them into the runtime Material with no extra code.
  */
 typedef struct {
-    char     *name;   /* owned, may be NULL (unset) */
-    Material  mat;    /* reused material payload    */
+    char     *name;         /* owned, may be NULL (unset) */
+    Material  mat;          /* reused material payload    */
+    char     *texture_file; /* path to image texture, owned, may be NULL */
 } MaterialDesc;
 
 /* ------------------------------------------------------------------ */
@@ -125,7 +129,7 @@ typedef struct {
  * holds the resolved table index, filled in by scene_desc_load()'s resolution
  * pass, or SCENE_DESC_NO_MATERIAL when no material is referenced.
  */
-typedef struct {
+typedef struct ScenePrimDesc {
     PrimKind kind;            /* which shape (reused PrimKind)             */
     Vec3     center;          /* sphere center / box center                */
     Vec3     point;           /* plane point                               */
@@ -135,9 +139,57 @@ typedef struct {
     Vec3     base, top;       /* cylinder base / top centers               */
     double   radius;          /* sphere radius / cylinder r_bottom         */
     double   radius2;         /* cylinder r_top                            */
+#define SCENE_MAX_PRIM_DISPLACES 8
+
     char    *material_name;   /* owned referenced name, may be NULL        */
-    int      material_index;  /* resolved index, or SCENE_DESC_NO_MATERIAL */
+    int      material_index;  /* resolved material index, or NO_MATERIAL   */
+    CsgOp    csg_op;          /* CSG boolean operation                     */
+    struct ScenePrimDesc *left;  /* owned left sub-primitive               */
+    struct ScenePrimDesc *right; /* owned right sub-primitive              */
+    char    *displace_name;   /* owned referenced displacement, or NULL    */
+    int      displace_index;  /* resolved displace index, or -1            */
+    char    *displace_names[SCENE_MAX_PRIM_DISPLACES];
+    int      displace_indices[SCENE_MAX_PRIM_DISPLACES];
+    int      displace_count;
+    SdfData  sdf;             /* populated for PRIM_SDF_SHAPE              */
 } ScenePrimDesc;
+
+/* Named displacement modifier (docs/scene_format.md) */
+typedef struct {
+    char            *name;          /* owned */
+    DisplaceModifier displace;      /* reused DisplaceModifier from sdf.h */
+} SceneDisplaceDesc;
+
+/* Wavefront OBJ mesh directive */
+typedef struct {
+    char        *file;            /* path to .obj file, owned */
+    char        *material_name;   /* owned referenced material name, or NULL */
+    int          material_index;  /* resolved material index, or NO_MATERIAL */
+    Vec3         center;          /* translation / position */
+    Vec3         scale;           /* scale (default: 1, 1, 1) */
+    Vec3         rotate;          /* Euler angles in degrees (default: 0, 0, 0) */
+    int          smooth;          /* 1: smooth normals, 0: flat (default: 1) */
+    int          auto_center;     /* 1: auto center bounding box at origin */
+    double       auto_scale;      /* if > 0: fit bounding box max dimension */
+} SceneMeshDesc;
+
+/* Procedural ocean / Gerstner wave directive */
+typedef struct {
+    char        *material_name;   /* owned referenced material name, or NULL */
+    int          material_index;  /* resolved material index, or SCENE_DESC_NO_MATERIAL */
+    Vec3         center;          /* translation / center position; center.y is base water level */
+    Vec3         size;            /* span: size.x by size.z in metres (size.y unused) */
+    int          res_x;           /* grid resolution in X (e.g. 128) */
+    int          res_z;           /* grid resolution in Z (e.g. 128) */
+    double       amplitude;       /* primary swell amplitude (m, default: 0.25) */
+    double       wavelength;      /* primary swell wavelength (m, default: 12.0) */
+    Vec3         direction;       /* swell propagation direction in XZ plane */
+    double       steepness;       /* Gerstner steepness Q factor (0..1, default: 0.5) */
+    double       chop;            /* secondary chop / cross-swell amplitude (m, default: 0.08) */
+    double       chop_wavelength; /* secondary chop wavelength (m, default: 4.0) */
+    double       depth;           /* depth of volume in metres (adds skirts & bottom) */
+    unsigned     seed;            /* seed for harmonic phase variations */
+} SceneOceanDesc;
 
 /* ------------------------------------------------------------------ */
 /* Procedural plant directive (docs/scene_format.md §4.9 - §4.10)      */
@@ -147,6 +199,18 @@ typedef enum {
     SD_PLANT_TREE,
     SD_PLANT_BUSH
 } ScenePlantKind;
+
+typedef enum {
+    PLANT_FOLIAGE_SPHERES = 0, /* default: legacy sphere clusters (byte-identical) */
+    PLANT_FOLIAGE_LEAVES,      /* 3D polygonal diamond leaves (triangles) */
+    PLANT_FOLIAGE_NEEDLES      /* conifer needle fronds (triangles) */
+} PlantFoliageKind;
+
+typedef enum {
+    PLANT_TYPE_DECIDUOUS = 0, /* branching crown (lövträd) */
+    PLANT_TYPE_CONIFER,       /* tiered whorls of branches (gran/tall/barrträd) */
+    PLANT_TYPE_BUSH           /* shrub */
+} PlantType;
 
 /*
  * One `tree { }` or `bush { }` directive. `position.y` is forced to 0
@@ -160,18 +224,22 @@ typedef enum {
  * corresponding name is absent.
  */
 typedef struct {
-    ScenePlantKind kind;               /* tree or bush                       */
-    Vec3           position;           /* world position (y forced to 0)     */
-    double         height;             /* trunk length                       */
-    double         radius;             /* trunk radius (selects depth)       */
-    int            has_seed;           /* 1 if `seed` key present            */
-    unsigned       seed;               /* explicit seed, else derived        */
-    char          *material_bark;      /* owned name, or NULL for default    */
-    char          *material_leaf;      /* owned name, or NULL for auto       */
-    int            has_leaf_variant;   /* 1 if `leaf_variant` key present    */
-    int            leaf_variant;       /* [0, 3] when present                */
-    int            material_bark_index;/* resolved index, or NO_MATERIAL     */
-    int            material_leaf_index;/* resolved index, or NO_MATERIAL     */
+    ScenePlantKind   kind;               /* tree or bush                       */
+    Vec3             position;           /* world position (y forced to 0)     */
+    double           height;             /* trunk length                       */
+    double           radius;             /* trunk radius (selects depth)       */
+    int              has_seed;           /* 1 if `seed` key present            */
+    unsigned         seed;               /* explicit seed, else derived        */
+    char            *material_bark;      /* owned name, or NULL for default    */
+    char            *material_leaf;      /* owned name, or NULL for auto       */
+    int              has_leaf_variant;   /* 1 if `leaf_variant` key present    */
+    int              leaf_variant;       /* [0, 3] when present                */
+    int              material_bark_index;/* resolved index, or NO_MATERIAL     */
+    int              material_leaf_index;/* resolved index, or NO_MATERIAL     */
+    int              has_foliage;        /* 1 if `foliage` key present         */
+    PlantFoliageKind foliage;            /* spheres, leaves, needles           */
+    int              has_plant_type;     /* 1 if `type` key present            */
+    PlantType        plant_type;         /* deciduous, conifer, bush           */
 
     /*
      * Optional generator parameters (docs/scene_format.md §4.9/§4.10).
@@ -217,13 +285,38 @@ typedef struct {
 } ScenePlantDesc;
 
 /* ------------------------------------------------------------------ */
+/* Procedural boulder / rock directive                                */
+/* ------------------------------------------------------------------ */
+
+typedef struct {
+    Vec3     position;          /* center position */
+    double   radius;            /* nominal radius */
+    double   roughness;         /* noise amplitude [0, 1], default 0.35 */
+    double   flatness;          /* vertical squash [0.1, 1], default 0.75 */
+    unsigned seed;              /* procedural noise seed */
+    char    *material_name;     /* owned referenced name, may be NULL */
+    int      material_index;    /* resolved index, or SCENE_DESC_NO_MATERIAL */
+} SceneBoulderDesc;
+
+/* ------------------------------------------------------------------ */
+/* Point / Area Light directive                                       */
+/* ------------------------------------------------------------------ */
+
+typedef struct {
+    Vec3   position;            /* light position */
+    Vec3   color;               /* light emission RGB color */
+    double intensity;           /* brightness multiplier */
+    double radius;              /* light source radius (for soft shadows) */
+} SceneLightDesc;
+
+/* ------------------------------------------------------------------ */
 /* Top-level scene description                                         */
 /* ------------------------------------------------------------------ */
 
 /*
  * Complete, lossless in-memory form of one scene file.
  *
- * All three collections use the count + capacity + pointer idiom and are
+ * All collections use the count + capacity + pointer idiom and are
  * grown by the scene_desc_add_* helpers. They are owned and freed by
  * scene_desc_free().
  */
@@ -231,6 +324,8 @@ typedef struct {
     CameraDesc   camera;            /* optional camera block               */
     SkyParams    sky;               /* sky/atmosphere (all SkyParams fields)*/
     int          has_sky;           /* 1 if a sky block was supplied       */
+    FogParams    fog;               /* atmospheric fog / smoke             */
+    int          has_fog;           /* 1 if a fog block was supplied       */
 
     double       water_level;       /* global water_level (§4.11)          */
     int          water_material;    /* material index, or NO_MATERIAL      */
@@ -240,6 +335,10 @@ typedef struct {
     int              material_count;
     int              material_capacity;
 
+    SceneDisplaceDesc *displaces;   /* owned dynamic array                 */
+    int                displace_count;
+    int                displace_capacity;
+
     ScenePrimDesc   *prims;         /* owned dynamic array                 */
     int              prim_count;
     int              prim_capacity;
@@ -247,6 +346,22 @@ typedef struct {
     ScenePlantDesc  *plants;        /* owned dynamic array                 */
     int              plant_count;
     int              plant_capacity;
+
+    SceneBoulderDesc *boulders;     /* owned dynamic array                 */
+    int               boulder_count;
+    int               boulder_capacity;
+
+    SceneLightDesc  *lights;        /* owned dynamic array                 */
+    int              light_count;
+    int              light_capacity;
+
+    SceneMeshDesc   *meshes;        /* owned dynamic array                 */
+    int              mesh_count;
+    int              mesh_capacity;
+
+    SceneOceanDesc  *oceans;        /* owned dynamic array                 */
+    int              ocean_count;
+    int              ocean_capacity;
 } SceneDesc;
 
 /* ------------------------------------------------------------------ */
@@ -311,8 +426,14 @@ int scene_desc_write(const SceneDesc *d, const char *path, char *errbuf, size_t 
  * SCENE_DESC_NO_MATERIAL; scene_desc_load()'s resolution pass fills them in.
  */
 int scene_desc_add_material(SceneDesc *d, const char *name, const Material *mat);
+int scene_desc_add_material_tex(SceneDesc *d, const char *name, const Material *mat, const char *texture_file);
+int scene_desc_add_displace(SceneDesc *d, const SceneDisplaceDesc *disp);
 int scene_desc_add_prim(SceneDesc *d, const ScenePrimDesc *prim);
 int scene_desc_add_plant(SceneDesc *d, const ScenePlantDesc *plant);
+int scene_desc_add_boulder(SceneDesc *d, const SceneBoulderDesc *boulder);
+int scene_desc_add_light(SceneDesc *d, const SceneLightDesc *light);
+int scene_desc_add_mesh(SceneDesc *d, const SceneMeshDesc *mesh);
+int scene_desc_add_ocean(SceneDesc *d, const SceneOceanDesc *ocean);
 
 #ifdef __cplusplus
 }

@@ -1,0 +1,526 @@
+# scenes/celestial_orrery.scene
+#
+# "The Grand Astronomical Orrery"
+#
+# A magnificent clockwork astronomical orrery constructed from polished brass,
+# gold, copper, and precious gemstone planets hovering above a checkered observatory floor.
+#
+# Key Features:
+#   * Blazing miniature star: central emissive area light illuminating the planetary system
+#   * Intricate planets:
+#       - Mercury: scorched polished gunmetal iron
+#       - Venus: polished brass
+#       - Earth: deep sapphire glass ocean sphere with orbiting diamond moon
+#       - Mars: glowing ruby glass crystal
+#       - Jupiter: massive striped gas giant (procedural stripes texture)
+#       - Saturn: golden globe surrounded by particulate planetary rings
+#   * Armillary gimbal pillars and observation arches constructed in polished brass and ebony
+#   * Checkered observatory floor reflecting the machinery and planets
+#   * Subtle optical depth of field focusing sharply on Earth and the Sun
+#
+# Render:
+#   ./raytracer --scene scenes/celestial_orrery.scene --pathtrace \
+#               --width 1280 --height 720 --samples 32 --depth 6 \
+#               --out output/celestial_orrery.bmp
+
+water_enabled = 0
+water_material = none
+camera {
+    eye = -2.8 5.6 11
+    target = 0 3.8 0
+    up = 0 1 0
+    vfov = 44.0
+    aperture = 0.015
+    focus_distance = 11.8
+}
+sky {
+    sun_dir = 0.35 0.65 -0.65
+    sun_color = 0.18 0.18 0.22
+    horizon_color = 0.24 0.2 0.32
+    zenith_color = 0.04 0.05 0.12
+    gradient_gamma = 0.75
+    sun_glow_exponent = 240.0
+    sun_glow_strength = 0.25
+    cloud_coverage = 2
+    seed = 1609
+}
+material observatory_floor {
+    albedo = 1 1 1
+    specular = 0.08 0.08 0.08
+    shininess = 48.0
+    texture = checker
+    texture_scale = 2.5
+    texture_color_a = 0.92 0.92 0.9
+    texture_color_b = 0.1 0.12 0.16
+    metallic = 0.1
+    roughness = 0.12
+    reflectivity = 0.25
+    pbr = 1
+}
+material ebony_wood {
+    albedo = 0.14 0.09 0.07
+    specular = 0.08 0.08 0.08
+    shininess = 64.0
+    metallic = 0.0
+    roughness = 0.18
+    pbr = 1
+}
+material clockwork_brass {
+    type = brass
+    reflectivity = 0.88
+    roughness = 0.07
+}
+material celestial_gold {
+    type = gold
+    reflectivity = 0.92
+    roughness = 0.04
+}
+material celestial_copper {
+    type = copper
+    reflectivity = 0.85
+    roughness = 0.08
+}
+material mercury_metal {
+    type = iron
+    reflectivity = 0.8
+    roughness = 0.12
+}
+material solar_core {
+    type = emissive
+    albedo = 0.01 0.01 0.01
+    roughness = 0.15
+    emissive = 26 15 4
+    pbr = 1
+}
+material earth_sapphire {
+    type = glass
+    ior = 1.52
+    beer_lambert = 1
+    absorption = 0.35 0.45 0.05
+    deep_color = 0.04 0.3 0.85
+}
+material moon_diamond {
+    type = diamond
+    ior = 2.417
+    transparency = 0.98
+}
+material mars_ruby {
+    type = glass
+    ior = 1.6
+    beer_lambert = 1
+    absorption = 0.05 0.95 0.9
+    deep_color = 0.92 0.12 0.04
+}
+material jupiter_bands {
+    albedo = 1 1 1
+    specular = 0.06 0.06 0.06
+    shininess = 32.0
+    texture = stripes
+    texture_scale = 0.28
+    texture_color_a = 0.86 0.68 0.44
+    texture_color_b = 0.55 0.32 0.18
+    metallic = 0.0
+    roughness = 0.35
+    pbr = 1
+}
+material saturn_ring {
+    type = brass
+    reflectivity = 0.75
+    roughness = 0.25
+}
+plane {
+    point = 0 0 0
+    normal = 0 1 0
+    material = observatory_floor
+}
+cylinder {
+    base = 0 0 0
+    top = 0 0.35 0
+    r_bottom = 2.6
+    r_top = 2.4
+    material = ebony_wood
+}
+cylinder {
+    base = 0 0.35 0
+    top = 0 0.55 0
+    r_bottom = 2.4
+    r_top = 2.2
+    material = clockwork_brass
+}
+cylinder {
+    base = 0 0.55 0
+    top = 0 2.2 0
+    r_bottom = 0.55
+    r_top = 0.45
+    material = clockwork_brass
+}
+cylinder {
+    base = 0 2.2 0
+    top = 0 2.4 0
+    r_bottom = 0.75
+    r_top = 0.85
+    material = celestial_gold
+}
+sphere {
+    center = 0 3.8 0
+    radius = 0.95
+    material = solar_core
+}
+sphere {
+    center = 1.5621 3.8 -0.8944
+    radius = 0.22
+    material = mercury_metal
+}
+cylinder {
+    base = 0 3.2 0
+    top = 1.5621 3.7 -0.8944
+    r_bottom = 0.03
+    r_top = 0.03
+    material = clockwork_brass
+}
+sphere {
+    center = 1.9906 3.8 1.9692
+    radius = 0.34
+    material = clockwork_brass
+}
+cylinder {
+    base = 0 3 0
+    top = 1.9906 3.6 1.9692
+    r_bottom = 0.035
+    r_top = 0.035
+    material = clockwork_brass
+}
+sphere {
+    center = -3.6163 3.8 1.7095
+    radius = 0.42
+    material = earth_sapphire
+}
+sphere {
+    center = -2.9963 4 1.8595
+    radius = 0.13
+    material = moon_diamond
+}
+cylinder {
+    base = 0 2.8 0
+    top = -3.6163 3.5 1.7095
+    r_bottom = 0.04
+    r_top = 0.04
+    material = clockwork_brass
+}
+sphere {
+    center = -0.4193 3.8 5.2834
+    radius = 0.28
+    material = mars_ruby
+}
+cylinder {
+    base = 0 2.6 0
+    top = -0.4193 3.5 5.2834
+    r_bottom = 0.04
+    r_top = 0.04
+    material = celestial_copper
+}
+sphere {
+    center = -2.3266 4 -6.3896
+    radius = 0.85
+    material = jupiter_bands
+}
+cylinder {
+    base = 0 2.4 0
+    top = -2.3266 3.3 -6.3896
+    r_bottom = 0.05
+    r_top = 0.05
+    material = clockwork_brass
+}
+sphere {
+    center = 4.2294 4.2 -7.3731
+    radius = 0.62
+    material = celestial_gold
+}
+cylinder {
+    base = 0 2.2 0
+    top = 4.2294 3.4 -7.3731
+    r_bottom = 0.05
+    r_top = 0.05
+    material = clockwork_brass
+}
+sphere {
+    center = 5.3794 4.2 -7.3731
+    radius = 0.065
+    material = saturn_ring
+}
+sphere {
+    center = 5.3231 4.3493 -7.0533
+    radius = 0.065
+    material = saturn_ring
+}
+sphere {
+    center = 5.1597 4.4839 -6.7647
+    radius = 0.065
+    material = saturn_ring
+}
+sphere {
+    center = 4.9053 4.5908 -6.5358
+    radius = 0.065
+    material = saturn_ring
+}
+sphere {
+    center = 4.5847 4.6594 -6.3888
+    radius = 0.065
+    material = saturn_ring
+}
+sphere {
+    center = 4.2294 4.683 -6.3381
+    radius = 0.065
+    material = saturn_ring
+}
+sphere {
+    center = 3.874 4.6594 -6.3888
+    radius = 0.065
+    material = saturn_ring
+}
+sphere {
+    center = 3.5534 4.5908 -6.5358
+    radius = 0.065
+    material = saturn_ring
+}
+sphere {
+    center = 3.299 4.4839 -6.7647
+    radius = 0.065
+    material = saturn_ring
+}
+sphere {
+    center = 3.1356 4.3493 -7.0533
+    radius = 0.065
+    material = saturn_ring
+}
+sphere {
+    center = 3.0794 4.2 -7.3731
+    radius = 0.065
+    material = saturn_ring
+}
+sphere {
+    center = 3.1356 4.0507 -7.6929
+    radius = 0.065
+    material = saturn_ring
+}
+sphere {
+    center = 3.299 3.9161 -7.9815
+    radius = 0.065
+    material = saturn_ring
+}
+sphere {
+    center = 3.5534 3.8092 -8.2104
+    radius = 0.065
+    material = saturn_ring
+}
+sphere {
+    center = 3.874 3.7406 -8.3574
+    radius = 0.065
+    material = saturn_ring
+}
+sphere {
+    center = 4.2294 3.717 -8.4081
+    radius = 0.065
+    material = saturn_ring
+}
+sphere {
+    center = 4.5847 3.7406 -8.3574
+    radius = 0.065
+    material = saturn_ring
+}
+sphere {
+    center = 4.9053 3.8092 -8.2104
+    radius = 0.065
+    material = saturn_ring
+}
+sphere {
+    center = 5.1597 3.9161 -7.9815
+    radius = 0.065
+    material = saturn_ring
+}
+sphere {
+    center = 5.3231 4.0507 -7.6929
+    radius = 0.065
+    material = saturn_ring
+}
+sphere {
+    center = 5.6294 4.2 -7.3731
+    radius = 0.065
+    material = saturn_ring
+}
+sphere {
+    center = 5.5817 4.3522 -7.047
+    radius = 0.065
+    material = saturn_ring
+}
+sphere {
+    center = 5.4418 4.494 -6.7431
+    radius = 0.065
+    material = saturn_ring
+}
+sphere {
+    center = 5.2193 4.6158 -6.4821
+    radius = 0.065
+    material = saturn_ring
+}
+sphere {
+    center = 4.9294 4.7092 -6.2819
+    radius = 0.065
+    material = saturn_ring
+}
+sphere {
+    center = 4.5917 4.768 -6.156
+    radius = 0.065
+    material = saturn_ring
+}
+sphere {
+    center = 4.2294 4.788 -6.1131
+    radius = 0.065
+    material = saturn_ring
+}
+sphere {
+    center = 3.867 4.768 -6.156
+    radius = 0.065
+    material = saturn_ring
+}
+sphere {
+    center = 3.5294 4.7092 -6.2819
+    radius = 0.065
+    material = saturn_ring
+}
+sphere {
+    center = 3.2394 4.6158 -6.4821
+    radius = 0.065
+    material = saturn_ring
+}
+sphere {
+    center = 3.0169 4.494 -6.7431
+    radius = 0.065
+    material = saturn_ring
+}
+sphere {
+    center = 2.8771 4.3522 -7.047
+    radius = 0.065
+    material = saturn_ring
+}
+sphere {
+    center = 2.8294 4.2 -7.3731
+    radius = 0.065
+    material = saturn_ring
+}
+sphere {
+    center = 2.8771 4.0478 -7.6992
+    radius = 0.065
+    material = saturn_ring
+}
+sphere {
+    center = 3.0169 3.906 -8.0031
+    radius = 0.065
+    material = saturn_ring
+}
+sphere {
+    center = 3.2394 3.7842 -8.2641
+    radius = 0.065
+    material = saturn_ring
+}
+sphere {
+    center = 3.5294 3.6908 -8.4643
+    radius = 0.065
+    material = saturn_ring
+}
+sphere {
+    center = 3.867 3.632 -8.5902
+    radius = 0.065
+    material = saturn_ring
+}
+sphere {
+    center = 4.2294 3.612 -8.6331
+    radius = 0.065
+    material = saturn_ring
+}
+sphere {
+    center = 4.5917 3.632 -8.5902
+    radius = 0.065
+    material = saturn_ring
+}
+sphere {
+    center = 4.9294 3.6908 -8.4643
+    radius = 0.065
+    material = saturn_ring
+}
+sphere {
+    center = 5.2193 3.7842 -8.2641
+    radius = 0.065
+    material = saturn_ring
+}
+sphere {
+    center = 5.4418 3.906 -8.0031
+    radius = 0.065
+    material = saturn_ring
+}
+sphere {
+    center = 5.5817 4.0478 -7.6992
+    radius = 0.065
+    material = saturn_ring
+}
+cylinder {
+    base = -7.5 0 -7
+    top = -7.5 8.5 -7
+    r_bottom = 0.65
+    r_top = 0.55
+    material = ebony_wood
+}
+cylinder {
+    base = -7.5 8.5 -7
+    top = -7.5 9 -7
+    r_bottom = 0.6
+    r_top = 0.85
+    material = clockwork_brass
+}
+cylinder {
+    base = 7.5 0 -7
+    top = 7.5 8.5 -7
+    r_bottom = 0.65
+    r_top = 0.55
+    material = ebony_wood
+}
+cylinder {
+    base = 7.5 8.5 -7
+    top = 7.5 9 -7
+    r_bottom = 0.6
+    r_top = 0.85
+    material = clockwork_brass
+}
+cylinder {
+    base = -8 0 5
+    top = -8 8.5 5
+    r_bottom = 0.65
+    r_top = 0.55
+    material = ebony_wood
+}
+cylinder {
+    base = -8 8.5 5
+    top = -8 9 5
+    r_bottom = 0.6
+    r_top = 0.85
+    material = clockwork_brass
+}
+cylinder {
+    base = 8 0 5
+    top = 8 8.5 5
+    r_bottom = 0.65
+    r_top = 0.55
+    material = ebony_wood
+}
+cylinder {
+    base = 8 8.5 5
+    top = 8 9 5
+    r_bottom = 0.6
+    r_top = 0.85
+    material = clockwork_brass
+}
+box {
+    center = 0 8.8 -7
+    half = 7.5 0.25 0.5
+    material = clockwork_brass
+}

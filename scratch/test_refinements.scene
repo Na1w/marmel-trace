@@ -1,0 +1,2143 @@
+camera {
+  eye    = 0.0 0.0 -10.0
+  target = 0.0 0.0 0.0
+  up     = 0.0 1.0 0.0
+  vfov   = 38.0
+}
+
+sky {
+  sun_dir            = -0.3791 -0.0370 0.9246
+  sun_color          = 1.00 0.74 0.16
+  sun_radius         = 0.0
+  horizon_color      = 0.0 0.0 0.0
+  zenith_color       = 0.0 0.0 0.0
+  gradient_gamma     = 1.0
+  sun_glow_exponent  = 16.0
+  sun_glow_strength  = 5.2
+  cloud_coverage     = 2.0
+}
+
+material mat_sun_core {
+  pbr = 1
+  albedo = 0.1 0.1 0.1
+  emissive = 6.2 4.2 0.35
+  roughness = 0.5
+}
+
+material mat_sun_bright {
+  pbr = 1
+  albedo = 0.1 0.1 0.1
+  emissive = 7.5 5.8 0.65
+  roughness = 0.5
+}
+
+material mat_sun_gold {
+  pbr = 1
+  albedo = 0.1 0.1 0.1
+  emissive = 5.4 3.4 0.12
+  roughness = 0.5
+}
+
+material mat_sun_orange {
+  pbr = 1
+  albedo = 0.1 0.1 0.1
+  emissive = 4.2 1.8 0.02
+  roughness = 0.5
+}
+
+material mat_hero_body {
+  pbr = 1
+  albedo = 0.64 0.68 0.76
+  roughness = 0.45
+  metallic = 0.02
+}
+
+material mat_earth_atmosphere {
+  type = glass
+  ior = 1.03
+  beer_lambert = 1
+  absorption = 0.6 0.15 0.0
+  deep_color = 0.15 0.65 1.00
+}
+
+material mat_transiting_moon {
+  pbr = 1
+  albedo = 0.42 0.40 0.38
+  roughness = 0.85
+  metallic = 0.02
+}
+
+material mat_upper_planet {
+  pbr = 1
+  albedo = 0.52 0.54 0.58
+  roughness = 0.75
+  metallic = 0.0
+}
+
+material mat_star_faint {
+  pbr = 1
+  albedo = 0.1 0.1 0.1
+  emissive = 5.0 5.0 5.5
+  roughness = 0.5
+}
+
+material mat_star_medium {
+  pbr = 1
+  albedo = 0.1 0.1 0.1
+  emissive = 8.0 8.0 9.0
+  roughness = 0.5
+}
+
+material mat_star_blue {
+  pbr = 1
+  albedo = 0.1 0.1 0.1
+  emissive = 4.0 6.5 14.0
+  roughness = 0.5
+}
+
+material mat_star_bright {
+  pbr = 1
+  albedo = 0.1 0.1 0.1
+  emissive = 12.0 12.0 12.0
+  roughness = 0.5
+}
+
+sphere {
+  center   = -4.100 -0.400 0.000
+  radius   = 2.450
+  material = mat_sun_core
+}
+
+sphere {
+  center   = -4.204 -0.525 -1.986
+  radius   = 0.460
+  material = mat_sun_gold
+}
+
+sphere {
+  center   = -4.951 -2.115 -0.783
+  radius   = 0.385
+  material = mat_sun_bright
+}
+
+sphere {
+  center   = -3.839 0.908 -1.611
+  radius   = 0.361
+  material = mat_sun_gold
+}
+
+sphere {
+  center   = -4.681 -0.569 -1.768
+  radius   = 0.586
+  material = mat_sun_bright
+}
+
+sphere {
+  center   = -3.556 -1.887 -1.166
+  radius   = 0.486
+  material = mat_sun_gold
+}
+
+sphere {
+  center   = -4.279 -0.105 -2.037
+  radius   = 0.389
+  material = mat_sun_gold
+}
+
+sphere {
+  center   = -3.550 -1.866 -1.059
+  radius   = 0.564
+  material = mat_sun_gold
+}
+
+sphere {
+  center   = -5.670 -0.932 -0.838
+  radius   = 0.597
+  material = mat_sun_gold
+}
+
+sphere {
+  center   = -4.161 -0.608 -2.000
+  radius   = 0.441
+  material = mat_sun_bright
+}
+
+sphere {
+  center   = -4.062 -0.049 -1.961
+  radius   = 0.461
+  material = mat_sun_gold
+}
+
+sphere {
+  center   = -4.526 0.052 -1.899
+  radius   = 0.457
+  material = mat_sun_gold
+}
+
+sphere {
+  center   = -4.470 -0.703 -1.747
+  radius   = 0.642
+  material = mat_sun_gold
+}
+
+sphere {
+  center   = -2.674 -0.494 -1.224
+  radius   = 0.573
+  material = mat_sun_gold
+}
+
+sphere {
+  center   = -3.986 -1.089 -1.970
+  radius   = 0.363
+  material = mat_sun_bright
+}
+
+sphere {
+  center   = -3.697 1.212 -0.558
+  radius   = 0.701
+  material = mat_sun_gold
+}
+
+sphere {
+  center   = -5.524 0.695 -0.676
+  radius   = 0.534
+  material = mat_sun_bright
+}
+
+sphere {
+  center   = -4.749 -0.663 -1.735
+  radius   = 0.584
+  material = mat_sun_gold
+}
+
+sphere {
+  center   = -3.748 1.403 -0.478
+  radius   = 0.554
+  material = mat_sun_bright
+}
+
+sphere {
+  center   = -3.067 0.451 -1.184
+  radius   = 0.667
+  material = mat_sun_bright
+}
+
+sphere {
+  center   = -5.448 0.840 -0.480
+  radius   = 0.562
+  material = mat_sun_gold
+}
+
+sphere {
+  center   = -2.599 -0.292 -1.043
+  radius   = 0.623
+  material = mat_sun_bright
+}
+
+sphere {
+  center   = -4.333 -0.685 -1.894
+  radius   = 0.524
+  material = mat_sun_gold
+}
+
+sphere {
+  center   = -3.593 -0.902 -1.764
+  radius   = 0.550
+  material = mat_sun_gold
+}
+
+sphere {
+  center   = -3.572 -0.959 -1.681
+  radius   = 0.606
+  material = mat_sun_bright
+}
+
+sphere {
+  center   = -4.006 -1.598 -1.330
+  radius   = 0.661
+  material = mat_sun_bright
+}
+
+sphere {
+  center   = -4.158 -0.284 -1.728
+  radius   = 0.722
+  material = mat_sun_gold
+}
+
+sphere {
+  center   = -4.176 -0.198 -1.740
+  radius   = 0.701
+  material = mat_sun_bright
+}
+
+sphere {
+  center   = -4.346 -0.378 -1.783
+  radius   = 0.654
+  material = mat_sun_bright
+}
+
+sphere {
+  center   = -5.443 -0.190 -1.465
+  radius   = 0.456
+  material = mat_sun_gold
+}
+
+sphere {
+  center   = -3.811 0.779 -1.344
+  radius   = 0.642
+  material = mat_sun_gold
+}
+
+sphere {
+  center   = -2.621 -0.445 -1.236
+  radius   = 0.525
+  material = mat_sun_bright
+}
+
+sphere {
+  center   = -3.964 0.450 -1.657
+  radius   = 0.585
+  material = mat_sun_bright
+}
+
+sphere {
+  center   = -2.734 0.253 -1.327
+  radius   = 0.442
+  material = mat_sun_gold
+}
+
+sphere {
+  center   = -3.529 -0.127 -1.722
+  radius   = 0.618
+  material = mat_sun_bright
+}
+
+sphere {
+  center   = -2.868 -0.928 -1.368
+  radius   = 0.539
+  material = mat_sun_gold
+}
+
+sphere {
+  center   = -3.978 -0.091 -1.902
+  radius   = 0.522
+  material = mat_sun_gold
+}
+
+sphere {
+  center   = -4.276 -1.732 -1.056
+  radius   = 0.744
+  material = mat_sun_gold
+}
+
+sphere {
+  center   = -5.070 1.144 -0.829
+  radius   = 0.449
+  material = mat_sun_gold
+}
+
+sphere {
+  center   = -4.794 -0.029 -1.844
+  radius   = 0.450
+  material = mat_sun_gold
+}
+
+sphere {
+  center   = -3.186 -1.486 -1.527
+  radius   = 0.370
+  material = mat_sun_gold
+}
+
+sphere {
+  center   = -2.472 -0.721 -0.596
+  radius   = 0.689
+  material = mat_sun_gold
+}
+
+sphere {
+  center   = -3.851 0.675 -1.763
+  radius   = 0.373
+  material = mat_sun_gold
+}
+
+sphere {
+  center   = -4.259 1.255 -0.964
+  radius   = 0.532
+  material = mat_sun_gold
+}
+
+sphere {
+  center   = -2.856 -0.436 -1.321
+  radius   = 0.637
+  material = mat_sun_bright
+}
+
+sphere {
+  center   = -2.791 -0.661 -1.335
+  radius   = 0.567
+  material = mat_sun_bright
+}
+
+sphere {
+  center   = -5.066 -0.965 -1.360
+  radius   = 0.691
+  material = mat_sun_gold
+}
+
+sphere {
+  center   = -3.639 -0.146 -1.790
+  radius   = 0.588
+  material = mat_sun_bright
+}
+
+sphere {
+  center   = -2.747 0.868 -0.764
+  radius   = 0.448
+  material = mat_sun_gold
+}
+
+sphere {
+  center   = -5.278 0.255 -1.333
+  radius   = 0.559
+  material = mat_sun_bright
+}
+
+sphere {
+  center   = -4.242 -1.058 -1.826
+  radius   = 0.508
+  material = mat_sun_bright
+}
+
+sphere {
+  center   = -4.807 1.201 -1.113
+  radius   = 0.379
+  material = mat_sun_gold
+}
+
+sphere {
+  center   = -3.813 -0.407 -1.997
+  radius   = 0.435
+  material = mat_sun_gold
+}
+
+sphere {
+  center   = -2.783 -1.623 -0.769
+  radius   = 0.498
+  material = mat_sun_gold
+}
+
+sphere {
+  center   = -4.462 -1.604 -1.158
+  radius   = 0.745
+  material = mat_sun_bright
+}
+
+sphere {
+  center   = -3.786 -1.100 -1.672
+  radius   = 0.615
+  material = mat_sun_bright
+}
+
+sphere {
+  center   = -3.840 -0.169 -1.849
+  radius   = 0.571
+  material = mat_sun_gold
+}
+
+sphere {
+  center   = -4.213 -0.950 -1.762
+  radius   = 0.604
+  material = mat_sun_gold
+}
+
+sphere {
+  center   = -2.556 -1.444 -0.893
+  radius   = 0.387
+  material = mat_sun_bright
+}
+
+sphere {
+  center   = -2.517 -0.365 -0.953
+  radius   = 0.605
+  material = mat_sun_gold
+}
+
+sphere {
+  center   = -5.211 -0.774 -1.740
+  radius   = 0.354
+  material = mat_sun_gold
+}
+
+sphere {
+  center   = -3.115 -1.079 -1.304
+  radius   = 0.684
+  material = mat_sun_bright
+}
+
+sphere {
+  center   = -3.581 0.135 -1.578
+  radius   = 0.710
+  material = mat_sun_gold
+}
+
+sphere {
+  center   = -3.598 -0.770 -1.903
+  radius   = 0.450
+  material = mat_sun_gold
+}
+
+sphere {
+  center   = -3.358 -1.061 -1.565
+  radius   = 0.598
+  material = mat_sun_gold
+}
+
+sphere {
+  center   = -2.972 -1.686 -0.495
+  radius   = 0.674
+  material = mat_sun_bright
+}
+
+sphere {
+  center   = -4.166 -1.184 -1.543
+  radius   = 0.722
+  material = mat_sun_gold
+}
+
+sphere {
+  center   = -3.848 -1.029 -1.654
+  radius   = 0.665
+  material = mat_sun_gold
+}
+
+sphere {
+  center   = -3.734 -0.850 -1.680
+  radius   = 0.677
+  material = mat_sun_gold
+}
+
+sphere {
+  center   = -3.904 -1.068 -1.974
+  radius   = 0.359
+  material = mat_sun_gold
+}
+
+sphere {
+  center   = -2.845 -1.836 -0.576
+  radius   = 0.462
+  material = mat_sun_gold
+}
+
+sphere {
+  center   = -2.956 -0.536 -1.286
+  radius   = 0.726
+  material = mat_sun_gold
+}
+
+sphere {
+  center   = -3.272 1.319 -0.588
+  radius   = 0.456
+  material = mat_sun_gold
+}
+
+sphere {
+  center   = -4.208 -1.199 -1.677
+  radius   = 0.592
+  material = mat_sun_gold
+}
+
+sphere {
+  center   = -4.688 -0.707 -1.693
+  radius   = 0.634
+  material = mat_sun_gold
+}
+
+sphere {
+  center   = -5.541 -0.755 -1.032
+  radius   = 0.647
+  material = mat_sun_gold
+}
+
+sphere {
+  center   = -1.500 -0.150 -3.200
+  radius   = 0.540
+  material = mat_transiting_moon
+}
+
+sphere {
+  center   = -2.100 2.850 5.200
+  radius   = 0.950
+  material = mat_upper_planet
+}
+
+sphere {
+  center   = 3.600 -0.150 0.000
+  radius   = 2.850
+  material = mat_hero_body
+}
+
+sphere {
+  center   = 3.600 -0.150 0.000
+  radius   = 2.905
+  material = mat_earth_atmosphere
+}
+
+sphere {
+  center   = -63.90 13.56 87.78
+  radius   = 0.058
+  material = mat_star_medium
+}
+
+sphere {
+  center   = -33.04 -17.53 105.65
+  radius   = 0.028
+  material = mat_star_faint
+}
+
+sphere {
+  center   = -11.99 36.88 121.02
+  radius   = 0.031
+  material = mat_star_faint
+}
+
+sphere {
+  center   = 8.58 -49.69 101.01
+  radius   = 0.038
+  material = mat_star_faint
+}
+
+sphere {
+  center   = -7.66 -7.03 113.72
+  radius   = 0.069
+  material = mat_star_blue
+}
+
+sphere {
+  center   = -48.46 -33.84 103.27
+  radius   = 0.041
+  material = mat_star_faint
+}
+
+sphere {
+  center   = 45.04 17.22 94.37
+  radius   = 0.030
+  material = mat_star_faint
+}
+
+sphere {
+  center   = -5.88 45.93 102.45
+  radius   = 0.029
+  material = mat_star_faint
+}
+
+sphere {
+  center   = 41.03 -0.65 112.43
+  radius   = 0.040
+  material = mat_star_faint
+}
+
+sphere {
+  center   = 38.63 -31.27 92.81
+  radius   = 0.061
+  material = mat_star_blue
+}
+
+sphere {
+  center   = -50.03 -15.50 100.91
+  radius   = 0.057
+  material = mat_star_medium
+}
+
+sphere {
+  center   = 56.91 6.19 113.08
+  radius   = 0.039
+  material = mat_star_faint
+}
+
+sphere {
+  center   = 0.81 31.22 123.01
+  radius   = 0.052
+  material = mat_star_medium
+}
+
+sphere {
+  center   = -35.81 -20.88 115.78
+  radius   = 0.038
+  material = mat_star_faint
+}
+
+sphere {
+  center   = -37.46 -39.01 93.66
+  radius   = 0.036
+  material = mat_star_faint
+}
+
+sphere {
+  center   = -48.58 -20.06 109.21
+  radius   = 0.033
+  material = mat_star_faint
+}
+
+sphere {
+  center   = 9.24 -10.15 111.76
+  radius   = 0.063
+  material = mat_star_blue
+}
+
+sphere {
+  center   = 24.18 24.51 105.96
+  radius   = 0.032
+  material = mat_star_faint
+}
+
+sphere {
+  center   = 27.89 21.61 106.90
+  radius   = 0.054
+  material = mat_star_medium
+}
+
+sphere {
+  center   = 21.03 -31.62 106.51
+  radius   = 0.032
+  material = mat_star_faint
+}
+
+sphere {
+  center   = 38.97 -11.56 106.53
+  radius   = 0.037
+  material = mat_star_faint
+}
+
+sphere {
+  center   = -54.50 -6.78 84.54
+  radius   = 0.028
+  material = mat_star_faint
+}
+
+sphere {
+  center   = -6.08 -39.65 98.49
+  radius   = 0.040
+  material = mat_star_faint
+}
+
+sphere {
+  center   = -14.19 16.44 105.35
+  radius   = 0.025
+  material = mat_star_faint
+}
+
+sphere {
+  center   = 7.09 49.92 108.35
+  radius   = 0.056
+  material = mat_star_medium
+}
+
+sphere {
+  center   = 41.07 40.35 82.51
+  radius   = 0.028
+  material = mat_star_faint
+}
+
+sphere {
+  center   = 37.27 7.82 114.83
+  radius   = 0.044
+  material = mat_star_medium
+}
+
+sphere {
+  center   = 27.21 34.95 116.44
+  radius   = 0.063
+  material = mat_star_bright
+}
+
+sphere {
+  center   = -65.08 -14.33 110.16
+  radius   = 0.039
+  material = mat_star_faint
+}
+
+sphere {
+  center   = -49.25 12.30 89.69
+  radius   = 0.061
+  material = mat_star_medium
+}
+
+sphere {
+  center   = 12.19 -25.56 120.19
+  radius   = 0.034
+  material = mat_star_faint
+}
+
+sphere {
+  center   = -26.57 0.68 122.64
+  radius   = 0.043
+  material = mat_star_medium
+}
+
+sphere {
+  center   = 55.32 9.04 107.48
+  radius   = 0.040
+  material = mat_star_faint
+}
+
+sphere {
+  center   = 53.73 -14.75 101.91
+  radius   = 0.034
+  material = mat_star_faint
+}
+
+sphere {
+  center   = 30.47 -16.97 119.95
+  radius   = 0.043
+  material = mat_star_faint
+}
+
+sphere {
+  center   = -35.48 -2.72 105.53
+  radius   = 0.042
+  material = mat_star_faint
+}
+
+sphere {
+  center   = -37.06 -18.63 102.10
+  radius   = 0.066
+  material = mat_star_blue
+}
+
+sphere {
+  center   = -22.27 -27.09 96.39
+  radius   = 0.052
+  material = mat_star_medium
+}
+
+sphere {
+  center   = 35.61 14.61 108.08
+  radius   = 0.042
+  material = mat_star_medium
+}
+
+sphere {
+  center   = -50.41 19.29 104.31
+  radius   = 0.036
+  material = mat_star_faint
+}
+
+sphere {
+  center   = -14.76 27.07 117.09
+  radius   = 0.030
+  material = mat_star_faint
+}
+
+sphere {
+  center   = -70.83 -31.89 86.25
+  radius   = 0.045
+  material = mat_star_medium
+}
+
+sphere {
+  center   = -41.73 -1.29 122.37
+  radius   = 0.031
+  material = mat_star_faint
+}
+
+sphere {
+  center   = -61.59 -26.20 81.40
+  radius   = 0.036
+  material = mat_star_faint
+}
+
+sphere {
+  center   = -33.88 39.55 109.13
+  radius   = 0.042
+  material = mat_star_faint
+}
+
+sphere {
+  center   = -1.35 30.75 109.85
+  radius   = 0.029
+  material = mat_star_faint
+}
+
+sphere {
+  center   = -65.69 35.88 99.69
+  radius   = 0.026
+  material = mat_star_faint
+}
+
+sphere {
+  center   = 27.23 -52.17 100.99
+  radius   = 0.045
+  material = mat_star_faint
+}
+
+sphere {
+  center   = -54.73 21.07 108.94
+  radius   = 0.035
+  material = mat_star_faint
+}
+
+sphere {
+  center   = -7.00 -4.50 129.43
+  radius   = 0.037
+  material = mat_star_faint
+}
+
+sphere {
+  center   = 11.84 14.41 104.58
+  radius   = 0.038
+  material = mat_star_faint
+}
+
+sphere {
+  center   = -58.91 -31.13 74.68
+  radius   = 0.037
+  material = mat_star_faint
+}
+
+sphere {
+  center   = -29.39 -21.00 115.58
+  radius   = 0.039
+  material = mat_star_faint
+}
+
+sphere {
+  center   = 56.81 21.43 103.31
+  radius   = 0.058
+  material = mat_star_blue
+}
+
+sphere {
+  center   = 5.86 10.79 124.19
+  radius   = 0.028
+  material = mat_star_faint
+}
+
+sphere {
+  center   = -27.01 19.42 103.44
+  radius   = 0.039
+  material = mat_star_faint
+}
+
+sphere {
+  center   = 30.03 36.98 104.46
+  radius   = 0.026
+  material = mat_star_faint
+}
+
+sphere {
+  center   = -12.58 -18.27 100.32
+  radius   = 0.085
+  material = mat_star_bright
+}
+
+sphere {
+  center   = 8.74 29.12 116.26
+  radius   = 0.026
+  material = mat_star_faint
+}
+
+sphere {
+  center   = 39.46 -2.52 121.19
+  radius   = 0.037
+  material = mat_star_faint
+}
+
+sphere {
+  center   = 32.04 -1.09 105.68
+  radius   = 0.038
+  material = mat_star_faint
+}
+
+sphere {
+  center   = 43.52 -11.50 98.88
+  radius   = 0.069
+  material = mat_star_blue
+}
+
+sphere {
+  center   = 9.41 -4.72 109.19
+  radius   = 0.072
+  material = mat_star_bright
+}
+
+sphere {
+  center   = 2.03 37.71 109.97
+  radius   = 0.029
+  material = mat_star_faint
+}
+
+sphere {
+  center   = -21.32 21.97 118.92
+  radius   = 0.036
+  material = mat_star_faint
+}
+
+sphere {
+  center   = 48.10 -3.87 91.73
+  radius   = 0.078
+  material = mat_star_bright
+}
+
+sphere {
+  center   = -38.28 -27.86 106.52
+  radius   = 0.045
+  material = mat_star_faint
+}
+
+sphere {
+  center   = 83.36 -4.32 93.00
+  radius   = 0.039
+  material = mat_star_faint
+}
+
+sphere {
+  center   = 1.26 -17.94 128.15
+  radius   = 0.036
+  material = mat_star_faint
+}
+
+sphere {
+  center   = -19.70 39.66 118.37
+  radius   = 0.047
+  material = mat_star_medium
+}
+
+sphere {
+  center   = 33.29 -5.42 110.18
+  radius   = 0.047
+  material = mat_star_medium
+}
+
+sphere {
+  center   = -22.64 5.43 112.30
+  radius   = 0.036
+  material = mat_star_faint
+}
+
+sphere {
+  center   = -23.85 4.44 111.04
+  radius   = 0.029
+  material = mat_star_faint
+}
+
+sphere {
+  center   = 42.82 8.65 115.27
+  radius   = 0.040
+  material = mat_star_faint
+}
+
+sphere {
+  center   = 36.19 30.51 110.17
+  radius   = 0.065
+  material = mat_star_medium
+}
+
+sphere {
+  center   = -0.74 -40.81 110.40
+  radius   = 0.062
+  material = mat_star_medium
+}
+
+sphere {
+  center   = -10.83 2.61 121.16
+  radius   = 0.038
+  material = mat_star_faint
+}
+
+sphere {
+  center   = -36.60 -1.79 103.88
+  radius   = 0.038
+  material = mat_star_faint
+}
+
+sphere {
+  center   = 39.24 21.83 101.95
+  radius   = 0.039
+  material = mat_star_faint
+}
+
+sphere {
+  center   = 50.13 39.98 79.39
+  radius   = 0.043
+  material = mat_star_faint
+}
+
+sphere {
+  center   = 61.47 16.94 80.83
+  radius   = 0.042
+  material = mat_star_faint
+}
+
+sphere {
+  center   = -6.02 11.52 100.54
+  radius   = 0.047
+  material = mat_star_medium
+}
+
+sphere {
+  center   = -19.50 -30.68 111.18
+  radius   = 0.044
+  material = mat_star_medium
+}
+
+sphere {
+  center   = -50.19 24.56 91.51
+  radius   = 0.049
+  material = mat_star_blue
+}
+
+sphere {
+  center   = -6.92 -24.34 97.04
+  radius   = 0.063
+  material = mat_star_medium
+}
+
+sphere {
+  center   = 27.67 -29.61 102.66
+  radius   = 0.038
+  material = mat_star_faint
+}
+
+sphere {
+  center   = -8.73 -16.01 104.40
+  radius   = 0.035
+  material = mat_star_faint
+}
+
+sphere {
+  center   = -43.37 6.59 122.14
+  radius   = 0.045
+  material = mat_star_faint
+}
+
+sphere {
+  center   = 25.04 -19.83 116.27
+  radius   = 0.041
+  material = mat_star_medium
+}
+
+sphere {
+  center   = 12.20 -0.21 107.90
+  radius   = 0.055
+  material = mat_star_medium
+}
+
+sphere {
+  center   = -22.61 11.62 117.62
+  radius   = 0.056
+  material = mat_star_medium
+}
+
+sphere {
+  center   = 40.29 8.49 112.06
+  radius   = 0.034
+  material = mat_star_faint
+}
+
+sphere {
+  center   = 18.46 29.95 103.01
+  radius   = 0.044
+  material = mat_star_medium
+}
+
+sphere {
+  center   = -40.63 2.42 108.54
+  radius   = 0.070
+  material = mat_star_blue
+}
+
+sphere {
+  center   = -40.39 29.98 113.56
+  radius   = 0.048
+  material = mat_star_medium
+}
+
+sphere {
+  center   = -74.86 50.02 92.38
+  radius   = 0.058
+  material = mat_star_medium
+}
+
+sphere {
+  center   = 51.41 27.81 94.33
+  radius   = 0.040
+  material = mat_star_medium
+}
+
+sphere {
+  center   = 5.48 -3.77 119.99
+  radius   = 0.041
+  material = mat_star_faint
+}
+
+sphere {
+  center   = 61.28 -30.28 74.01
+  radius   = 0.062
+  material = mat_star_blue
+}
+
+sphere {
+  center   = 84.10 -31.35 86.59
+  radius   = 0.054
+  material = mat_star_blue
+}
+
+sphere {
+  center   = -10.09 -22.02 106.41
+  radius   = 0.027
+  material = mat_star_faint
+}
+
+sphere {
+  center   = 58.39 -30.52 100.43
+  radius   = 0.064
+  material = mat_star_medium
+}
+
+sphere {
+  center   = -17.89 29.78 106.94
+  radius   = 0.035
+  material = mat_star_faint
+}
+
+sphere {
+  center   = -20.90 57.07 93.02
+  radius   = 0.044
+  material = mat_star_faint
+}
+
+sphere {
+  center   = 45.43 -28.45 103.25
+  radius   = 0.071
+  material = mat_star_bright
+}
+
+sphere {
+  center   = -25.31 -42.81 115.16
+  radius   = 0.038
+  material = mat_star_faint
+}
+
+sphere {
+  center   = 40.77 15.53 115.65
+  radius   = 0.028
+  material = mat_star_faint
+}
+
+sphere {
+  center   = 7.69 -28.55 102.02
+  radius   = 0.042
+  material = mat_star_faint
+}
+
+sphere {
+  center   = -17.61 -20.11 96.45
+  radius   = 0.044
+  material = mat_star_medium
+}
+
+sphere {
+  center   = -69.96 -26.19 93.70
+  radius   = 0.025
+  material = mat_star_faint
+}
+
+sphere {
+  center   = 45.51 -22.85 92.08
+  radius   = 0.040
+  material = mat_star_faint
+}
+
+sphere {
+  center   = 4.64 24.26 120.84
+  radius   = 0.027
+  material = mat_star_faint
+}
+
+sphere {
+  center   = 0.98 63.20 106.09
+  radius   = 0.053
+  material = mat_star_medium
+}
+
+sphere {
+  center   = -9.60 59.00 97.51
+  radius   = 0.039
+  material = mat_star_faint
+}
+
+sphere {
+  center   = -2.03 47.58 90.68
+  radius   = 0.026
+  material = mat_star_faint
+}
+
+sphere {
+  center   = -32.42 10.65 104.32
+  radius   = 0.076
+  material = mat_star_bright
+}
+
+sphere {
+  center   = -12.30 15.56 119.42
+  radius   = 0.056
+  material = mat_star_medium
+}
+
+sphere {
+  center   = 51.03 23.28 98.72
+  radius   = 0.032
+  material = mat_star_faint
+}
+
+sphere {
+  center   = -11.61 -11.65 111.60
+  radius   = 0.032
+  material = mat_star_faint
+}
+
+sphere {
+  center   = -72.27 48.89 89.44
+  radius   = 0.027
+  material = mat_star_faint
+}
+
+sphere {
+  center   = 35.71 25.90 109.00
+  radius   = 0.032
+  material = mat_star_faint
+}
+
+sphere {
+  center   = -52.33 -11.27 110.19
+  radius   = 0.058
+  material = mat_star_medium
+}
+
+sphere {
+  center   = 71.73 8.54 92.46
+  radius   = 0.038
+  material = mat_star_faint
+}
+
+sphere {
+  center   = -31.52 -24.88 103.51
+  radius   = 0.054
+  material = mat_star_medium
+}
+
+sphere {
+  center   = 36.48 22.77 116.89
+  radius   = 0.038
+  material = mat_star_faint
+}
+
+sphere {
+  center   = -49.16 24.74 92.95
+  radius   = 0.039
+  material = mat_star_faint
+}
+
+sphere {
+  center   = -54.05 -25.18 111.10
+  radius   = 0.033
+  material = mat_star_faint
+}
+
+sphere {
+  center   = -80.04 16.53 91.10
+  radius   = 0.033
+  material = mat_star_faint
+}
+
+sphere {
+  center   = -23.13 -10.50 120.66
+  radius   = 0.027
+  material = mat_star_faint
+}
+
+sphere {
+  center   = -59.26 -25.21 101.52
+  radius   = 0.038
+  material = mat_star_faint
+}
+
+sphere {
+  center   = -3.16 -7.09 122.40
+  radius   = 0.034
+  material = mat_star_faint
+}
+
+sphere {
+  center   = -35.81 16.38 113.37
+  radius   = 0.033
+  material = mat_star_faint
+}
+
+sphere {
+  center   = 16.43 -45.25 94.82
+  radius   = 0.030
+  material = mat_star_faint
+}
+
+sphere {
+  center   = -19.99 -31.81 98.34
+  radius   = 0.039
+  material = mat_star_faint
+}
+
+sphere {
+  center   = 0.03 21.00 99.98
+  radius   = 0.041
+  material = mat_star_medium
+}
+
+sphere {
+  center   = -53.21 25.87 101.25
+  radius   = 0.039
+  material = mat_star_faint
+}
+
+sphere {
+  center   = -19.53 -50.74 95.33
+  radius   = 0.055
+  material = mat_star_medium
+}
+
+sphere {
+  center   = 69.29 48.67 92.40
+  radius   = 0.037
+  material = mat_star_faint
+}
+
+sphere {
+  center   = 4.54 -10.97 109.54
+  radius   = 0.028
+  material = mat_star_faint
+}
+
+sphere {
+  center   = 1.82 -37.22 121.60
+  radius   = 0.040
+  material = mat_star_faint
+}
+
+sphere {
+  center   = 51.58 28.30 86.24
+  radius   = 0.037
+  material = mat_star_faint
+}
+
+sphere {
+  center   = 56.46 18.75 107.87
+  radius   = 0.040
+  material = mat_star_faint
+}
+
+sphere {
+  center   = 30.73 -3.36 112.77
+  radius   = 0.037
+  material = mat_star_faint
+}
+
+sphere {
+  center   = 61.18 11.87 80.81
+  radius   = 0.031
+  material = mat_star_faint
+}
+
+sphere {
+  center   = -31.80 -34.79 98.63
+  radius   = 0.026
+  material = mat_star_faint
+}
+
+sphere {
+  center   = 41.55 -29.46 114.87
+  radius   = 0.035
+  material = mat_star_faint
+}
+
+sphere {
+  center   = -5.41 4.38 126.69
+  radius   = 0.041
+  material = mat_star_faint
+}
+
+sphere {
+  center   = 22.57 -14.74 100.99
+  radius   = 0.027
+  material = mat_star_faint
+}
+
+sphere {
+  center   = 49.90 -10.87 103.19
+  radius   = 0.030
+  material = mat_star_faint
+}
+
+sphere {
+  center   = -9.16 -4.95 104.24
+  radius   = 0.031
+  material = mat_star_faint
+}
+
+sphere {
+  center   = -14.75 -14.52 121.93
+  radius   = 0.026
+  material = mat_star_faint
+}
+
+sphere {
+  center   = -70.46 17.22 97.74
+  radius   = 0.043
+  material = mat_star_faint
+}
+
+sphere {
+  center   = 46.41 -11.51 92.63
+  radius   = 0.044
+  material = mat_star_faint
+}
+
+sphere {
+  center   = 32.58 -9.85 123.54
+  radius   = 0.033
+  material = mat_star_faint
+}
+
+sphere {
+  center   = 41.98 25.04 114.91
+  radius   = 0.057
+  material = mat_star_medium
+}
+
+sphere {
+  center   = 4.48 13.77 109.91
+  radius   = 0.029
+  material = mat_star_faint
+}
+
+sphere {
+  center   = -38.95 33.89 93.49
+  radius   = 0.027
+  material = mat_star_faint
+}
+
+sphere {
+  center   = 45.22 -29.09 112.90
+  radius   = 0.046
+  material = mat_star_blue
+}
+
+sphere {
+  center   = -35.06 31.78 100.74
+  radius   = 0.042
+  material = mat_star_faint
+}
+
+sphere {
+  center   = 52.36 33.16 94.64
+  radius   = 0.039
+  material = mat_star_faint
+}
+
+sphere {
+  center   = -51.68 -6.10 110.85
+  radius   = 0.036
+  material = mat_star_faint
+}
+
+sphere {
+  center   = -32.98 29.68 116.92
+  radius   = 0.044
+  material = mat_star_faint
+}
+
+sphere {
+  center   = 72.81 -3.20 84.33
+  radius   = 0.044
+  material = mat_star_faint
+}
+
+sphere {
+  center   = 57.37 30.30 85.71
+  radius   = 0.042
+  material = mat_star_faint
+}
+
+sphere {
+  center   = 7.33 -29.68 121.76
+  radius   = 0.040
+  material = mat_star_faint
+}
+
+sphere {
+  center   = -44.63 44.23 94.07
+  radius   = 0.052
+  material = mat_star_blue
+}
+
+sphere {
+  center   = -11.92 -20.38 98.82
+  radius   = 0.030
+  material = mat_star_faint
+}
+
+sphere {
+  center   = 98.28 -13.81 80.71
+  radius   = 0.056
+  material = mat_star_medium
+}
+
+sphere {
+  center   = 54.63 -37.75 105.78
+  radius   = 0.028
+  material = mat_star_faint
+}
+
+sphere {
+  center   = 47.43 -6.59 90.49
+  radius   = 0.042
+  material = mat_star_faint
+}
+
+sphere {
+  center   = 6.96 18.01 101.51
+  radius   = 0.031
+  material = mat_star_faint
+}
+
+sphere {
+  center   = -52.20 -5.14 100.89
+  radius   = 0.043
+  material = mat_star_faint
+}
+
+sphere {
+  center   = 13.66 -37.94 99.39
+  radius   = 0.034
+  material = mat_star_faint
+}
+
+sphere {
+  center   = 20.57 -25.83 115.30
+  radius   = 0.044
+  material = mat_star_faint
+}
+
+sphere {
+  center   = -68.19 2.28 110.24
+  radius   = 0.033
+  material = mat_star_faint
+}
+
+sphere {
+  center   = -3.24 8.18 107.25
+  radius   = 0.041
+  material = mat_star_faint
+}
+
+sphere {
+  center   = -23.93 19.95 119.14
+  radius   = 0.048
+  material = mat_star_medium
+}
+
+sphere {
+  center   = -48.12 2.70 93.57
+  radius   = 0.052
+  material = mat_star_medium
+}
+
+sphere {
+  center   = 21.90 8.20 99.17
+  radius   = 0.051
+  material = mat_star_medium
+}
+
+sphere {
+  center   = -34.49 -42.32 85.28
+  radius   = 0.060
+  material = mat_star_blue
+}
+
+sphere {
+  center   = 81.95 4.01 91.09
+  radius   = 0.032
+  material = mat_star_faint
+}
+
+sphere {
+  center   = 42.48 30.74 89.51
+  radius   = 0.043
+  material = mat_star_faint
+}
+
+sphere {
+  center   = 44.54 40.14 114.46
+  radius   = 0.035
+  material = mat_star_faint
+}
+
+sphere {
+  center   = 52.98 1.34 109.68
+  radius   = 0.037
+  material = mat_star_faint
+}
+
+sphere {
+  center   = 49.37 3.87 89.63
+  radius   = 0.031
+  material = mat_star_faint
+}
+
+sphere {
+  center   = 13.87 -5.55 109.53
+  radius   = 0.042
+  material = mat_star_faint
+}
+
+sphere {
+  center   = -29.86 56.05 112.74
+  radius   = 0.047
+  material = mat_star_blue
+}
+
+sphere {
+  center   = 18.55 -10.24 118.50
+  radius   = 0.049
+  material = mat_star_blue
+}
+
+sphere {
+  center   = 24.28 35.28 92.59
+  radius   = 0.049
+  material = mat_star_medium
+}
+
+sphere {
+  center   = -18.35 5.85 118.82
+  radius   = 0.056
+  material = mat_star_blue
+}
+
+sphere {
+  center   = 38.72 6.04 104.86
+  radius   = 0.030
+  material = mat_star_faint
+}
+
+sphere {
+  center   = -53.59 18.15 96.20
+  radius   = 0.030
+  material = mat_star_faint
+}
+
+sphere {
+  center   = -25.35 -3.16 105.52
+  radius   = 0.060
+  material = mat_star_blue
+}
+
+sphere {
+  center   = -60.69 31.52 106.97
+  radius   = 0.027
+  material = mat_star_faint
+}
+
+sphere {
+  center   = 31.33 33.05 100.59
+  radius   = 0.036
+  material = mat_star_faint
+}
+
+sphere {
+  center   = 53.63 26.75 112.90
+  radius   = 0.041
+  material = mat_star_faint
+}
+
+sphere {
+  center   = 1.65 -39.60 96.33
+  radius   = 0.041
+  material = mat_star_medium
+}
+
+sphere {
+  center   = 7.12 -9.59 115.94
+  radius   = 0.027
+  material = mat_star_faint
+}
+
+sphere {
+  center   = -24.70 35.94 107.24
+  radius   = 0.061
+  material = mat_star_medium
+}
+
+sphere {
+  center   = -52.13 32.10 95.57
+  radius   = 0.032
+  material = mat_star_faint
+}
+
+sphere {
+  center   = 45.27 18.65 93.41
+  radius   = 0.073
+  material = mat_star_bright
+}
+
+sphere {
+  center   = 64.34 -38.70 72.81
+  radius   = 0.031
+  material = mat_star_faint
+}
+
+sphere {
+  center   = 26.82 -10.96 123.49
+  radius   = 0.046
+  material = mat_star_medium
+}
+
+sphere {
+  center   = 30.35 6.35 104.58
+  radius   = 0.035
+  material = mat_star_faint
+}
+
+sphere {
+  center   = -62.48 46.26 91.10
+  radius   = 0.055
+  material = mat_star_medium
+}
+
+sphere {
+  center   = 36.09 3.72 94.10
+  radius   = 0.038
+  material = mat_star_faint
+}
+
+sphere {
+  center   = 9.98 10.92 111.52
+  radius   = 0.035
+  material = mat_star_faint
+}
+
+sphere {
+  center   = 14.73 -13.53 112.73
+  radius   = 0.057
+  material = mat_star_medium
+}
+
+sphere {
+  center   = -43.46 -50.89 91.28
+  radius   = 0.029
+  material = mat_star_faint
+}
+
+sphere {
+  center   = 15.47 -15.10 120.10
+  radius   = 0.064
+  material = mat_star_medium
+}
+
+sphere {
+  center   = -49.15 -9.57 97.46
+  radius   = 0.030
+  material = mat_star_faint
+}
+
+sphere {
+  center   = -42.66 -37.90 95.82
+  radius   = 0.030
+  material = mat_star_faint
+}
+
+sphere {
+  center   = 59.66 -30.88 96.19
+  radius   = 0.040
+  material = mat_star_faint
+}
+
+sphere {
+  center   = -0.27 1.29 109.25
+  radius   = 0.044
+  material = mat_star_faint
+}
+
+sphere {
+  center   = 1.04 49.31 98.98
+  radius   = 0.035
+  material = mat_star_faint
+}
+
+sphere {
+  center   = 56.78 12.73 100.46
+  radius   = 0.051
+  material = mat_star_medium
+}
+
+sphere {
+  center   = 44.88 14.83 100.41
+  radius   = 0.036
+  material = mat_star_faint
+}
+
+sphere {
+  center   = -66.16 6.41 94.00
+  radius   = 0.047
+  material = mat_star_medium
+}
+
+sphere {
+  center   = 92.98 19.05 87.74
+  radius   = 0.041
+  material = mat_star_faint
+}
+
+sphere {
+  center   = -18.97 28.74 100.22
+  radius   = 0.035
+  material = mat_star_faint
+}
+
+sphere {
+  center   = -67.14 -29.77 87.47
+  radius   = 0.037
+  material = mat_star_faint
+}
+
+sphere {
+  center   = 2.11 -13.02 104.04
+  radius   = 0.082
+  material = mat_star_bright
+}
+
+sphere {
+  center   = -25.26 -11.44 112.61
+  radius   = 0.047
+  material = mat_star_medium
+}
+
+sphere {
+  center   = 47.30 -10.96 119.94
+  radius   = 0.041
+  material = mat_star_faint
+}
+
+sphere {
+  center   = 54.16 25.11 97.40
+  radius   = 0.083
+  material = mat_star_bright
+}
+
+sphere {
+  center   = 37.06 5.79 111.36
+  radius   = 0.038
+  material = mat_star_faint
+}
+
+sphere {
+  center   = 27.25 43.14 109.07
+  radius   = 0.044
+  material = mat_star_faint
+}
+
+sphere {
+  center   = -54.46 -37.31 81.06
+  radius   = 0.033
+  material = mat_star_faint
+}
+
+sphere {
+  center   = 33.89 28.80 113.68
+  radius   = 0.028
+  material = mat_star_faint
+}
+
+sphere {
+  center   = -39.79 -13.22 107.90
+  radius   = 0.028
+  material = mat_star_faint
+}
+
+sphere {
+  center   = 68.82 -14.63 101.09
+  radius   = 0.056
+  material = mat_star_medium
+}
+
+sphere {
+  center   = 38.06 12.04 99.70
+  radius   = 0.029
+  material = mat_star_faint
+}
+
+sphere {
+  center   = 67.36 -16.02 80.55
+  radius   = 0.048
+  material = mat_star_medium
+}
+
+sphere {
+  center   = -17.78 28.34 102.90
+  radius   = 0.039
+  material = mat_star_faint
+}
+
+sphere {
+  center   = -16.54 36.66 122.19
+  radius   = 0.047
+  material = mat_star_medium
+}
+
+sphere {
+  center   = -37.12 20.80 104.98
+  radius   = 0.035
+  material = mat_star_faint
+}
+
+sphere {
+  center   = -35.85 2.58 115.42
+  radius   = 0.037
+  material = mat_star_faint
+}
+
+sphere {
+  center   = 12.34 -20.34 113.46
+  radius   = 0.026
+  material = mat_star_faint
+}
+
+sphere {
+  center   = -22.51 31.35 116.92
+  radius   = 0.036
+  material = mat_star_faint
+}
+
+sphere {
+  center   = 51.48 -6.21 115.22
+  radius   = 0.029
+  material = mat_star_faint
+}
+
+sphere {
+  center   = 64.44 -13.80 108.84
+  radius   = 0.036
+  material = mat_star_faint
+}
+
+sphere {
+  center   = 4.62 16.28 126.27
+  radius   = 0.043
+  material = mat_star_faint
+}
+
+sphere {
+  center   = -33.75 24.27 103.90
+  radius   = 0.044
+  material = mat_star_faint
+}
+
+sphere {
+  center   = 43.70 22.38 87.44
+  radius   = 0.027
+  material = mat_star_faint
+}
+
+sphere {
+  center   = 50.56 -12.53 103.98
+  radius   = 0.044
+  material = mat_star_faint
+}
+
+sphere {
+  center   = 58.85 -2.98 84.94
+  radius   = 0.034
+  material = mat_star_faint
+}
+
+sphere {
+  center   = -33.72 -24.22 116.55
+  radius   = 0.040
+  material = mat_star_faint
+}
+
+sphere {
+  center   = -40.05 24.42 115.66
+  radius   = 0.027
+  material = mat_star_faint
+}
+
+sphere {
+  center   = 34.80 -36.00 97.62
+  radius   = 0.030
+  material = mat_star_faint
+}
+
+sphere {
+  center   = -28.36 15.12 104.22
+  radius   = 0.040
+  material = mat_star_medium
+}
+
+sphere {
+  center   = 34.14 23.79 94.82
+  radius   = 0.033
+  material = mat_star_faint
+}
+
+sphere {
+  center   = 0.33 28.31 105.60
+  radius   = 0.043
+  material = mat_star_faint
+}
+
+sphere {
+  center   = -37.72 11.72 96.21
+  radius   = 0.040
+  material = mat_star_faint
+}
+
+sphere {
+  center   = 16.45 -7.27 112.70
+  radius   = 0.038
+  material = mat_star_faint
+}
+
+sphere {
+  center   = -39.20 -19.53 118.35
+  radius   = 0.034
+  material = mat_star_faint
+}
+
+sphere {
+  center   = 26.05 -29.97 93.79
+  radius   = 0.035
+  material = mat_star_faint
+}
+
+sphere {
+  center   = 13.45 -35.99 109.04
+  radius   = 0.029
+  material = mat_star_faint
+}
+
+sphere {
+  center   = 13.94 -38.09 117.46
+  radius   = 0.035
+  material = mat_star_faint
+}
+
+sphere {
+  center   = -7.49 -42.61 116.43
+  radius   = 0.050
+  material = mat_star_medium
+}
+
+sphere {
+  center   = 39.19 16.91 91.93
+  radius   = 0.026
+  material = mat_star_faint
+}

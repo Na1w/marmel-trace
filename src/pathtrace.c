@@ -21,16 +21,25 @@
  * `pathtrace_to_byte` helper below.
  */
 
+#if !defined(_POSIX_C_SOURCE)
+#define _POSIX_C_SOURCE 200809L
+#endif
+
 #include "pathtrace.h"
+
+#include <time.h>
 
 #include "geometry.h"
 #include "material.h"
+#include "noise.h"
 #include "render.h"
 #include "sampling.h"
 #include "texture.h"
 #include "vec3.h"
 
 #include <math.h>
+#include <stdlib.h>
+#include <string.h>
 
 /*
  * Threading support (t-104c2). The pthread/atomic headers are pulled in ONLY
@@ -54,8 +63,10 @@
 #define PT_RAY_EPS 1e-4
 #define PT_RAY_MAX 1e30
 
-/* First bounce at which Russian Roulette may kill the path (unbiased). */
-#define PT_RR_START_BOUNCE 3
+/* First bounce at which Russian Roulette may kill the path (unbiased).
+ * Bounces 0 (camera) and 1 (first indirect bounce) are always preserved;
+ * starting RR at bounce 2 terminates weak, heavily-attenuated multi-bounce rays early. */
+#define PT_RR_START_BOUNCE 2
 
 /* Representative propagation distance used when a ray escapes a medium without
  * a further hit (mirrors the Whitted renderer's deep-water fallback). */
@@ -490,6 +501,36 @@ unsigned char pathtrace_to_byte(double linear)
  * (b == 0) and the miss path is left untouched. This avoids double counting the
  * sun's direct contribution while keeping the gradient/cloud sky intact.
  */
+static int pt_occluded_segment(const Scene *scene, Ray r, double tmin, double tmax, Vec3 *attenuation)
+{
+    *attenuation = vec3(1.0, 1.0, 1.0);
+    Ray cur = r;
+    double remaining = tmax;
+    for (int step = 0; step < 6; ++step) {
+        Hit h;
+        if (!scene_intersect(scene, cur, tmin, remaining, &h)) {
+            return 0;
+        }
+        const Material *m = scene_material(scene, h.material_index);
+        if (m == NULL) return 1;
+        if (m->is_water || m->transparency > 0.8) {
+            if (m->beer_lambert || m->is_water) {
+                Vec3 seg = vec3(exp(-m->absorption.x * h.t),
+                                exp(-m->absorption.y * h.t),
+                                exp(-m->absorption.z * h.t));
+                *attenuation = vec3_mul(*attenuation, seg);
+            }
+            cur.origin = vec3_add(h.point, vec3_scale(cur.dir, 1e-3));
+            remaining -= h.t;
+            if (remaining <= 1e-3) return 0;
+            tmin = 1e-3;
+            continue;
+        }
+        return 1;
+    }
+    return 1;
+}
+
 static Vec3 pt_nee_sun(const Scene *scene, const Material *mm, Vec3 P, Vec3 N, Vec3 V,
                        Vec3 throughput, unsigned seed_key, int bounce)
 {
@@ -498,15 +539,19 @@ static Vec3 pt_nee_sun(const Scene *scene, const Material *mm, Vec3 P, Vec3 N, V
     double r2 = pt_rand01(seed_key, (unsigned)bounce, PT_CH_NEE_SUN_B);
     Vec3 L = sky_sun_disk_dir(sun, scene->sky.sun_radius, r1, r2);
     if (!pt_is_finite(L) || vec3_dot(N, L) <= 0.0) return vec3(0.0, 0.0, 0.0);
-    Hit sh;
     Ray sr; sr.origin = vec3_add(P, vec3_scale(N, 1e-3)); sr.dir = L;
-    if (scene_intersect(scene, sr, 1e-3, 1e30, &sh)) return vec3(0.0, 0.0, 0.0);
+    Vec3 atten;
+    if (pt_occluded_segment(scene, sr, 1e-3, 1e30, &atten)) return vec3(0.0, 0.0, 0.0);
+    Vec3 cloud_trans = sky_cloud_transmittance(&scene->sky, sr.origin, sr.dir);
+    atten = vec3_mul(atten, cloud_trans);
+    if (atten.x < 1e-4 && atten.y < 1e-4 && atten.z < 1e-4) return vec3(0.0, 0.0, 0.0);
     double rad = scene->sky.sun_radius * 3.14159265358979323846 / 180.0;
     double Omega = (scene->sky.sun_radius > 0.0)
                        ? 2.0 * 3.14159265358979323846 * (1.0 - cos(rad))
                        : 1.0;
-    Vec3 lit = mm->pbr ? material_shade_pbr(mm, N, L, V, scene->sky.sun_color)
-                       : material_shade_local(mm, N, L, V, scene->sky.sun_color);
+    Vec3 sun_col = vec3_mul(scene->sky.sun_color, atten);
+    Vec3 lit = mm->pbr ? material_shade_pbr(mm, N, L, V, sun_col)
+                       : material_shade_local(mm, N, L, V, sun_col);
     return vec3_mul(throughput, vec3_scale(lit, Omega));   /* 1/pdf = Omega */
 }
 
@@ -547,13 +592,205 @@ static Vec3 pt_nee_emissive(const Scene *scene, const Material *mm, Vec3 P, Vec3
         double u2 = pt_rand01(seed_key ^ (unsigned)li, (unsigned)bounce, PT_CH_NEE_EMIT_B);
         Vec3 wi = light_sphere_sample_dir(w, cos_mx, u1, u2);
         if (!pt_is_finite(wi) || vec3_dot(N, wi) <= 0.0) continue;
-        Hit sh; Ray sr; sr.origin = vec3_add(P, vec3_scale(N, 1e-3)); sr.dir = wi;
-        if (scene_intersect(scene, sr, 1e-3, 1e30, &sh) && sh.prim_index != lt->prim_index) continue;
-        Vec3 lit = mm->pbr ? material_shade_pbr(mm, N, wi, V, lt->emissive)
-                           : material_shade_local(mm, N, wi, V, lt->emissive);
+        Ray sr; sr.origin = vec3_add(P, vec3_scale(N, 1e-3)); sr.dir = wi;
+        Hit lh;
+        if (!primitive_intersect(&scene->geo.prims[lt->prim_index], sr, 1e-3, 1e30, &lh)) continue;
+        Vec3 atten;
+        if (pt_occluded_segment(scene, sr, 1e-3, lh.t - 1e-3, &atten)) continue;
+        Vec3 emit_col = vec3_mul(lt->emissive, atten);
+        Vec3 lit = mm->pbr ? material_shade_pbr(mm, N, wi, V, emit_col)
+                           : material_shade_local(mm, N, wi, V, emit_col);
         sum = vec3_add(sum, vec3_mul(throughput, vec3_scale(lit, Omega)));  /* 1/pdf = Omega */
     }
     return sum;
+}
+
+/*
+ * Evaluates fog transmittance and inscatter along a ray segment.
+ * If fog->shadow_steps > 0, performs volumetric shadow marching through the
+ * medium, casting shadow rays towards the sun to form sharp crepuscular god rays.
+ * Otherwise falls back to analytic closed-form fog_segment (O(1)).
+ */
+static void pt_fog_segment(const Scene *scene, Ray r, double dist,
+                           unsigned seed_key, int bounce,
+                           double *transmittance, Vec3 *inscatter)
+{
+    const FogParams *fog = &scene->fog;
+    if (fog->shadow_steps <= 0) {
+        fog_segment(fog, &scene->sky, r, dist, transmittance, inscatter);
+        return;
+    }
+
+    int steps = fog->shadow_steps;
+    if (steps < 4) steps = 4;
+    if (steps > 128) steps = 128;
+
+    int is_sky = (dist >= 1e20);
+    double lambda = fog->height_falloff;
+    double max_t;
+    if (is_sky) {
+        double top_y = (lambda > 1e-4) ? (fog->height + 3.0 / lambda) : 25.0;
+        if (r.origin.y >= top_y && r.dir.y >= 0.0) {
+            *transmittance = 1.0;
+            *inscatter = vec3(0.0, 0.0, 0.0);
+            return;
+        }
+        double dy = r.dir.y;
+        if (dy > 0.02) {
+            max_t = (top_y - r.origin.y) / dy;
+            if (max_t > 40.0) max_t = 40.0;
+        } else {
+            max_t = 40.0;
+        }
+    } else {
+        max_t = (dist > 60.0) ? 60.0 : dist;
+    }
+    double dt = max_t / (double)steps;
+
+    /* Phase function towards the sun */
+    double g = fog->sun_anisotropy;
+    if (g < -0.95) g = -0.95;
+    if (g >  0.95) g =  0.95;
+    double cos_theta = vec3_dot(r.dir, scene->sky.sun_dir);
+    double denom = 1.0 + g * g - 2.0 * g * cos_theta;
+    if (denom < 1e-4) denom = 1e-4;
+    double phase_hg = (1.0 - g * g) / (denom * sqrt(denom));
+    /* Clamp forward peak to preserve dynamic range and avoid blowout */
+    if (phase_hg > 6.0) phase_hg = 6.0;
+    double phase = 0.70 * phase_hg + 0.30;
+    Vec3 sun_glow_unit = vec3_scale(scene->sky.sun_color, phase * fog->inscatter_strength);
+
+    double T_acc = 1.0;
+    Vec3 inscatter_acc = vec3(0.0, 0.0, 0.0);
+    double jitter = pt_rand01(seed_key, (unsigned)bounce, 0xFE01u);
+
+    for (int i = 0; i < steps; ++i) {
+        double t = ((double)i + jitter) * dt;
+        Vec3 pos = vec3_add(r.origin, vec3_scale(r.dir, t));
+        double rho = fog->density;
+        if (lambda > 1e-6) {
+            double h_diff = pos.y - fog->height;
+            rho *= exp(-lambda * h_diff);
+        }
+        if (fog->noise_amount > 1e-4 && fog->noise_scale > 1e-4) {
+            double n = noise_fbm3(pos.x * fog->noise_scale,
+                                  pos.y * fog->noise_scale,
+                                  pos.z * fog->noise_scale,
+                                  3, 2.0, 0.5, 1337u);
+            double turb = 0.5 * (n + 1.0);
+            if (turb < 0.0) turb = 0.0;
+            if (turb > 1.0) turb = 1.0;
+            double mod = (1.0 - fog->noise_amount) + fog->noise_amount * turb * 2.0;
+            rho *= mod;
+        }
+        if (rho < 0.0) rho = 0.0;
+
+        double step_tau = rho * dt;
+        double step_T = exp(-step_tau);
+
+        /* Shadow test towards the sun: creates sharp volumetric beams through canopy gaps, waves, and clouds */
+        Ray sray;
+        sray.origin = pos;
+        sray.dir = scene->sky.sun_dir;
+        Vec3 atten;
+        int in_shadow = pt_occluded_segment(scene, sray, 0.05, 100.0, &atten);
+        if (!in_shadow) {
+            Vec3 cloud_trans = sky_cloud_transmittance(&scene->sky, sray.origin, sray.dir);
+            atten = vec3_mul(atten, cloud_trans);
+        }
+
+        /* Ambient haze from the medium; direct sunbeam illuminates through the medium */
+        Vec3 ambient_col = fog->color;
+        Vec3 step_inscatter_col = ambient_col;
+        if (!in_shadow) {
+            step_inscatter_col = vec3_add(step_inscatter_col, vec3_mul(sun_glow_unit, atten));
+        }
+
+        Vec3 step_inscatter = vec3_scale(step_inscatter_col, 1.0 - step_T);
+        inscatter_acc = vec3_add(inscatter_acc, vec3_scale(step_inscatter, T_acc));
+        T_acc *= step_T;
+        if (T_acc < 1e-4) break;
+    }
+
+    if (dist > max_t) {
+        double rem_dist = is_sky ? 1e30 : (dist - max_t);
+        Ray rem_ray;
+        rem_ray.origin = vec3_add(r.origin, vec3_scale(r.dir, max_t));
+        rem_ray.dir = r.dir;
+        double rem_T = 1.0;
+        Vec3 rem_inscatter = vec3(0.0, 0.0, 0.0);
+        fog_segment(fog, &scene->sky, rem_ray, rem_dist, &rem_T, &rem_inscatter);
+        inscatter_acc = vec3_add(inscatter_acc, vec3_scale(rem_inscatter, T_acc));
+        T_acc *= rem_T;
+    }
+
+    *transmittance = T_acc;
+    *inscatter = inscatter_acc;
+}
+
+/*
+ * Underwater volumetric segment marching: computes Beer-Lambert wavelength
+ * absorption together with volumetric forward-scattering of direct sunlight,
+ * creating realistic underwater crepuscular rays (god rays) and atmospheric
+ * turquoise depth haze.
+ */
+static void pt_water_segment(const Scene *scene, const Material *m, Ray r, double dist,
+                             unsigned seed_key, int bounce,
+                             Vec3 *beta, Vec3 *radiance)
+{
+    if (m == NULL || beta == NULL || radiance == NULL) {
+        return;
+    }
+    if (!m->is_water || scene->fog.shadow_steps <= 0 || dist <= 1e-4) {
+        pt_apply_medium(m, dist, beta, radiance);
+        return;
+    }
+
+    int steps = scene->fog.shadow_steps;
+    if (steps < 4) steps = 4;
+    if (steps > 16) steps = 16;
+    double dt = dist / (double)steps;
+
+    double cos_theta = vec3_dot(r.dir, scene->sky.sun_dir);
+    double g = 0.72;
+    double denom = 1.0 + g * g - 2.0 * g * cos_theta;
+    if (denom < 1e-4) denom = 1e-4;
+    double phase = (1.0 - g * g) / (denom * sqrt(denom));
+    if (phase > 4.5) phase = 4.5;
+
+    double jitter = pt_rand01(seed_key, (unsigned)bounce, 0xAC31u);
+    Vec3 step_T = vec3(exp(-m->absorption.x * dt),
+                       exp(-m->absorption.y * dt),
+                       exp(-m->absorption.z * dt));
+
+    for (int i = 0; i < steps; ++i) {
+        double t = ((double)i + jitter) * dt;
+        Vec3 pos = vec3_add(r.origin, vec3_scale(r.dir, t));
+
+        Ray sray;
+        sray.origin = pos;
+        sray.dir = scene->sky.sun_dir;
+        Vec3 atten;
+        int in_shadow = pt_occluded_segment(scene, sray, 0.02, 100.0, &atten);
+        if (!in_shadow) {
+            Vec3 cloud_trans = sky_cloud_transmittance(&scene->sky, sray.origin, sray.dir);
+            atten = vec3_mul(atten, cloud_trans);
+        }
+
+        Vec3 ambient = vec3_scale(m->deep_color, 0.40);
+        Vec3 sun_scat = vec3(0.0, 0.0, 0.0);
+        if (!in_shadow) {
+            sun_scat = vec3_scale(vec3_mul(scene->sky.sun_color, atten), phase * 0.18);
+        }
+
+        Vec3 step_col = vec3_add(ambient, sun_scat);
+        Vec3 step_inscatter = vec3(step_col.x * (1.0 - step_T.x),
+                                   step_col.y * (1.0 - step_T.y),
+                                   step_col.z * (1.0 - step_T.z));
+
+        *radiance = vec3_add(*radiance, vec3_mul(*beta, step_inscatter));
+        *beta = vec3_mul(*beta, step_T);
+    }
 }
 
 /* ------------------------------------------------------------------ */
@@ -581,6 +818,13 @@ Vec3 pathtrace_radiance(const Scene *scene, Ray primary, int max_depth,
     Vec3 throughput = vec3(1.0, 1.0, 1.0);
     const Material *medium = NULL; /* material of the medium currently inside */
 
+    if (scene->water_material >= 0) {
+        double w_h = scene_water_height(scene, primary.origin.x, primary.origin.z);
+        if (primary.origin.y < w_h) {
+            medium = scene_material(scene, scene->water_material);
+        }
+    }
+
     /* De-duplication state (t-104b2): the camera ray (b == 0) is treated as
      * "specular" so emitted radiance is always added on the primary hit; it is
      * then set per bounce to whether the chosen BSDF lobe was a delta
@@ -592,19 +836,39 @@ Vec3 pathtrace_radiance(const Scene *scene, Ray primary, int max_depth,
         Hit h;
         if (!scene_intersect(scene, r, PT_RAY_EPS, PT_RAY_MAX, &h)) {
             if (medium != NULL) {
-                pt_apply_medium(medium, PT_MEDIUM_FALLBACK_DEPTH, &throughput,
-                                &radiance);
+                pt_water_segment(scene, medium, r, PT_MEDIUM_FALLBACK_DEPTH,
+                                 seed_key, b, &throughput, &radiance);
                 medium = NULL;
             }
             /* Escaped to the environment: add the sky once, weighted by beta. */
-            radiance = vec3_add(radiance,
-                                vec3_mul(throughput, sky_sample(r.dir, &scene->sky)));
+            Vec3 sky_col = sky_sample(r.dir, &scene->sky);
+            if (scene->fog.density > 0.0) {
+                double T = 1.0;
+                Vec3 inscatter = vec3(0.0, 0.0, 0.0);
+                if (b == 0) {
+                    pt_fog_segment(scene, r, 1e30, seed_key, b, &T, &inscatter);
+                } else {
+                    fog_segment(&scene->fog, &scene->sky, r, 1e30, &T, &inscatter);
+                }
+                sky_col = vec3_add(vec3_scale(sky_col, T), inscatter);
+            }
+            radiance = vec3_add(radiance, vec3_mul(throughput, sky_col));
             break;
         }
 
-        /* Attenuate the segment just travelled through a transmissive medium. */
+        /* Attenuate the segment just travelled through a transmissive medium or fog. */
         if (medium != NULL) {
-            pt_apply_medium(medium, h.t, &throughput, &radiance);
+            pt_water_segment(scene, medium, r, h.t, seed_key, b, &throughput, &radiance);
+        } else if (scene->fog.density > 0.0) {
+            double T = 1.0;
+            Vec3 inscatter = vec3(0.0, 0.0, 0.0);
+            if (b == 0) {
+                pt_fog_segment(scene, r, h.t, seed_key, b, &T, &inscatter);
+            } else {
+                fog_segment(&scene->fog, &scene->sky, r, h.t, &T, &inscatter);
+            }
+            radiance = vec3_add(radiance, vec3_mul(throughput, inscatter));
+            throughput = vec3_scale(throughput, T);
         }
 
         const Material *m = scene_material(scene, h.material_index);
@@ -619,7 +883,12 @@ Vec3 pathtrace_radiance(const Scene *scene, Ray primary, int max_depth,
         Vec3 N = h.normal; /* already flipped to oppose the incoming ray */
 
         if (m->is_water) {
-            N = water_normal(P.x, P.z, 0.0); /* wave-perturbed normal, t = 0 */
+            if (fabs(h.normal.y) > 0.999 && fabs(h.normal.x) < 1e-4 && fabs(h.normal.z) < 1e-4) {
+                N = water_normal(P.x, P.z, 0.0); /* wave-perturbed normal, t = 0 */
+            }
+        }
+        if (m->bump_strength > 1e-6) {
+            N = texture_normal(m, P, N);
         }
         if (vec3_dot(N, d) > 0.0) {
             N = vec3_neg(N); /* safety re-flip */
@@ -632,7 +901,7 @@ Vec3 pathtrace_radiance(const Scene *scene, Ray primary, int max_depth,
 
         /* Texture-modulated albedo on a local copy (physical fields intact). */
         Material m_local = *m;
-        m_local.albedo = texture_albedo(m, P);
+        m_local.albedo = texture_albedo_uv(m, P, h.u, h.v);
         const Material *mm = &m_local;
 
         /* Emitted radiance of a directly-hit light (zero for ordinary mats).
@@ -651,6 +920,28 @@ Vec3 pathtrace_radiance(const Scene *scene, Ray primary, int max_depth,
             radiance = vec3_add(radiance, vec3_mul(throughput, mm->emissive));
         }
 
+        /* Atmospheric Rayleigh limb glow */
+        if (b == 0 && vec3_length_sq(mm->atmosphere_glow) > 1e-6) {
+            double cos_v = fmax(0.0, vec3_dot(N, V));
+            double limb = pow(1.0 - cos_v, 3.5);
+            double sun_dot = vec3_dot(N, scene->sky.sun_dir);
+            double day_fac = 0.0;
+            if (sun_dot > -0.15) {
+                day_fac = (sun_dot + 0.15) / 0.35;
+                if (day_fac > 1.0) day_fac = 1.0;
+            }
+            Vec3 glow_col = mm->atmosphere_glow;
+            if (sun_dot > -0.10 && sun_dot < 0.25) {
+                double sunset_t = 1.0 - fabs(sun_dot - 0.05) / 0.20;
+                if (sunset_t > 0.0) {
+                    Vec3 sunset_col = vec3(1.0, 0.45, 0.15);
+                    glow_col = vec3_lerp(glow_col, sunset_col, sunset_t * 0.6);
+                }
+            }
+            Vec3 atmo_term = vec3_scale(glow_col, limb * day_fac * 2.5);
+            radiance = vec3_add(radiance, vec3_mul(throughput, atmo_term));
+        }
+
         /* Emissive-sphere Next-Event-Estimation (t-104b2): applied at EVERY
          * bounce. Adds the direct light term WITHOUT modifying `throughput`, so
          * the rest of the path stays unbiased. */
@@ -658,10 +949,9 @@ Vec3 pathtrace_radiance(const Scene *scene, Ray primary, int max_depth,
                             pt_nee_emissive(scene, mm, P, N, V, throughput,
                                             h.prim_index, seed_key, b));
 
-        /* Sun Next-Event-Estimation (t-104b1): first bounce only (see the
-         * skip_env policy note on pt_nee_sun). Adds the direct sun term WITHOUT
-         * modifying `throughput`, so the rest of the path stays unbiased. */
-        if (b == 0) {
+        /* Sun Next-Event-Estimation: applied on bounce 0 (primary hit),
+         * or on bounce 1 if the ray entered a transmissive medium / water via specular refraction. */
+        if (b == 0 || (b == 1 && medium != NULL && last_bounce_specular)) {
             radiance = vec3_add(radiance,
                                 pt_nee_sun(scene, mm, P, N, V, throughput,
                                            seed_key, b));
@@ -759,6 +1049,7 @@ static void pt_render_pixel(const Scene *scene, const Camera *cam,
                             unsigned char *rgb_out, int x, int y)
 {
     Vec3 acc = vec3(0.0, 0.0, 0.0);
+
     for (int s = 0; s < spp; ++s) {
         /*
          * Deterministic sub-pixel jitter and thin-lens DOF sample. The pixel
@@ -780,6 +1071,13 @@ static void pt_render_pixel(const Scene *scene, const Camera *cam,
         double uu = ((double)x + jx) / (double)width;
         double vv = 1.0 - ((double)y + jy) / (double)height;
         Ray ray = camera_ray_dof(cam, uu, vv, lr1, lr2);
+        if (cam->dome_radius > 1e-4 && scene->water_material >= 0) {
+            Vec3 p_dome = vec3_add(ray.origin, vec3_scale(ray.dir, cam->dome_radius));
+            double wh = scene_water_height(scene, p_dome.x, p_dome.z);
+            if (p_dome.y < wh) {
+                ray.origin = vec3_sub(p_dome, vec3(0.0, 1e-3, 0.0));
+            }
+        }
 
         /*
          * Per-primary-ray key: a pure function of (x, y, s) only, so the
@@ -969,6 +1267,9 @@ int pathtrace_render(const Scene *scene, const Camera *cam, int width, int heigh
         return 3; /* bad sample / depth counts */
     }
 
+    struct timespec ts0, ts1;
+    clock_gettime(CLOCK_MONOTONIC, &ts0);
+
     /* Progress is stderr-only and easily silenced via RAYTRACER_NO_PROGRESS. */
 #ifdef USE_PTHREADS
     int progress = render_progress_enabled();
@@ -1034,6 +1335,9 @@ int pathtrace_render(const Scene *scene, const Camera *cam, int width, int heigh
     }
 
     render_progress_finish(&pr);
+    clock_gettime(CLOCK_MONOTONIC, &ts1);
+    render_set_last_seconds((double)(ts1.tv_sec - ts0.tv_sec) +
+                            (double)(ts1.tv_nsec - ts0.tv_nsec) * 1e-9);
     return 0;
 #else
     /*
@@ -1051,6 +1355,9 @@ int pathtrace_render(const Scene *scene, const Camera *cam, int width, int heigh
     }
 
     render_progress_finish(NULL);
+    clock_gettime(CLOCK_MONOTONIC, &ts1);
+    render_set_last_seconds((double)(ts1.tv_sec - ts0.tv_sec) +
+                            (double)(ts1.tv_nsec - ts0.tv_nsec) * 1e-9);
     return 0;
 #endif
 }

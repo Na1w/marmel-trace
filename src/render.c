@@ -18,6 +18,8 @@
  * a plain single-threaded loop and never references pthread.
  */
 
+#define _POSIX_C_SOURCE 200809L
+
 #include "render.h"
 
 #include "scene.h"
@@ -194,8 +196,8 @@ static void render_progress_emit(ProgressState *st, long long done)
         pct = 100;
     }
 
-    char el[16];
-    char et[16];
+    char el[32];
+    char et[32];
     render_progress_mmss(elapsed, el, sizeof el);
 
     /* Work rate and ETA from the completed fraction; only meaningful once
@@ -541,18 +543,19 @@ static Vec3 emissive_direct(const Scene *scene, const Material *mm,
             double u1 = render_rand01(k, (unsigned)si, EMISSIVE_LIGHT_CHANNEL_A);
             double u2 = render_rand01(k, (unsigned)si, EMISSIVE_LIGHT_CHANNEL_B);
             Vec3 w_i = light_sphere_sample_dir(w, cos_mx, u1, u2);
-            Hit sh;
             int visible;
 
             if (vec3_dot(N, w_i) <= 0.0) {
                 continue; /* sample lands below the shading hemisphere */
             }
 
-            /* Accept when the nearest hit IS the emitter (robust; also
-             * handles occluders behind the lamp correctly). */
-            visible = !scene_intersect(scene, (Ray){shadow_o, w_i}, 1e-3, 1e30,
-                                       &sh)
-                   || sh.prim_index == lt->prim_index;
+            /* Accept when nothing occludes between shadow_o and the emitter */
+            Hit lh;
+            if (primitive_intersect(&scene->geo.prims[lt->prim_index], (Ray){shadow_o, w_i}, 1e-3, 1e30, &lh)) {
+                visible = !scene_occluded(scene, (Ray){shadow_o, w_i}, 1e-3, lh.t - 1e-3);
+            } else {
+                visible = 0;
+            }
             if (!visible) {
                 continue;
             }
@@ -596,6 +599,9 @@ static Vec3 trace_hit(const Scene *scene, Ray r, int depth, int max_depth,
     if (m->is_water) {
         N = water_normal(P.x, P.z, time); /* wave-perturbed normal */
     }
+    if (m->bump_strength > 1e-6) {
+        N = texture_normal(m, P, N);
+    }
     if (vec3_dot(N, r.dir) > 0) {
         N = vec3_neg(N); /* safety re-flip */
     }
@@ -612,7 +618,7 @@ static Vec3 trace_hit(const Scene *scene, Ray r, int depth, int max_depth,
      * verbatim, so reflection/refraction below behaves exactly as before.
      */
     Material m_local = *m;
-    m_local.albedo = texture_albedo(m, P);
+    m_local.albedo = texture_albedo_uv(m, P, h->u, h->v);
     const Material *mm = &m_local;
 
     /*
@@ -637,8 +643,7 @@ static Vec3 trace_hit(const Scene *scene, Ray r, int depth, int max_depth,
             double r1 = render_rand01(k, (unsigned)i, 0x5a17u);
             double r2 = render_rand01(k, (unsigned)i, 0x7c3du);
             Vec3 Ld = sky_sun_disk_dir(L, sun_radius, r1, r2);
-            Hit sh;
-            if (!scene_intersect(scene, (Ray){shadow_o, Ld}, 1e-3, 1e30, &sh)) {
+            if (!scene_occluded(scene, (Ray){shadow_o, Ld}, 1e-3, 1e30)) {
                 lit += 1.0;
             }
         }
@@ -658,8 +663,7 @@ static Vec3 trace_hit(const Scene *scene, Ray r, int depth, int max_depth,
             }
         }
     } else {
-        Hit sh;
-        if (!scene_intersect(scene, (Ray){shadow_o, L}, 1e-3, 1e30, &sh)) {
+        if (!scene_occluded(scene, (Ray){shadow_o, L}, 1e-3, 1e30)) {
             if (mm->pbr) {
                 color = vec3_add(color,
                                  material_shade_pbr(mm, N, L, V, scene->sky.sun_color));
@@ -812,6 +816,26 @@ static Vec3 trace_hit(const Scene *scene, Ray r, int depth, int max_depth,
                     m->emissive.z != 0.0)) {
         out = vec3_add(out, m->emissive);
     }
+    if (depth == 0 && vec3_length_sq(mm->atmosphere_glow) > 1e-6) {
+        double cos_v = fmax(0.0, vec3_dot(N, V));
+        double limb = pow(1.0 - cos_v, 3.5);
+        double sun_dot = vec3_dot(N, scene->sky.sun_dir);
+        double day_fac = 0.0;
+        if (sun_dot > -0.15) {
+            day_fac = (sun_dot + 0.15) / 0.35;
+            if (day_fac > 1.0) day_fac = 1.0;
+        }
+        Vec3 glow_col = mm->atmosphere_glow;
+        if (sun_dot > -0.10 && sun_dot < 0.25) {
+            double sunset_t = 1.0 - fabs(sun_dot - 0.05) / 0.20;
+            if (sunset_t > 0.0) {
+                Vec3 sunset_col = vec3(1.0, 0.45, 0.15);
+                glow_col = vec3_lerp(glow_col, sunset_col, sunset_t * 0.6);
+            }
+        }
+        Vec3 atmo_term = vec3_scale(glow_col, limb * day_fac * 2.5);
+        out = vec3_add(out, atmo_term);
+    }
     return out;
 }
 
@@ -824,10 +848,18 @@ static Vec3 trace(const Scene *scene, Ray r, int depth, int max_depth, double ti
 
     Hit h;
     if (!scene_intersect(scene, r, 1e-4, 1e30, &h)) {
-        return sky_sample(r.dir, &scene->sky);
+        Vec3 sky_col = sky_sample(r.dir, &scene->sky);
+        if (scene->fog.density > 0.0) {
+            return fog_apply(&scene->fog, &scene->sky, r, 1e30, sky_col);
+        }
+        return sky_col;
     }
 
-    return trace_hit(scene, r, depth, max_depth, time, &h, seed_key);
+    Vec3 hit_col = trace_hit(scene, r, depth, max_depth, time, &h, seed_key);
+    if (scene->fog.density > 0.0) {
+        return fog_apply(&scene->fog, &scene->sky, r, h.t, hit_col);
+    }
+    return hit_col;
 }
 
 /* ------------------------------------------------------------------ */
@@ -1470,6 +1502,11 @@ static int render_image_adaptive(const Scene *scene, const Camera *cam,
 double render_last_seconds(void)
 {
     return g_render_last_seconds;
+}
+
+void render_set_last_seconds(double s)
+{
+    g_render_last_seconds = s;
 }
 
 unsigned long long render_last_total_samples(void)

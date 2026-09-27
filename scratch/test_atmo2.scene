@@ -1,0 +1,93 @@
+camera {
+  eye    = 0.0 0.0 -10.0
+  target = 0.0 0.0 0.0
+  up     = 0.0 1.0 0.0
+  vfov   = 38.0
+}
+
+sky {
+  sun_dir            = -0.2511 0.0157 0.9678
+  sun_color          = 1.00 0.82 0.35
+  sun_radius         = 0.0
+  horizon_color      = 0.0 0.0 0.0
+  zenith_color       = 0.0 0.0 0.0
+  gradient_gamma     = 1.0
+  sun_glow_exponent  = 160.0
+  sun_glow_strength  = 1.4
+  cloud_coverage     = 2.0
+}
+
+material mat_sun {
+  pbr = 1
+  albedo = 0.1 0.1 0.1
+  emissive = 3.6 2.4 0.35
+  roughness = 0.5
+}
+
+material mat_earth {
+  pbr = 1
+  albedo = 0.65 0.70 0.80
+  roughness = 0.35
+  metallic = 0.02
+}
+
+material mat_atmo_outer {
+  pbr = 0
+  albedo = 0.1 0.4 0.95
+  specular = 0.3 0.6 1.0
+  shininess = 32
+  transparency = 0.92
+  reflectivity = 0.08
+  ior = 1.02
+}
+
+material mat_atmo_inner {
+  pbr = 0
+  albedo = 0.15 0.5 1.0
+  specular = 0.4 0.7 1.0
+  shininess = 48
+  transparency = 0.82
+  reflectivity = 0.18
+  ior = 1.04
+}
+
+material mat_moon {
+  pbr = 1
+  albedo = 0.46 0.44 0.42
+  roughness = 0.85
+  metallic = 0.02
+}
+
+sphere {
+  center   = -4.8 0.3 8.5
+  radius   = 1.25
+  material = mat_sun
+}
+
+# Transiting Moon in front of Sun
+sphere {
+  center   = -3.0 0.12 3.0
+  radius   = 0.50
+  material = mat_moon
+}
+
+# Earth
+sphere {
+  center   = 3.5 -0.22 0.0
+  radius   = 2.80
+  material = mat_earth
+}
+
+# Atmosphere layer 1
+sphere {
+  center   = 3.5 -0.22 0.0
+  radius   = 2.83
+  material = mat_atmo_inner
+}
+
+# Atmosphere layer 2
+sphere {
+  center   = 3.5 -0.22 0.0
+  radius   = 2.87
+  material = mat_atmo_outer
+}

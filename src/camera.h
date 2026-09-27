@@ -12,6 +12,7 @@
  */
 
 #include "vec3.h"
+#include "flare.h"
 
 typedef struct {
     Vec3 position;   /* eye */
@@ -34,10 +35,21 @@ typedef struct {
      */
     double aperture;       /* lens radius, world units (0 = pinhole)        */
     double focus_distance; /* eye -> focal plane distance (default |at-from|)*/
+    double dome_radius;    /* dome port radius for over/under waterline split (0 = pinhole) */
+
+    /*
+     * --- anamorphic optics & lens flare ------------------------------
+     * `anamorphic_squeeze` scales the aperture sampling horizontally to produce
+     * characteristic vertical oval bokeh (default 1.0 = circular). E.g. 2.0
+     * corresponds to classic 2x cinema anamorphic squeeze.
+     */
+    double anamorphic_squeeze;
+    FlareParams flare;     /* anamorphic horizontal streak lens flare params */
 } Camera;
 
 /* Camera DOF defaults. `aperture == 0` is an ideal pinhole. */
 #define CAMERA_DEFAULT_APERTURE 0.0
+#define CAMERA_DEFAULT_ANAMORPHIC_SQUEEZE 1.0
 
 /* Sentinel for "derive focus_distance from the look-at distance |at - from|".
  * A Camera built by camera_create() stores the resolved distance, never this

@@ -238,8 +238,8 @@ Examples:
 # Same preview written as a binary PPM (P6) instead of BMP
 ./raytracer --width 320 --height 180 --samples 4 --out preview.ppm
 
-# Render a described scene (see Scene files below)
-./raytracer --scene scenes/example_sunset.scene --out output/sunset.bmp
+# Render a described showcase scene (see Scene files below)
+./raytracer --scene scenes/ashenvale_forest.scene --width 1280 --height 720 --samples 16 --out output/ashenvale.bmp
 
 # Dump the built-in default scene description and exit
 ./raytracer --write-scene scenes/default.scene
@@ -251,22 +251,22 @@ Examples:
 RAYTRACER_THREADS=8 ./raytracer --width 1920 --height 1080 --samples 64
 
 # Adaptive sampling is ON by default; tune it, or disable it with --no-adaptive
-./raytracer --scene scenes/example_adaptive.scene --samples 8 \
-    --adaptive-tau 0.02 --adaptive-max 32 --out output/adaptive.bmp
-./raytracer --scene scenes/example_adaptive.scene --samples 8 --no-adaptive \
-    --out output/adaptive_off.bmp
+./raytracer --scene scenes/nordic_trees.scene --samples 16 \
+    --adaptive-tau 0.02 --adaptive-max 32 --out output/nordic_trees.bmp
+./raytracer --scene scenes/nordic_trees.scene --samples 16 --no-adaptive \
+    --out output/nordic_trees_fixed.bmp
 
-# Glossy reflections and emissive area lights are driven by the scene's materials
-./raytracer --scene scenes/example_glossy.scene --out output/glossy.bmp
-./raytracer --scene scenes/example_emitters.scene --out output/emitters.bmp
+# Complex architectural & lighting showcases
+./raytracer --scene scenes/cathedral_cavern.scene --out output/cathedral_cavern.bmp
+./raytracer --scene scenes/olympus_temple.scene --out output/olympus.bmp
 
-# Unbiased path tracing (global illumination) is the default; 256 paths/pixel, 6 bounces
-./raytracer --scene scenes/example_pathtrace.scene --samples 256 \
-    --depth 6 --out output/pathtrace.bmp
+# Unbiased path tracing (global illumination) with depth of field and water
+./raytracer --scene scenes/nordic_fjord.scene --samples 32 \
+    --depth 6 --out output/nordic_fjord.bmp
 
 # Path tracing also honours RAYTRACER_THREADS in the threaded build
-RAYTRACER_THREADS=8 ./raytracer --scene scenes/example_pathtrace.scene \
-    --samples 512 --depth 8 --out output/pathtrace_hq.bmp
+RAYTRACER_THREADS=8 ./raytracer --scene scenes/celestial_orrery.scene \
+    --samples 64 --depth 6 --out output/orrery_hq.bmp
 ```
 
 Rendering progress is written to **stderr** only (so stdout is never polluted). A
@@ -493,71 +493,26 @@ bush {
 Save it to a file and render it with, for example,
 `./raytracer --scene my.scene --width 320 --height 180 --samples 4 --out out.bmp`.
 
-### `scenes/` examples
+### `scenes/` showcase gallery
 
-- **`scenes/default.scene`** — the built-in default scene (the outdoor scene with six
-  trees, two bushes, the ground plane and the pond box), written in the same format.
-  Its body is exactly what `--write-scene` emits, so rendering it is byte-identical to
-  rendering with no `--scene` at all. Render it with
-  `./raytracer --scene scenes/default.scene`.
-- **`scenes/example_sunset.scene`** — a small, hand-written, heavily commented scene
-  demonstrating customisation: a warm sunset sky (low, red-shifted sun; orange horizon;
-  deep blue zenith), two custom materials (`sand`, `stone`) plus a custom green pond
-  material, and a ground plane, pond box, two spheres and one small tree. Render it with
-  `./raytracer --scene scenes/example_sunset.scene --out output/sunset.bmp`.
-- **`scenes/example_checkerboard.scene`** — showcases the procedural **textures**: a
-  checkerboard floor (`texture = checker`), a striped sphere (`texture = stripes`) and one
-  plain untextured cube for contrast, under a clear day sky. Render it with
-  `./raytracer --scene scenes/example_checkerboard.scene --width 320 --height 180 --samples 8 --out output/checkerboard.bmp`.
-- **`scenes/example_softshadow.scene`** — showcases **soft shadows** (`sky.sun_radius = 6`)
-  and **depth of field** (`camera.aperture = 0.35`, `focus_distance = 24`): three spheres
-  and a tree at different eye distances sit at the focal plane or out of focus; the near
-  sphere and the tree float above the sand so their cast shadows show a visible penumbra,
-  while the focal-plane sphere sits on the ground. Render it with
-  `./raytracer --scene scenes/example_softshadow.scene --width 320 --height 180 --samples 16 --out output/softshadow.bmp`.
-- **`scenes/example_customtree.scene`** — demonstrates the **file-controllable tree/bush
-  generator** parameters: three plants (a tall sparse tree, a short bushy tree, a compact
-  bush) each set their own `max_depth`, `taper`, `spread_deg`, `third_child_chance`,
-  `leaf_min`, … to grow visibly different silhouettes. Render it with
-  `./raytracer --scene scenes/example_customtree.scene --width 320 --height 180 --samples 8 --out output/customtree.bmp`.
-- **`scenes/example_glass.scene`** — demonstrates the **general refraction / glass**
-  material support: a clear `type = glass` refracting lens, a `beer_lambert = 1` tinted
-  glass with per-channel depth absorption, and a custom high-`ior` (`2.4`) diamond-like
-  lens. Render it with
-  `./raytracer --scene scenes/example_glass.scene --width 320 --height 180 --samples 8 --out output/glass.bmp`.
-- **`scenes/example_materials.scene`** — demonstrates the **opt-in PBR metallic/roughness
-  layer** driven directly by the four `material` keys (`pbr`, `metallic`, `roughness`,
-  `emissive`): a row of gold conductors whose `roughness` ramps `0.05 → 0.9`, two coloured
-  dielectrics, and a floating warm-white emitter, over a checkerboard floor. Render it with
-  `./raytracer --scene scenes/example_materials.scene --width 320 --height 180 --samples 8 --out output/materials.bmp`.
-- **`scenes/example_presets.scene`** — showcases the fifteen named `type = <name>`
-  **material presets** (the seven conductors, the four dielectrics, `diamond` and
-  `emissive`), including a preset-plus-override (`type = gold` with `roughness = 0.30`) and
-  a stronger lamp (`emissive = 4.0 3.4 2.6`). Render it with
-  `./raytracer --scene scenes/example_presets.scene --width 320 --height 180 --samples 8 --out output/presets.bmp`.
-- **`scenes/example_glossy.scene`** — showcases **roughness-blurred (glossy) metal
-  reflections**: a roughness ramp across gold, chrome and copper conductors (all with
-  `reflectivity = 0.8`) blurs the recursive environment reflection from a near-mirror to a
-  broad satin sheen, using only the existing `pbr`/`roughness`/`reflectivity` keys. Render
-  it with
-  `./raytracer --scene scenes/example_glossy.scene --out output/glossy.bmp`.
-- **`scenes/example_emitters.scene`** — showcases **emissive PBR primitives as area
-  lights**: a warm amber lamp and a cool blue lamp light a deliberately dim dusk scene,
-  brightening the grey spheres beneath them and colour-bleeding across the floor, driven
-  by the existing `pbr`/`emissive` keys. Render it with
-  `./raytracer --scene scenes/example_emitters.scene --out output/emitters.bmp`.
-- **`scenes/example_adaptive.scene`** — a high-contrast scene (21 overlapping spheres,
-  thin needles/blades, hard shadows and strong depth of field) built to showcase
-  **adaptive sampling** (ON by default; opt out with `--no-adaptive`): flat floor/sky
-  regions keep the base sample count while noisy,
-  high-contrast detail is refined. Render it with
-  `./raytracer --scene scenes/example_adaptive.scene --samples 8 --out output/adaptive.bmp`.
-- **`scenes/example_pathtrace.scene`** — showcases the **unbiased path tracer /
-  global illumination** (ON by default; opt out with `--no-pathtrace`): an indoor-style
-  scene where diffuse
-  inter-reflection and coloured bounce light from the emissive lamps are visible only in
-  path-trace mode. Render it with
-  `./raytracer --scene scenes/example_pathtrace.scene --samples 256 --depth 6 --out output/pathtrace.bmp`.
+The `scenes/` directory contains a curated collection of feature-rich, atmospheric scenes showcasing the full capabilities of MarmelTrace:
+
+- **`scenes/ashenvale_forest.scene`** — **"Ashenvale Forest Sanctuary"**: An enchanted morning forest featuring an ancient colossal World Tree, classical elven marble ruins, procedural 3D folded polygonal diamond foliage (`foliage = leaves`), Nordic spruces (`spruce`), and sharp volumetric Mie god-rays cutting across rolling moss mounds. Render with:
+  `./raytracer --scene scenes/ashenvale_forest.scene --width 1280 --height 720 --samples 16 --depth 4 --out output/ashenvale_forest.bmp`
+- **`scenes/nordic_fjord.scene`** — **"Nordic Fjord Sanctuary at Dawn"**: A tranquil Scandinavian fjord at misty sunrise with a rustic timber pier, floating warm paper lanterns casting soft reflections on rippling water, mossy granite boulders, and fiery autumn birch trees. Render with:
+  `./raytracer --scene scenes/nordic_fjord.scene --width 1280 --height 720 --samples 32 --depth 6 --out output/nordic_fjord.bmp`
+- **`scenes/nordic_trees.scene`** — **"Nordic Forest & Woodland Shoreline"**: Procedural Nordic spruces with tiered drooping branch whorls and needle fronds alongside deciduous birch trees with 3D folded polygonal diamond leaves along a rocky shoreline. Render with:
+  `./raytracer --scene scenes/nordic_trees.scene --width 1280 --height 720 --samples 16 --depth 4 --out output/nordic_trees.bmp`
+- **`scenes/cathedral_cavern.scene`** — **"The Sunken Vault of the Ancients"**: A monumental subterranean cathedral submerged in a calm reflecting pool. Showcases volumetric Mie god-rays piercing through a ceiling oculus, analytical CSG carved architecture (Roman archways, cross-bored obsidian astrolabe with gold interior, biconvex sapphire optical lens with Beer-Lambert refraction), warm glowing bronze braziers with soft penumbral shadows, and radiant emissive area lights. Render with:
+  `./raytracer --scene scenes/cathedral_cavern.scene --width 1280 --height 720 --samples 16 --depth 4 --out output/cathedral_cavern.bmp`
+- **`scenes/olympus_temple.scene`** — **"The Sunken Sanctuary of Helios"**: A classical Hellenistic marble colonnade submerged in an emerald reflecting pool at golden sunset, with a floating golden solar relic, noble PBR metals, and Mediterranean cypress trees. Render with:
+  `./raytracer --scene scenes/olympus_temple.scene --width 1280 --height 720 --samples 32 --depth 6 --out output/olympus_temple.bmp`
+- **`scenes/celestial_orrery.scene`** — **"The Grand Astronomical Orrery"**: A clockwork planetary orrery in polished brass, gold, and gemstone planets (sapphire Earth, ruby Mars) hovering above a checkered observatory floor with optical depth of field. Render with:
+  `./raytracer --scene scenes/celestial_orrery.scene --width 1280 --height 720 --samples 32 --depth 6 --out output/celestial_orrery.bmp`
+- **`scenes/space_earthrise.scene`** — **"Apollo 8 Earthrise"**: A photorealistic recreation of Apollo 8 orbiting the Moon, featuring textured regolith, highland crater topography, and Earth rising over the lunar horizon against deep space. Render with:
+  `./raytracer --scene scenes/space_earthrise.scene --width 1280 --height 720 --samples 16 --depth 4 --out output/space_earthrise.bmp`
+- **`scenes/default.scene`** — The canonical MarmelTrace reference scene (the outdoor scene with six trees, two bushes, ground plane and water pond box). Render with:
+  `./raytracer --scene scenes/default.scene --out output/default.bmp`
 
 ### Embedded default & fallback
 

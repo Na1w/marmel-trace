@@ -25,6 +25,7 @@
 #include "material.h"
 #include "vec3.h"
 #include "scene_desc.h"
+#include "bmp.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -421,6 +422,201 @@ static void test_bad_texture_kind(void)
 }
 
 /* ------------------------------------------------------------------ */
+/* Test 8: planet textures & bump normal                               */
+/* ------------------------------------------------------------------ */
+
+static void test_planet_textures_and_bump(void)
+{
+    Material m_earth = make_material(TEXTURE_PLANET_EARTH, 10.0,
+                                     vec3(1, 1, 1), vec3(0, 0, 0));
+    Material m_moon  = make_material(TEXTURE_PLANET_MOON, 10.0,
+                                     vec3(1, 1, 1), vec3(0, 0, 0));
+    Material m_noise = make_material(TEXTURE_NOISE, 5.0,
+                                     vec3(1, 0, 0), vec3(0, 0, 1));
+
+    Vec3 p1 = vec3(2.5, 4.0, 1.0);
+    Vec3 p2 = vec3(-3.0, 0.5, 5.5);
+
+    Vec3 e1 = texture_albedo(&m_earth, p1);
+    Vec3 e2 = texture_albedo(&m_earth, p2);
+    CHECK(e1.x > 0.0 && e1.z > 0.0, "earth texture produces non-zero color");
+    CHECK(!vec3_eq(e1, e2), "earth texture varies across space");
+
+    Vec3 m1 = texture_albedo(&m_moon, p1);
+    Vec3 m2 = texture_albedo(&m_moon, p2);
+    CHECK(m1.x > 0.0 && m1.y > 0.0, "moon texture produces non-zero color");
+    CHECK(!vec3_eq(m1, m2), "moon texture varies across space");
+
+    Vec3 n1 = texture_albedo(&m_noise, p1);
+    CHECK(n1.x >= 0.0 && n1.z >= 0.0, "noise texture produces valid color");
+
+    /* Determinism */
+    Vec3 e1_again = texture_albedo(&m_earth, p1);
+    CHECK(vec3_eq(e1, e1_again), "earth texture is deterministic");
+
+    /* Bump normal */
+    Vec3 n = vec3(0.0, 1.0, 0.0);
+    Material m_flat = m_moon;
+    m_flat.bump_strength = 0.0;
+    Vec3 n_flat = texture_normal(&m_flat, p1, n);
+    CHECK(vec3_eq(n_flat, n), "zero bump strength leaves normal unchanged");
+
+    Material m_bumpy = m_moon;
+    m_bumpy.bump_strength = 0.5;
+    m_bumpy.bump_scale = 1.0;
+    Vec3 n_bumpy = texture_normal(&m_bumpy, p1, n);
+    CHECK(!vec3_eq(n_bumpy, n), "bump mapping perturbs normal");
+    double len = vec3_length(n_bumpy);
+    CHECK(fabs(len - 1.0) < 1e-6, "perturbed normal is unit length");
+}
+
+static void test_planet_parser_roundtrip(void)
+{
+    const char *src =
+        "material earth_mat {\n"
+        "    albedo = 1.0 1.0 1.0\n"
+        "    texture = earth\n"
+        "    texture_scale = 63.7\n"
+        "    bump_strength = 0.4\n"
+        "    bump_scale = 2.0\n"
+        "    atmosphere_glow = 0.2 0.5 0.9\n"
+        "}\n";
+
+    SceneDesc d;
+    char errbuf[256];
+    scene_desc_init(&d);
+    CHECK(scene_desc_load_string(&d, src, "<test>", errbuf, sizeof errbuf) == 0,
+          "planet material parses successfully");
+    CHECK(d.material_count == 1, "one material loaded");
+    const Material *m = &d.materials[0].mat;
+    CHECK(m->texture_kind == TEXTURE_PLANET_EARTH, "texture_kind is earth");
+    CHECK(fabs(m->texture_scale - 63.7) < 1e-6, "texture_scale preserved");
+    CHECK(fabs(m->bump_strength - 0.4) < 1e-6, "bump_strength preserved");
+    CHECK(fabs(m->bump_scale - 2.0) < 1e-6, "bump_scale preserved");
+    CHECK(fabs(m->atmosphere_glow.x - 0.2) < 1e-6, "atmosphere_glow.x preserved");
+    CHECK(fabs(m->atmosphere_glow.y - 0.5) < 1e-6, "atmosphere_glow.y preserved");
+    CHECK(fabs(m->atmosphere_glow.z - 0.9) < 1e-6, "atmosphere_glow.z preserved");
+    scene_desc_free(&d);
+}
+
+/* ------------------------------------------------------------------ */
+/* Test 9: Image texture creation, BMP loading, and bilinear sampling  */
+/* ------------------------------------------------------------------ */
+
+static void test_image_texture(void)
+{
+    /* 1. Allocate a 2x2 image texture */
+    ImageTexture *tex = texture_image_create(2, 2);
+    CHECK(tex != NULL, "texture_image_create succeeds");
+    CHECK(tex->width == 2 && tex->height == 2, "dimensions are 2x2");
+    CHECK(tex->rgb != NULL, "rgb buffer allocated");
+
+    /* (x=0, y=0) top-left = Red */
+    tex->rgb[0] = 255; tex->rgb[1] = 0; tex->rgb[2] = 0;
+    /* (x=1, y=0) top-right = Green */
+    tex->rgb[3] = 0; tex->rgb[4] = 255; tex->rgb[5] = 0;
+    /* (x=0, y=1) bottom-left = Blue */
+    tex->rgb[6] = 0; tex->rgb[7] = 0; tex->rgb[8] = 255;
+    /* (x=1, y=1) bottom-right = White */
+    tex->rgb[9] = 255; tex->rgb[10] = 255; tex->rgb[11] = 255;
+
+    /* Write to temp file and reload via texture_image_load_bmp */
+    const char *path = "/tmp/rt_test_tex_image.bmp";
+    CHECK(bmp_write(path, tex->rgb, 2, 2) == 0, "bmp_write texture temp file");
+
+    ImageTexture *loaded = texture_image_load_bmp(path);
+    CHECK(loaded != NULL, "texture_image_load_bmp succeeds");
+    CHECK(loaded->width == 2 && loaded->height == 2, "loaded dimensions match");
+
+    /* In standard UV:
+     * (u=0.25, v=0.75) is the center of the top-left pixel (x=0, y=0) -> Red */
+    Vec3 c_tl = texture_image_sample(loaded, 0.25, 0.75);
+    CHECK(c_tl.x > 0.9 && c_tl.y < 0.1 && c_tl.z < 0.1, "top-left pixel is red");
+
+    /* (u=0.75, v=0.75) is top-right (x=1, y=0) -> Green */
+    Vec3 c_tr = texture_image_sample(loaded, 0.75, 0.75);
+    CHECK(c_tr.x < 0.1 && c_tr.y > 0.9 && c_tr.z < 0.1, "top-right pixel is green");
+
+    /* (u=0.25, v=0.25) is bottom-left (x=0, y=1) -> Blue */
+    Vec3 c_bl = texture_image_sample(loaded, 0.25, 0.25);
+    CHECK(c_bl.x < 0.1 && c_bl.y < 0.1 && c_bl.z > 0.9, "bottom-left pixel is blue");
+
+    /* (u=0.75, v=0.25) is bottom-right (x=1, y=1) -> White */
+    Vec3 c_br = texture_image_sample(loaded, 0.75, 0.25);
+    CHECK(c_br.x > 0.9 && c_br.y > 0.9 && c_br.z > 0.9, "bottom-right pixel is white");
+
+    /* Center (u=0.5, v=0.5) is bilinear average of all 4 corners */
+    Vec3 c_mid = texture_image_sample(loaded, 0.5, 0.5);
+    CHECK(c_mid.x > 0.2 && c_mid.x < 0.8, "center bilinear blend x");
+    CHECK(c_mid.y > 0.2 && c_mid.y < 0.8, "center bilinear blend y");
+    CHECK(c_mid.z > 0.2 && c_mid.z < 0.8, "center bilinear blend z");
+
+    /* Test material with TEXTURE_IMAGE */
+    Material mat;
+    memset(&mat, 0, sizeof(mat));
+    mat.albedo = vec3(1.0, 1.0, 1.0);
+    mat.texture_kind = TEXTURE_IMAGE;
+    mat.texture_scale = 1.0;
+    mat.texture_image = loaded;
+
+    Vec3 m_col = texture_albedo_uv(&mat, vec3(0, 0, 0), 0.25, 0.75);
+    CHECK(m_col.x > 0.9 && m_col.y < 0.1 && m_col.z < 0.1, "texture_albedo_uv with image texture");
+
+    /* Test TEXTURE_UV_CHECKER */
+    Material uv_chk;
+    memset(&uv_chk, 0, sizeof(uv_chk));
+    uv_chk.albedo = vec3(1.0, 1.0, 1.0);
+    uv_chk.texture_kind = TEXTURE_UV_CHECKER;
+    uv_chk.texture_scale = 2.0; /* 2x2 checkerboard across [0,1] */
+    uv_chk.texture_color_a = vec3(1.0, 0.0, 0.0);
+    uv_chk.texture_color_b = vec3(0.0, 1.0, 0.0);
+
+    Vec3 chk_even = texture_albedo_uv(&uv_chk, vec3(0, 0, 0), 0.25, 0.25); /* cell (0,0) -> even -> B */
+    Vec3 chk_odd  = texture_albedo_uv(&uv_chk, vec3(0, 0, 0), 0.75, 0.25); /* cell (1,0) -> odd -> A */
+    CHECK(vec3_eq(chk_even, vec3(0.0, 1.0, 0.0)), "uv_checker cell (0,0) is color B");
+    CHECK(vec3_eq(chk_odd,  vec3(1.0, 0.0, 0.0)), "uv_checker cell (1,0) is color A");
+
+    texture_image_free(tex);
+    texture_image_free(loaded);
+    remove(path);
+}
+
+/* ------------------------------------------------------------------ */
+/* Test 9: Primitive UV coordinates                                   */
+/* ------------------------------------------------------------------ */
+
+static void test_primitive_uvs(void)
+{
+    /* Sphere UV */
+    Primitive sph = prim_sphere(vec3(0, 0, 0), 1.0, 0);
+    Ray r_sph = { vec3(0, 0, -3), vec3(0, 0, 1) };
+    Hit h_sph;
+    CHECK(primitive_intersect(&sph, r_sph, 1e-4, 1e30, &h_sph) == 1, "sphere hit");
+    CHECK(h_sph.u >= 0.0 && h_sph.u <= 1.0, "sphere u in [0, 1]");
+    CHECK(h_sph.v >= 0.0 && h_sph.v <= 1.0, "sphere v in [0, 1]");
+
+    /* Box UV */
+    Primitive bx = prim_box(vec3(0, 0, 0), vec3(1, 1, 1), 0);
+    Ray r_bx = { vec3(0, 0, -3), vec3(0, 0, 1) };
+    Hit h_bx;
+    CHECK(primitive_intersect(&bx, r_bx, 1e-4, 1e30, &h_bx) == 1, "box hit");
+    CHECK(h_bx.u >= 0.0 && h_bx.u <= 1.0, "box u in [0, 1]");
+    CHECK(h_bx.v >= 0.0 && h_bx.v <= 1.0, "box v in [0, 1]");
+
+    /* Triangle with explicit UVs */
+    Primitive tri = prim_triangle_uv(
+        vec3(-1, -1, 0), vec3(1, -1, 0), vec3(0, 1, 0),
+        vec3(0.0, 0.0, 0.0), vec3(1.0, 0.0, 0.0), vec3(0.5, 1.0, 0.0),
+        0
+    );
+    Ray r_tri = { vec3(0, -0.3333, -2), vec3(0, 0, 1) };
+    Hit h_tri;
+    CHECK(primitive_intersect(&tri, r_tri, 1e-4, 1e30, &h_tri) == 1, "triangle hit");
+    CHECK(h_tri.u >= 0.0 && h_tri.u <= 1.0, "triangle u in [0, 1]");
+    CHECK(h_tri.v >= 0.0 && h_tri.v <= 1.0, "triangle v in [0, 1]");
+}
+
+/* ------------------------------------------------------------------ */
 
 int main(void)
 {
@@ -431,7 +627,12 @@ int main(void)
     test_null_safety();
     test_parser_roundtrip();
     test_bad_texture_kind();
+    test_planet_textures_and_bump();
+    test_planet_parser_roundtrip();
+    test_image_texture();
+    test_primitive_uvs();
 
     printf("test_texture: %d passed, %d failed\n", g_pass, g_fail);
     return (g_fail == 0) ? 0 : 1;
 }
+

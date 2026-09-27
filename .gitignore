@@ -1,1 +1,12 @@
 .marmel
+raytracer
+bin/
+*.o
+*.d
+src/*.o
+src/*.d
+tests/*.o
+tests/*.d
+output/*.bmp
+!output/scene.bmp
+scratch/
