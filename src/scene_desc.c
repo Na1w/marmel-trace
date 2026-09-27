@@ -448,7 +448,14 @@ enum {
     /* Depth-of-field keys (§4.1). */
     CAM_APERTURE       = 1u << 4,
     CAM_FOCUS_DISTANCE = 1u << 5,
-    CAM_DOME_RADIUS    = 1u << 6
+    CAM_DOME_RADIUS    = 1u << 6,
+    /* Anamorphic and lens flare keys */
+    CAM_ANAMORPHIC_SQUEEZE = 1u << 7,
+    CAM_LENS_FLARE         = 1u << 8,
+    CAM_FLARE_INTENSITY    = 1u << 9,
+    CAM_FLARE_THRESHOLD    = 1u << 10,
+    CAM_FLARE_LENGTH       = 1u << 11,
+    CAM_FLARE_TINT         = 1u << 12
 };
 
 enum {
@@ -513,7 +520,25 @@ static const KeySpec CAM_KEYS[] = {
     { "dome_radius",    KT_DOUBLE, CAM_DOME_RADIUS,
       offsetof(CameraDesc, dome_radius) },
     { "dome_port",      KT_DOUBLE, CAM_DOME_RADIUS,
-      offsetof(CameraDesc, dome_radius) }
+      offsetof(CameraDesc, dome_radius) },
+    { "anamorphic_squeeze", KT_DOUBLE, CAM_ANAMORPHIC_SQUEEZE,
+      offsetof(CameraDesc, anamorphic_squeeze) },
+    { "squeeze",            KT_DOUBLE, CAM_ANAMORPHIC_SQUEEZE,
+      offsetof(CameraDesc, anamorphic_squeeze) },
+    { "lens_flare",         KT_INT,    CAM_LENS_FLARE,
+      offsetof(CameraDesc, flare.enabled) },
+    { "flare",              KT_INT,    CAM_LENS_FLARE,
+      offsetof(CameraDesc, flare.enabled) },
+    { "flare_intensity",    KT_DOUBLE, CAM_FLARE_INTENSITY,
+      offsetof(CameraDesc, flare.intensity) },
+    { "flare_threshold",    KT_DOUBLE, CAM_FLARE_THRESHOLD,
+      offsetof(CameraDesc, flare.threshold) },
+    { "flare_length",       KT_DOUBLE, CAM_FLARE_LENGTH,
+      offsetof(CameraDesc, flare.streak_length) },
+    { "flare_streak_length",KT_DOUBLE, CAM_FLARE_LENGTH,
+      offsetof(CameraDesc, flare.streak_length) },
+    { "flare_tint",         KT_VEC3,   CAM_FLARE_TINT,
+      offsetof(CameraDesc, flare.tint) }
 };
 
 static const KeySpec SKY_KEYS[] = {
@@ -3074,6 +3099,9 @@ static void sd_apply_defaults(SceneDesc *d)
     d->camera.aspect = 0.0; /* never in the file: host supplies width/height */
     d->camera.aperture = CAMERA_DEFAULT_APERTURE;
     d->camera.focus_distance = CAMERA_FOCUS_DISTANCE_DERIVED;
+    d->camera.dome_radius = 0.0;
+    d->camera.anamorphic_squeeze = CAMERA_DEFAULT_ANAMORPHIC_SQUEEZE;
+    flare_default_params(&d->camera.flare);
 
     sky_default_params(&d->sky);
     d->has_sky = 0;

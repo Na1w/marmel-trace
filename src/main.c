@@ -60,6 +60,10 @@ typedef struct {
     int         adaptive_max;     /* --adaptive-max N (0 = default 4*samples) */
     double      adaptive_tau;     /* --adaptive-tau T (0 = default 0.02) */
     int         no_progress;      /* --no-progress (also RAYTRACER_NO_PROGRESS) */
+    double      anamorphic_squeeze; /* --squeeze N (default: from scene or 1.0) */
+    int         lens_flare;       /* --lens-flare / --no-lens-flare (-1 = unset) */
+    double      flare_intensity;  /* --flare-intensity N */
+    double      flare_threshold;  /* --flare-threshold N */
 } Options;
 
 static void usage(FILE *f, const char *prog)
@@ -93,6 +97,13 @@ static void usage(FILE *f, const char *prog)
         "                 max samples per pixel in adaptive mode (default 4*N)\n"
         "  --adaptive-tau T\n"
         "                 relative-error tolerance in adaptive mode (default 0.02)\n"
+        "  --squeeze N    anamorphic lens squeeze factor (default 1.0; 2.0 = 2x oval bokeh)\n"
+        "  --lens-flare / --no-lens-flare\n"
+        "                 enable/disable horizontal anamorphic streak lens flare\n"
+        "  --flare-intensity N\n"
+        "                 flare streak intensity multiplier (default 0.6)\n"
+        "  --flare-threshold N\n"
+        "                 minimum luminance threshold for flare (0..1, default 0.85)\n"
         "  --no-progress  silence the stderr render progress meter\n"
         "                 (same as setting RAYTRACER_NO_PROGRESS)\n"
         "  --help, -h     print this usage and exit\n"
@@ -155,6 +166,10 @@ static int parse_args(int argc, char **argv, Options *opt)
     opt->adaptive_max = 0;
     opt->adaptive_tau = 0.0;
     opt->no_progress  = 0;
+    opt->anamorphic_squeeze = 0.0;
+    opt->lens_flare   = -1;
+    opt->flare_intensity = 0.0;
+    opt->flare_threshold = 0.0;
 
     for (i = 1; i < argc; ++i) {
         const char *arg = argv[i];
@@ -260,6 +275,26 @@ static int parse_args(int argc, char **argv, Options *opt)
             continue;
         }
 
+        if (strcmp(name, "--lens-flare") == 0) {
+            if (eq != NULL) {
+                fprintf(stderr, "error: option '--lens-flare' takes no value\n\n");
+                usage(stderr, argv[0]);
+                return -1;
+            }
+            opt->lens_flare = 1;
+            continue;
+        }
+
+        if (strcmp(name, "--no-lens-flare") == 0) {
+            if (eq != NULL) {
+                fprintf(stderr, "error: option '--no-lens-flare' takes no value\n\n");
+                usage(stderr, argv[0]);
+                return -1;
+            }
+            opt->lens_flare = 0;
+            continue;
+        }
+
         {
             const char *val = NULL;
             long        num = 0;
@@ -273,6 +308,10 @@ static int parse_args(int argc, char **argv, Options *opt)
                 strcmp(name, "--scene") == 0 ||
                 strcmp(name, "--adaptive-max") == 0 ||
                 strcmp(name, "--adaptive-tau") == 0 ||
+                strcmp(name, "--squeeze") == 0 ||
+                strcmp(name, "--anamorphic") == 0 ||
+                strcmp(name, "--flare-intensity") == 0 ||
+                strcmp(name, "--flare-threshold") == 0 ||
                 strcmp(name, "--write-scene") == 0) {
                 if (take_value(eq, argc, argv, &i, &val) != 0) {
                     fprintf(stderr, "error: option '%s' requires a value\n\n", name);
@@ -283,6 +322,54 @@ static int parse_args(int argc, char **argv, Options *opt)
                 fprintf(stderr, "error: unknown option '%s'\n\n", arg);
                 usage(stderr, argv[0]);
                 return -1;
+            }
+
+            if (strcmp(name, "--squeeze") == 0 || strcmp(name, "--anamorphic") == 0) {
+                char *end = NULL;
+                double sq;
+                errno = 0;
+                sq = strtod(val, &end);
+                if (errno != 0 || end == val || *end != '\0' || !(sq > 0.0)) {
+                    fprintf(stderr,
+                            "error: %s expects a positive number, got '%s'\n\n",
+                            name, val);
+                    usage(stderr, argv[0]);
+                    return -1;
+                }
+                opt->anamorphic_squeeze = sq;
+                continue;
+            }
+
+            if (strcmp(name, "--flare-intensity") == 0) {
+                char *end = NULL;
+                double fi;
+                errno = 0;
+                fi = strtod(val, &end);
+                if (errno != 0 || end == val || *end != '\0' || !(fi >= 0.0)) {
+                    fprintf(stderr,
+                            "error: --flare-intensity expects a non-negative number, got '%s'\n\n",
+                            val);
+                    usage(stderr, argv[0]);
+                    return -1;
+                }
+                opt->flare_intensity = fi;
+                continue;
+            }
+
+            if (strcmp(name, "--flare-threshold") == 0) {
+                char *end = NULL;
+                double ft;
+                errno = 0;
+                ft = strtod(val, &end);
+                if (errno != 0 || end == val || *end != '\0' || !(ft >= 0.0 && ft <= 1.0)) {
+                    fprintf(stderr,
+                            "error: --flare-threshold expects a number between 0 and 1, got '%s'\n\n",
+                            val);
+                    usage(stderr, argv[0]);
+                    return -1;
+                }
+                opt->flare_threshold = ft;
+                continue;
             }
 
             if (strcmp(name, "--out") == 0) {
@@ -566,6 +653,20 @@ int main(int argc, char **argv)
         cam.focus_distance = desc.camera.focus_distance;
     if (desc.camera.dome_radius > 0.0)
         cam.dome_radius = desc.camera.dome_radius;
+    if (desc.camera.anamorphic_squeeze > 0.0)
+        cam.anamorphic_squeeze = desc.camera.anamorphic_squeeze;
+    cam.flare = desc.camera.flare;
+
+    /* CLI overrides */
+    if (opt.anamorphic_squeeze > 0.0)
+        cam.anamorphic_squeeze = opt.anamorphic_squeeze;
+    if (opt.lens_flare >= 0)
+        cam.flare.enabled = opt.lens_flare;
+    if (opt.flare_intensity > 0.0)
+        cam.flare.intensity = opt.flare_intensity;
+    if (opt.flare_threshold > 0.0)
+        cam.flare.threshold = opt.flare_threshold;
+
     scene_desc_free(&desc);
 
     /* 4. Allocate the pixel buffer (overflow-guarded). */
@@ -615,6 +716,11 @@ int main(int argc, char **argv)
         return 1;
     }
 
+    /* 5b. Post-processing: anamorphic lens flare */
+    if (cam.flare.enabled) {
+        flare_apply(rgb, opt.width, opt.height, &cam.flare);
+    }
+
     /* 6. Create the output directory, then write the image. Select the
      * format from the --out extension: ".ppm" (case-insensitive) -> PPM (P6),
      * anything else -> BMP. */
@@ -644,6 +750,11 @@ int main(int argc, char **argv)
            scene.geo.count, scene.material_count);
     printf("Render: %dx%d, %d spp, depth %d, seed %u\n",
            opt.width, opt.height, opt.samples, opt.depth, opt.seed);
+    if (cam.anamorphic_squeeze > 1.0)
+        printf("Anamorphic: squeeze %.2fx (oval bokeh)\n", cam.anamorphic_squeeze);
+    if (cam.flare.enabled)
+        printf("Post-process: anamorphic flare (intensity %.2f, threshold %.2f, streak %.2f)\n",
+               cam.flare.intensity, cam.flare.threshold, cam.flare.streak_length);
     if (opt.pathtrace)
         printf("Mode: path tracer (global illumination, depth %d)\n", opt.depth);
     else

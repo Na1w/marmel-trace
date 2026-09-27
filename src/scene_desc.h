@@ -82,6 +82,8 @@ typedef struct {
     double aperture;  /* lens radius for depth of field (0 = pinhole)  */
     double focus_distance; /* eye -> focal plane; 0 = |target - eye|   */
     double dome_radius;    /* dome port radius for over/under waterline split (0 = pinhole) */
+    double anamorphic_squeeze; /* anamorphic bokeh squeeze (default 1.0) */
+    FlareParams flare;         /* anamorphic horizontal streak lens flare */
 } CameraDesc;
 
 /* ------------------------------------------------------------------ */

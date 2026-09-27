@@ -630,7 +630,7 @@ static void pt_fog_segment(const Scene *scene, Ray r, double dist,
     double max_t;
     if (is_sky) {
         double top_y = (lambda > 1e-4) ? (fog->height + 3.0 / lambda) : 25.0;
-        if (r.origin.y >= top_y) {
+        if (r.origin.y >= top_y && r.dir.y >= 0.0) {
             *transmittance = 1.0;
             *inscatter = vec3(0.0, 0.0, 0.0);
             return;
@@ -699,8 +699,8 @@ static void pt_fog_segment(const Scene *scene, Ray r, double dist,
             atten = vec3_mul(atten, cloud_trans);
         }
 
-        /* Ambient haze is modest indirect light; direct sunbeam illuminates through the medium */
-        Vec3 ambient_col = vec3_scale(fog->color, 0.08);
+        /* Ambient haze from the medium; direct sunbeam illuminates through the medium */
+        Vec3 ambient_col = fog->color;
         Vec3 step_inscatter_col = ambient_col;
         if (!in_shadow) {
             step_inscatter_col = vec3_add(step_inscatter_col, vec3_mul(sun_glow_unit, atten));
@@ -712,8 +712,8 @@ static void pt_fog_segment(const Scene *scene, Ray r, double dist,
         if (T_acc < 1e-4) break;
     }
 
-    if (!is_sky && dist > max_t) {
-        double rem_dist = dist - max_t;
+    if (dist > max_t) {
+        double rem_dist = is_sky ? 1e30 : (dist - max_t);
         Ray rem_ray;
         rem_ray.origin = vec3_add(r.origin, vec3_scale(r.dir, max_t));
         rem_ray.dir = r.dir;

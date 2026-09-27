@@ -494,6 +494,16 @@ static void emit_camera(Writer *w, const SceneDesc *d)
         w_key_double(w, "focus_distance", d->camera.focus_distance);
     if (d->camera.dome_radius > 1e-6)
         w_key_double(w, "dome_radius", d->camera.dome_radius);
+    if (d->camera.anamorphic_squeeze > 0.0 &&
+        fabs(d->camera.anamorphic_squeeze - CAMERA_DEFAULT_ANAMORPHIC_SQUEEZE) > 1e-4)
+        w_key_double(w, "anamorphic_squeeze", d->camera.anamorphic_squeeze);
+    if (d->camera.flare.enabled) {
+        w_key_int(w, "lens_flare", d->camera.flare.enabled);
+        w_key_double(w, "flare_intensity", d->camera.flare.intensity);
+        w_key_double(w, "flare_threshold", d->camera.flare.threshold);
+        w_key_double(w, "flare_streak_length", d->camera.flare.streak_length);
+        w_key_vec3(w, "flare_tint", d->camera.flare.tint);
+    }
     w_close(w);
 }
 

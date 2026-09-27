@@ -1,0 +1,312 @@
+# scenes/cyberpunk_anamorphic.scene
+#
+# "Neo-Tokyo Rainy Boulevard"
+#
+# A cinematic night scene demonstrating true anamorphic optical simulation:
+#   * Anamorphic Squeeze (2.0x): Out-of-focus background lights form iconic tall vertical oval bokeh.
+#   * Horizontal Streak Lens Flare: Intense neon lights and headlights produce brilliant sci-fi cyan streaks.
+#   * Wet asphalt & water puddles with sharp specular PBR reflections.
+#   * Foreground metallic chrome & glass artifact in razor-sharp focus.
+#
+# Render with:
+#   ./raytracer --scene scenes/cyberpunk_anamorphic.scene --width 1280 --height 540 \
+#               --samples 16 --depth 5 --out output/anamorphic_preview.bmp
+
+water_enabled = 1
+water_level = 0.015
+water_material = puddle_water
+
+camera {
+    eye = 0.0 1.8 7.5
+    target = 0.0 1.2 0.0
+    up = 0 1 0
+    vfov = 34.0
+    aperture = 0.065
+    focus_distance = 7.7
+    anamorphic_squeeze = 2.0
+    lens_flare = 1
+    flare_intensity = 0.5
+    flare_threshold = 0.85
+    flare_streak_length = 0.4
+    flare_tint = 0.15 0.5 1.0
+}
+
+sky {
+    sun_dir = 0.2 -0.8 -0.5
+    sun_color = 0.0 0.0 0.0
+    horizon_color = 0.04 0.03 0.07
+    zenith_color = 0.01 0.01 0.02
+    gradient_gamma = 0.8
+    sun_glow_exponent = 10.0
+    sun_glow_strength = 0.0
+    cloud_coverage = 0.0
+    seed = 2077
+}
+
+fog {
+    density = 0.015
+    color = 0.02 0.025 0.05
+    height = 10.0
+}
+
+# -----------------------------------------------------------------------------
+# Materials
+# -----------------------------------------------------------------------------
+
+material asphalt {
+    albedo = 0.12 0.12 0.14
+    specular = 0.25 0.25 0.25
+    shininess = 60
+    roughness = 0.35
+    metallic = 0.1
+    pbr = 1
+    texture = checker
+    texture_scale = 1.0
+    texture_color_a = 0.1 0.1 0.12
+    texture_color_b = 0.14 0.14 0.16
+}
+
+material puddle_water {
+    albedo = 0.02 0.03 0.04
+    specular = 0.9 0.9 0.9
+    shininess = 120
+    roughness = 0.02
+    reflectivity = 0.9
+    transparency = 0.1
+    ior = 1.333
+    is_water = 1
+    absorption = 0.1 0.05 0.02
+    deep_color = 0.01 0.02 0.03
+}
+
+material chrome {
+    albedo = 0.95 0.96 0.98
+    roughness = 0.05
+    metallic = 0.98
+    pbr = 1
+}
+
+material gold {
+    albedo = 1.0 0.82 0.35
+    roughness = 0.12
+    metallic = 0.95
+    pbr = 1
+}
+
+material sapphire_glass {
+    albedo = 0.2 0.35 0.8
+    roughness = 0.02
+    transparency = 0.95
+    reflectivity = 0.15
+    ior = 1.52
+    pbr = 1
+}
+
+material wet_curb {
+    albedo = 0.22 0.22 0.24
+    roughness = 0.2
+    metallic = 0.2
+    pbr = 1
+}
+
+# Emissive light sources:
+material xenon_headlight {
+    albedo = 1.0 1.0 1.0
+    emissive = 12.0 13.0 15.0
+    pbr = 1
+}
+
+material neon_cyan {
+    albedo = 0.1 0.8 1.0
+    emissive = 4.0 8.0 12.0
+    pbr = 1
+}
+
+material neon_magenta {
+    albedo = 1.0 0.1 0.7
+    emissive = 10.0 1.5 7.0
+    pbr = 1
+}
+
+material neon_amber {
+    albedo = 1.0 0.6 0.1
+    emissive = 8.0 4.5 1.0
+    pbr = 1
+}
+
+material neon_green {
+    albedo = 0.1 1.0 0.4
+    emissive = 2.0 9.0 3.5
+    pbr = 1
+}
+
+# -----------------------------------------------------------------------------
+# Environment & Geometry
+# -----------------------------------------------------------------------------
+
+# Wet street floor
+plane {
+    point = 0 0 0
+    normal = 0 1 0
+    material = asphalt
+}
+
+# Curbs and sidewalks
+box {
+    center = -4.1 0.075 -10.0
+    half = 0.9 0.075 20.0
+    material = wet_curb
+}
+
+box {
+    center = 4.1 0.075 -10.0
+    half = 0.9 0.075 20.0
+    material = wet_curb
+}
+
+# -----------------------------------------------------------------------------
+# Foreground in-focus centerpiece (z ~ 0.0, target is at 0 1.2 0)
+# -----------------------------------------------------------------------------
+
+# Polished chrome plinth
+box {
+    center = 0.0 0.2 0.0
+    half = 0.9 0.2 0.9
+    material = chrome
+}
+
+# Gold ring collar
+cylinder {
+    base = 0 0.4 0
+    top = 0 0.55 0
+    r_bottom = 0.75
+    r_top = 0.75
+    material = gold
+}
+
+# Center jewel: sapphire glass sphere sharply in focus
+sphere {
+    center = 0.0 1.2 0.0
+    radius = 0.65
+    material = sapphire_glass
+}
+
+# Inner floating gold core
+sphere {
+    center = 0.0 1.2 0.0
+    radius = 0.28
+    material = gold
+}
+
+# Flanking decorative chrome spheres in near focus
+sphere {
+    center = -1.5 0.5 0.3
+    radius = 0.35
+    material = chrome
+}
+
+sphere {
+    center = 1.5 0.5 -0.2
+    radius = 0.35
+    material = chrome
+}
+
+# -----------------------------------------------------------------------------
+# Background Light Sources (produce vertical oval bokeh + anamorphic streak flares)
+# -----------------------------------------------------------------------------
+
+# Distant vehicle headlights (xenon headlights trigger intense horizontal flares)
+sphere {
+    center = -0.85 0.75 -12.0
+    radius = 0.22
+    material = xenon_headlight
+}
+
+sphere {
+    center = 0.85 0.75 -12.0
+    radius = 0.22
+    material = xenon_headlight
+}
+
+# Another set of headlights further back
+sphere {
+    center = -1.2 0.7 -22.0
+    radius = 0.2
+    material = xenon_headlight
+}
+
+sphere {
+    center = -0.1 0.7 -22.0
+    radius = 0.2
+    material = xenon_headlight
+}
+
+# Neon street signs and overhead lanterns (defocused into vertical ovals)
+# Left side neon signs
+sphere {
+    center = -3.8 3.2 -7.0
+    radius = 0.45
+    material = neon_cyan
+}
+
+sphere {
+    center = -4.0 4.8 -10.0
+    radius = 0.55
+    material = neon_magenta
+}
+
+sphere {
+    center = -3.6 2.5 -15.0
+    radius = 0.4
+    material = neon_amber
+}
+
+sphere {
+    center = -3.9 5.5 -18.0
+    radius = 0.6
+    material = neon_cyan
+}
+
+# Right side neon signs
+sphere {
+    center = 3.8 3.6 -6.5
+    radius = 0.45
+    material = neon_magenta
+}
+
+sphere {
+    center = 4.1 4.9 -11.0
+    radius = 0.5
+    material = neon_cyan
+}
+
+sphere {
+    center = 3.7 2.6 -16.0
+    radius = 0.42
+    material = neon_green
+}
+
+sphere {
+    center = 4.0 5.8 -20.0
+    radius = 0.65
+    material = neon_amber
+}
+
+# Overhead suspended street lanterns
+sphere {
+    center = -1.5 4.5 -8.0
+    radius = 0.25
+    material = neon_amber
+}
+
+sphere {
+    center = 1.5 4.5 -8.0
+    radius = 0.25
+    material = neon_amber
+}
+
+sphere {
+    center = 0.0 5.2 -14.0
+    radius = 0.3
+    material = neon_cyan
+}
